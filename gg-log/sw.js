@@ -1,7 +1,7 @@
-// Offline support for the installable Mise app (version 3a31eb8543).
+// Offline support for the installable GG Log app (version eae4e5a3ca).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-3a31eb8543';
-const FONT_CACHE = 'mise-fonts';
+const CACHE = 'gglog-eae4e5a3ca';
+const FONT_CACHE = 'gglog-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', (event) => {

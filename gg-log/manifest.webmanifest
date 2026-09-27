@@ -1,14 +1,14 @@
 {
-  "name": "Mise",
-  "short_name": "Mise",
-  "description": "Photo notes, methods, pantry stock and a running shopping list.",
+  "name": "GG Log",
+  "short_name": "GG Log",
+  "description": "Your Apex, Fortnite and Roblox stats, match by match.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#E4E7EA",
-  "theme_color": "#E4E7EA",
+  "background_color": "#0F141F",
+  "theme_color": "#0F141F",
   "icons": [
     {
       "src": "icons/icon-192.png",

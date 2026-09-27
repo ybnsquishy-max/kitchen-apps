@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Your Apex, Fortnite and Roblox stats, match by match.">
+<meta name="theme-color" content="#0F141F" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F141F" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GG Log">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>GG Log</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* One deliberate look: a dark game HUD, the same in light and dark mode. */
+:root{
+  color-scheme:dark;
+  --bg:#0F141F;
+  --panel:#161D2B;
+  --panel-2:#1C2536;
+  --line:#28334A;
+  --ink:#E8EDF6;
+  --ink-soft:#97A3B8;
+  --ink-mute:#6B778D;
+  --apex:#E0553A;
+  --fortnite:#9272F0;
+  --roblox:#1FA99C;
+  --game:var(--apex);
+  --win:#F2C14E;
+  --danger:#F07A6A;
+}
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Barlow',system-ui,sans-serif;
+  font-size:15px;
+}
+body[data-game="fortnite"]{--game:var(--fortnite);}
+body[data-game="roblox"]{--game:var(--roblox);}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:18px 96px;}
+button,input,select{font:inherit;color:inherit;}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--game);outline-offset:2px;}
+
+header{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+header .logo{width:52px;height:52px;flex:none;border-radius:13px;box-shadow:0 4px 18px rgba(146,114,240,0.35);}
+h1{margin:0;font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;font-size:1.75rem;letter-spacing:0.02em;line-height:1;}
+header p{margin:3px 0 0;color:var(--ink-soft);font-size:0.85rem;}
+
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:16px;}
+.tabs button{
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:10px 6px;cursor:pointer;color:var(--ink-soft);
+  font-family:'Chakra Petch',system-ui,sans-serif;font-weight:600;font-size:0.95rem;letter-spacing:0.04em;text-transform:uppercase;
+}
+.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--game);box-shadow:inset 0 -3px 0 var(--game);}
+
+.example{
+  display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;
+  border:1px dashed var(--line);border-radius:6px;padding:9px 12px;margin-bottom:14px;
+  color:var(--ink-soft);font-size:0.85rem;
+}
+.example strong{color:var(--ink);font-weight:600;}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+@media (max-width:560px){.tiles{grid-template-columns:repeat(2,1fr);}}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;}
+.tile .label{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-soft);}
+.tile .value{font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;font-size:1.6rem;line-height:1.2;font-variant-numeric:tabular-nums;}
+.tile .sub{font-size:0.75rem;color:var(--ink-mute);}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:14px;}
+.panel-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:6px;}
+h2{margin:0;font-family:'Chakra Petch',system-ui,sans-serif;font-weight:600;font-size:1rem;letter-spacing:0.04em;text-transform:uppercase;}
+.legend{display:flex;gap:12px;font-size:0.78rem;color:var(--ink-soft);}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+.swatch{width:10px;height:10px;border-radius:2px;display:inline-block;}
+.chart{position:relative;}
+.chart svg{display:block;width:100%;height:190px;overflow:visible;}
+.chart .axis{fill:var(--ink-mute);font-size:11px;font-family:'Barlow',system-ui,sans-serif;}
+.tip{
+  position:absolute;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:5px;padding:6px 9px;font-size:0.8rem;white-space:nowrap;transform:translate(-50%,-100%);
+}
+.tip b{font-weight:600;}
+.chart-empty{color:var(--ink-mute);font-size:0.85rem;padding:30px 0;text-align:center;}
+
+details.log summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+details.log summary::-webkit-details-marker{display:none;}
+details.log summary::after{content:'+';font-family:'Chakra Petch',system-ui,sans-serif;font-size:1.2rem;color:var(--game);}
+details.log[open] summary::after{content:'–';}
+form{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px;}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-soft);}
+label.f input,label.f select{
+  background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px 9px;
+  font-size:0.95rem;text-transform:none;letter-spacing:0;min-width:0;width:100%;
+}
+.form-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.btn{
+  background:var(--game);border:none;border-radius:5px;color:#0F141F;cursor:pointer;
+  padding:10px 18px;font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;
+}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--ink);font-weight:600;padding:8px 12px;font-size:0.85rem;}
+.hint{font-size:0.8rem;color:var(--ink-mute);}
+
+.matches{list-style:none;margin:0;padding:0;}
+.matches li{
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:4px 12px;align-items:center;
+  padding:9px 0;border-top:1px solid var(--line);font-size:0.9rem;
+}
+.matches li:first-child{border-top:none;}
+.place{
+  min-width:48px;text-align:center;border:1px solid var(--line);border-radius:4px;padding:3px 6px;
+  font-family:'Chakra Petch',system-ui,sans-serif;font-weight:600;font-variant-numeric:tabular-nums;
+}
+.place.win{border-color:var(--win);color:var(--win);}
+.m-main{min-width:0;}
+.m-main .what{font-weight:600;overflow-wrap:anywhere;}
+.m-main .when{font-size:0.78rem;color:var(--ink-mute);}
+.m-nums{font-variant-numeric:tabular-nums;color:var(--ink-soft);font-size:0.85rem;text-align:right;}
+.m-nums b{color:var(--ink);font-weight:600;}
+.del{background:none;border:none;color:var(--ink-mute);cursor:pointer;font-size:1rem;padding:4px;}
+.more{margin-top:8px;}
+
+.account{position:relative;overflow:hidden;background:linear-gradient(135deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px;}
+.account::before{content:'';position:absolute;inset:0 auto 0 0;width:4px;background:var(--game);}
+.acct-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;}
+.acct-id{flex:1 1 180px;min-width:0;}
+.acct-id .k{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-soft);}
+.acct-id .v{font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;font-size:1.25rem;overflow-wrap:anywhere;}
+.acct-id .v .ok{color:var(--win);font-size:0.95rem;margin-left:6px;}
+.acct-links{display:flex;flex-wrap:wrap;gap:8px;width:100%;}
+.acct-links a{color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:0.85rem;text-decoration:none;}
+.acct-links a:hover{border-color:var(--game);}
+.acct-links a::after{content:' ↗';color:var(--ink-mute);}
+.acct-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.acct-form .hint{grid-column:1/-1;margin:0;}
+.btn.ghost.danger{color:var(--danger);}
+.link-btn{background:none;border:none;color:var(--game);cursor:pointer;font-weight:600;padding:0;font-size:0.85rem;}
+.tile{border-top:2px solid var(--game);}
+.cur-calc{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;margin:6px 0 12px;}
+.cur-calc label{flex:0 1 170px;}
+.cur-out{display:flex;flex-direction:column;}
+#curOutValue{font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums;}
+.table-wrap{overflow-x:auto;}
+table.packs{width:100%;border-collapse:collapse;font-size:0.9rem;font-variant-numeric:tabular-nums;}
+table.packs th{text-align:left;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-soft);font-weight:500;padding:6px 8px 6px 0;border-bottom:1px solid var(--line);}
+table.packs td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);}
+table.packs tr:last-child td{border-bottom:none;}
+table.packs td:first-child{font-weight:600;}
+table.packs input{width:90px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 6px;}
+.best{display:inline-block;margin-left:6px;font-size:0.7rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#0F141F;background:var(--win);border-radius:3px;padding:1px 5px;}
+.foot{font-size:0.8rem;color:var(--ink-mute);line-height:1.5;margin-top:22px;}
+.foot .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;}
+#restoreInput,#shotInput{display:none;}
+.profile{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-bottom:14px;}
+.profile input,.profile select{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 9px;min-width:0;}
+.profile input{flex:1 1 160px;}
+.profile .links{display:flex;flex-wrap:wrap;gap:8px;width:100%;}
+.profile a{color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:0.85rem;text-decoration:none;}
+.profile a:hover{border-color:var(--game);}
+.profile a::after{content:' ↗';color:var(--ink-mute);}
+.shot{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:12px;padding:10px 12px;border:1px dashed var(--line);border-radius:6px;font-size:0.85rem;color:var(--ink-soft);}
+
+.toast{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 16px calc(14px + env(safe-area-inset-bottom,0px));pointer-events:none;z-index:5;}
+.toast div{display:flex;gap:14px;align-items:center;max-width:688px;width:100%;background:var(--ink);color:var(--bg);border-radius:6px;padding:10px 14px;font-size:0.88rem;pointer-events:auto;}
+.toast span{flex:1;}
+.toast button{background:none;border:none;color:var(--bg);font-weight:600;text-decoration:underline;cursor:pointer;padding:0;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <svg viewBox="0 0 512 512" aria-hidden="true" class="logo">
+  <defs>
+    <linearGradient id="hBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#222D47"/>
+      <stop offset="1" stop-color="#0A0E17"/>
+    </linearGradient>
+    <radialGradient id="hGlow" cx="50%" cy="62%" r="42%">
+      <stop offset="0" stop-color="#9272F0" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#9272F0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#hBg)"/>
+  <rect width="512" height="512" fill="url(#hGlow)"/>
+  <!-- HUD brackets -->
+  <path d="M118 176V118h58M394 176V118h-58M118 336v58h58M394 336v58h-58" stroke="#E8EDF6" stroke-width="22" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Rising bars: Apex, Fortnite, Roblox -->
+  <path d="M168 360V288q0-12 12-12h32q12 0 12 12v72z" fill="#E0553A"/>
+  <path d="M232 360V238q0-12 12-12h32q12 0 12 12v122z" fill="#9272F0"/>
+  <path d="M296 360V204q0-12 12-12h32q12 0 12 12v156z" fill="#1FA99C"/>
+  <rect x="160" y="360" width="200" height="12" rx="6" fill="#E8EDF6" opacity="0.9"/>
+  <!-- Victory spark -->
+  <path d="M324 118l9 27 27 9-27 9-9 27-9-27-27-9 27-9z" fill="#F2C14E"/>
+</svg>
+    <div>
+      <h1>GG Log</h1>
+      <p>Your Apex, Fortnite and Roblox stats, match by match</p>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-apex" data-game="apex" aria-selected="true">Apex</button>
+    <button role="tab" id="tab-fortnite" data-game="fortnite" aria-selected="false">Fortnite</button>
+    <button role="tab" id="tab-roblox" data-game="roblox" aria-selected="false">Roblox</button>
+  </div>
+
+  <div class="example" id="exampleNote" hidden>
+    <span><strong>These are example matches.</strong> Log your first one and they'll disappear.</span>
+  </div>
+
+  <section class="account" id="account">
+    <div class="acct-row" id="acctView"></div>
+    <form class="acct-form" id="acctForm" hidden>
+      <label class="f">Username<input id="p-name" maxlength="40" required></label>
+      <label class="f" id="p-platform-wrap">Platform<select id="p-platform"></select></label>
+      <div class="form-actions">
+        <button class="btn" type="submit">Link account</button>
+        <button class="btn ghost" type="button" id="acctCancel">Cancel</button>
+        <button class="btn ghost danger" type="button" id="acctUnlink" hidden>Unlink</button>
+      </div>
+      <p class="hint">GG Log saves your username on this device and links you to your stats on the big stats sites. It never asks for your password.</p>
+    </form>
+  </section>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2 id="chartTitle">Kills per match</h2>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <section class="panel currency">
+    <div class="panel-head">
+      <h2 id="curTitle">V-Bucks prices</h2>
+      <button class="link-btn" id="curEdit" type="button">Edit prices</button>
+    </div>
+    <div class="cur-calc">
+      <label class="f">Amount<input id="curAmount" type="number" min="0" inputmode="numeric" placeholder="1000"></label>
+      <div class="cur-out"><span id="curOutValue">–</span><span class="hint" id="curOutNote"></span></div>
+    </div>
+    <div class="table-wrap"><table class="packs" id="curTable"></table></div>
+    <p class="hint" id="curNote"></p>
+  </section>
+
+  <section class="panel">
+    <details class="log" id="logBox" open>
+      <summary><h2 id="logTitle">Log a match</h2></summary>
+      <div class="shot" id="shotBox" hidden>
+        <span id="shotText">Fill this in from a screenshot of your match results.</span>
+        <button class="btn ghost" id="shotBtn" type="button">Scan screenshot</button>
+        <input type="file" id="shotInput" accept="image/*">
+      </div>
+      <form id="logForm" autocomplete="off"></form>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2 id="listTitle">Recent matches</h2></div>
+    <ul class="matches" id="matchList"></ul>
+    <button class="btn ghost more" id="moreBtn" hidden>Show more</button>
+  </section>
+
+  <div class="foot">
+    <p>You log your own stats here. Everything stays in this browser. Save a backup to keep a copy or move it to another device. Restoring only adds matches that are missing.</p>
+    <div class="row">
+      <button class="btn ghost" id="backupBtn">Save backup</button>
+      <button class="btn ghost" id="restoreBtn">Restore backup</button>
+      <input type="file" id="restoreInput" accept=".json,application/json">
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden><div role="status"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div></div>
+
+<script>
+const LS = 'gglog_v1';
+const GAMES = {
+  apex: {
+    name: 'Apex', unit: 'match', maxPlace: 20, topCut: 5,
+    modes: ['Trios', 'Duos', 'Ranked', 'Mixtape'],
+    fields: [
+      { key: 'mode', label: 'Mode', type: 'select' },
+      { key: 'legend', label: 'Legend', type: 'text', placeholder: 'e.g. Wraith' },
+      { key: 'place', label: 'Placement', type: 'number', min: 1, max: 20, placeholder: '1–20', required: true },
+      { key: 'kills', label: 'Kills', type: 'number', min: 0, placeholder: '0', required: true },
+      { key: 'assists', label: 'Assists', type: 'number', min: 0, placeholder: '0' },
+      { key: 'damage', label: 'Damage', type: 'number', min: 0, placeholder: '0' },
+    ],
+  },
+  fortnite: {
+    name: 'Fortnite', unit: 'match', maxPlace: 100, topCut: 10,
+    modes: ['Solo', 'Duos', 'Squads', 'Zero Build', 'Ranked'],
+    fields: [
+      { key: 'mode', label: 'Mode', type: 'select' },
+      { key: 'place', label: 'Placement', type: 'number', min: 1, max: 100, placeholder: '1–100', required: true },
+      { key: 'kills', label: 'Eliminations', type: 'number', min: 0, placeholder: '0', required: true },
+      { key: 'assists', label: 'Assists', type: 'number', min: 0, placeholder: '0' },
+      { key: 'damage', label: 'Damage', type: 'number', min: 0, placeholder: '0' },
+    ],
+  },
+  roblox: {
+    name: 'Roblox', unit: 'session',
+    fields: [
+      { key: 'experience', label: 'Experience', type: 'text', placeholder: 'e.g. Blox Fruits', required: true, list: true },
+      { key: 'minutes', label: 'Minutes played', type: 'number', min: 1, placeholder: '45', required: true },
+      { key: 'wins', label: 'Wins', type: 'number', min: 0, placeholder: '0' },
+      { key: 'robux', label: 'Robux spent', type: 'number', min: 0, placeholder: '0' },
+    ],
+  },
+};
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function todayIso(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function num(v){ const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; }
+function fmt(n, d = 0){ return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }); }
+function shortDate(iso){ const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); }
+
+function load(){
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(LS)); } catch (e) {}
+  const out = { apex: [], fortnite: [], roblox: [] };
+  if (d && typeof d === 'object') for (const g of Object.keys(out)) if (Array.isArray(d[g])) out[g] = d[g].filter(m => m && m.id);
+  return out;
+}
+function save(){
+  try { localStorage.setItem(LS, JSON.stringify(data)); return true; }
+  catch (e) { showToast("Couldn't save. This browser's storage is full or blocked."); return false; }
+}
+let data = load();
+let game = 'apex';
+try { const g = localStorage.getItem('gglog_tab'); if (GAMES[g]) game = g; } catch (e) {}
+let listLimit = 10;
+
+// Example matches, shown only while a game has no real entries. Never saved.
+function examples(g){
+  let seed = g.length * 7;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const out = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - Math.floor(i * 1.5));
+    const date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (g === 'roblox') {
+      const exp = ['Blox Fruits', 'Arsenal', 'Doors', 'Tower Defense Simulator'][Math.floor(rnd() * 4)];
+      out.push({ id: 'ex' + i, date, experience: exp, minutes: 20 + Math.round(rnd() * 90), wins: Math.round(rnd() * 4), robux: rnd() > 0.8 ? 100 : 0 });
+    } else {
+      const max = GAMES[g].maxPlace;
+      const place = (i % 5 === 2 || rnd() > 0.9) ? 1 : 1 + Math.floor(rnd() * max);
+      const kills = Math.round(rnd() * (place <= 3 ? 9 : 5));
+      out.push({ id: 'ex' + i, date, mode: GAMES[g].modes[Math.floor(rnd() * 3)], legend: g === 'apex' ? ['Wraith', 'Bangalore', 'Pathfinder'][Math.floor(rnd() * 3)] : undefined, place, kills, assists: Math.round(rnd() * 4), damage: kills * 180 + Math.round(rnd() * 400) });
+    }
+  }
+  return out;
+}
+function entries(g){ return data[g].length ? data[g] : examples(g); }
+function sorted(list){ return list.slice().sort((a, b) => (a.date === b.date ? (a.t || 0) - (b.t || 0) : a.date < b.date ? -1 : 1)); }
+
+// ---- Stats ----
+function stats(g, list){
+  if (g === 'roblox') {
+    const mins = list.reduce((s, m) => s + num(m.minutes), 0);
+    const byExp = {};
+    list.forEach(m => { const k = (m.experience || '').trim() || 'Unnamed'; byExp[k] = (byExp[k] || 0) + num(m.minutes); });
+    const fav = Object.entries(byExp).sort((a, b) => b[1] - a[1])[0];
+    return [
+      { label: 'Sessions', value: fmt(list.length) },
+      { label: 'Hours played', value: fmt(mins / 60, 1), sub: fav ? 'Most: ' + fav[0] : '' },
+      { label: 'Wins', value: fmt(list.reduce((s, m) => s + num(m.wins), 0)) },
+      { label: 'Robux spent', value: fmt(list.reduce((s, m) => s + num(m.robux), 0)), sub: '≈ ' + money(list.reduce((s, m) => s + num(m.robux), 0) * bestRate('roblox')) },
+    ];
+  }
+  const n = list.length;
+  const wins = list.filter(m => num(m.place) === 1).length;
+  const kills = list.reduce((s, m) => s + num(m.kills), 0);
+  const dmg = list.filter(m => m.damage !== '' && m.damage != null);
+  const deaths = n - wins; // every match you didn't win ended in elimination
+  const top = list.filter(m => num(m.place) >= 1 && num(m.place) <= GAMES[g].topCut).length;
+  const best = list.reduce((b, m) => Math.max(b, num(m.kills)), 0);
+  return [
+    { label: 'Matches', value: fmt(n), sub: fmt(wins) + ' win' + (wins === 1 ? '' : 's') },
+    { label: 'Win rate', value: n ? fmt(wins / n * 100, 1) + '%' : '–', sub: 'Top ' + GAMES[g].topCut + ': ' + (n ? fmt(top / n * 100, 0) + '%' : '–') },
+    { label: g === 'apex' ? 'K/D' : 'Elims / death', value: n ? fmt(kills / Math.max(1, deaths), 2) : '–', sub: 'Best: ' + best },
+    { label: 'Avg damage', value: dmg.length ? fmt(dmg.reduce((s, m) => s + num(m.damage), 0) / dmg.length) : '–', sub: 'per match' },
+  ];
+}
+
+// ---- Rendering ----
+const $ = id => document.getElementById(id);
+
+function render(){
+  document.body.dataset.game = game;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.game === game)));
+  const isExample = !data[game].length;
+  $('exampleNote').hidden = !isExample;
+  const list = sorted(entries(game));
+  $('tiles').innerHTML = stats(game, list).map(t => `<div class="tile"><div class="label">${esc(t.label)}</div><div class="value">${esc(t.value)}</div><div class="sub">${esc(t.sub || '')}&nbsp;</div></div>`).join('');
+  renderChart(list);
+  renderList(list, isExample);
+}
+
+function renderChart(list){
+  const g = game, isRoblox = g === 'roblox';
+  $('chartTitle').textContent = isRoblox ? 'Minutes per session' : (g === 'apex' ? 'Kills' : 'Eliminations') + ' per match';
+  $('legend').innerHTML = isRoblox ? '' :
+    '<span><i class="swatch" style="background:var(--win)"></i>Win</span><span><i class="swatch" style="background:var(--game)"></i>Other matches</span>';
+  const chart = $('chart');
+  const recent = list.slice(-20);
+  if (!recent.length) { chart.innerHTML = '<div class="chart-empty">Nothing logged yet.</div>'; return; }
+  const W = Math.max(280, chart.clientWidth || 600), H = 190, L = 30, T = 16, B = 22;
+  const val = m => num(isRoblox ? m.minutes : m.kills);
+  const maxRaw = Math.max(1, ...recent.map(val));
+  const step = [1, 2, 5, 10, 20, 30, 60, 120].find(s => maxRaw / s <= 4) || Math.ceil(maxRaw / 4);
+  const max = Math.ceil(maxRaw / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / max);
+  const slot = (W - L) / recent.length;
+  const bw = Math.max(4, Math.min(28, slot - 2));
+  let svg = '';
+  for (let v = 0; v <= max; v += step) {
+    svg += `<line x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
+    svg += `<text class="axis" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  recent.forEach((m, i) => {
+    const v = val(m), x = L + i * slot + (slot - bw) / 2, top = y(v), base = y(0);
+    const win = !isRoblox && num(m.place) === 1;
+    const fill = win ? 'var(--win)' : 'var(--game)';
+    const r = Math.min(4, bw / 2, base - top);
+    if (v > 0) svg += `<path d="M${x} ${base}V${top + r}Q${x} ${top} ${x + r} ${top}H${x + bw - r}Q${x + bw} ${top} ${x + bw} ${top + r}V${base}Z" fill="${fill}"/>`;
+    else svg += `<rect x="${x}" y="${base - 2}" width="${bw}" height="2" fill="${fill}"/>`;
+    svg += `<rect class="hit" data-i="${i}" x="${L + i * slot}" y="${T}" width="${slot}" height="${H - T}" fill="transparent"/>`;
+  });
+  svg += `<text class="axis" x="${L}" y="${H - 4}">${shortDate(recent[0].date)}</text><text class="axis" x="${W}" y="${H - 4}" text-anchor="end">${shortDate(recent[recent.length - 1].date)}</text>`;
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc($('chartTitle').textContent)} for the last ${recent.length} entries">${svg}</svg><div class="tip" hidden></div>`;
+  const tip = chart.querySelector('.tip');
+  const show = (el) => {
+    const m = recent[Number(el.dataset.i)];
+    tip.innerHTML = isRoblox
+      ? `<b>${esc(m.experience || 'Session')}</b> · ${num(m.minutes)} min<br>${shortDate(m.date)}`
+      : `<b>${num(m.kills)} ${g === 'apex' ? 'kills' : 'elims'}</b> · #${num(m.place)}${num(m.place) === 1 ? ' WIN' : ''}<br>${esc(m.mode || '')} · ${shortDate(m.date)}`;
+    const box = el.getBoundingClientRect(), cb = chart.getBoundingClientRect();
+    const cx = Math.min(Math.max(box.left - cb.left + box.width / 2, 60), cb.width - 60);
+    tip.style.left = cx + 'px'; tip.style.top = (y(val(m)) * cb.height / H - 6) + 'px';
+    tip.hidden = false;
+  };
+  chart.querySelectorAll('.hit').forEach(el => {
+    el.addEventListener('pointerenter', () => show(el));
+    el.addEventListener('pointerdown', () => show(el));
+  });
+  chart.querySelector('svg').addEventListener('pointerleave', () => { tip.hidden = true; });
+}
+
+function renderList(list, isExample){
+  const g = game, isRoblox = g === 'roblox';
+  $('listTitle').textContent = isRoblox ? 'Recent sessions' : 'Recent matches';
+  const rows = list.slice().reverse();
+  $('matchList').innerHTML = rows.slice(0, listLimit).map(m => {
+    const left = isRoblox
+      ? `<span class="place">${num(m.minutes)}m</span>`
+      : `<span class="place ${num(m.place) === 1 ? 'win' : ''}">${num(m.place) === 1 ? 'WIN' : '#' + num(m.place)}</span>`;
+    const what = isRoblox ? esc(m.experience || 'Session') : esc([m.mode, m.legend].filter(Boolean).join(' · ') || GAMES[g].name);
+    const nums = isRoblox
+      ? `${m.wins ? `<b>${num(m.wins)}</b> wins ` : ''}${m.robux ? `<b>${num(m.robux)}</b> R$` : ''}`
+      : `<b>${num(m.kills)}</b> ${g === 'apex' ? 'K' : 'E'}${m.assists ? ` · ${num(m.assists)} A` : ''}${m.damage ? `<br>${fmt(num(m.damage))} dmg` : ''}`;
+    return `<li>${left}<div class="m-main"><div class="what">${what}</div><div class="when">${shortDate(m.date)}</div></div><div class="m-nums">${nums}</div>${isExample ? '<span></span>' : `<button class="del" data-id="${esc(m.id)}" aria-label="Delete this entry">✕</button>`}</li>`;
+  }).join('');
+  $('moreBtn').hidden = rows.length <= listLimit;
+  $('matchList').querySelectorAll('.del').forEach(b => b.onclick = () => removeEntry(b.dataset.id));
+}
+
+// ---- Log form ----
+function buildForm(){
+  const g = game, cfg = GAMES[g];
+  $('logTitle').textContent = g === 'roblox' ? 'Log a session' : 'Log a match';
+  const last = data[g][data[g].length - 1] || {};
+  const exps = [...new Set(data.roblox.map(m => (m.experience || '').trim()).filter(Boolean))];
+  let html = `<label class="f">Date<input type="date" id="f-date" value="${todayIso()}" required></label>`;
+  cfg.fields.forEach(f => {
+    const id = 'f-' + f.key;
+    if (f.type === 'select') {
+      html += `<label class="f">${f.label}<select id="${id}">${cfg.modes.map(o => `<option${o === last.mode ? ' selected' : ''}>${o}</option>`).join('')}</select></label>`;
+    } else {
+      const keep = (f.key === 'legend' || f.key === 'experience') && last[f.key] ? ` value="${esc(last[f.key])}"` : '';
+      html += `<label class="f">${f.label}<input id="${id}" type="${f.type === 'number' ? 'number' : 'text'}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} placeholder="${esc(f.placeholder || '')}" ${f.required ? 'required' : ''} ${f.list ? 'list="expList"' : ''}${keep}></label>`;
+    }
+  });
+  html += `<datalist id="expList">${exps.map(e => `<option value="${esc(e)}">`).join('')}</datalist>`;
+  html += `<div class="form-actions"><button class="btn" type="submit">Save ${g === 'roblox' ? 'session' : 'match'}</button><span class="hint" id="formHint"></span></div>`;
+  $('logForm').innerHTML = html;
+}
+
+$('logForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const g = game, cfg = GAMES[g];
+  const entry = { id: uid(), t: Date.now(), date: $('f-date').value || todayIso() };
+  for (const f of cfg.fields) {
+    const v = $('f-' + f.key).value.trim();
+    if (f.type === 'number') {
+      if (v === '') { if (f.required) { $('formHint').textContent = f.label + ' is needed.'; return; } entry[f.key] = ''; continue; }
+      const n = Math.round(Number(v));
+      if (!Number.isFinite(n) || n < (f.min || 0) || (f.max && n > f.max)) { $('formHint').textContent = f.label + ' must be ' + (f.max ? 'between ' + f.min + ' and ' + f.max : 'a number') + '.'; return; }
+      entry[f.key] = n;
+    } else {
+      if (!v && f.required) { $('formHint').textContent = f.label + ' is needed.'; return; }
+      entry[f.key] = v.slice(0, 80);
+    }
+  }
+  data[g].push(entry);
+  save();
+  buildForm();
+  render();
+  showToast(g === 'roblox' ? 'Session saved.' : (entry.place === 1 ? 'Win saved. GG!' : 'Match saved.'));
+});
+
+function removeEntry(id){
+  const g = game, i = data[g].findIndex(m => m.id === id);
+  if (i < 0) return;
+  const [m] = data[g].splice(i, 1);
+  save(); render();
+  showToast('Entry deleted.', () => { data[g].splice(Math.min(i, data[g].length), 0, m); save(); render(); });
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  game = b.dataset.game; listLimit = 10;
+  try { localStorage.setItem('gglog_tab', game); } catch (e) {}
+  editingPrices = false; buildForm(); render(); renderProfile(); renderCurrency();
+  $('shotText').textContent = 'Fill this in from a screenshot of your ' + (game === 'roblox' ? 'session.' : 'match results.');
+});
+$('moreBtn').onclick = () => { listLimit += 20; render(); };
+
+
+// ---- Linked accounts: username per game, with links to the big stats sites ----
+const PROFILE_KEY = 'gglog_profiles';
+let profiles = {};
+try { profiles = JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; } catch (e) {}
+// The owner's accounts, used until they're changed or unlinked on this device.
+const DEFAULT_PROFILES = {};
+for (const g of Object.keys(DEFAULT_PROFILES)) if (profiles[g] === undefined) profiles[g] = DEFAULT_PROFILES[g];
+const PLATFORMS = {
+  apex: [['origin', 'PC (EA app / Steam)'], ['psn', 'PlayStation'], ['xbl', 'Xbox']],
+  fortnite: [],
+  roblox: [],
+};
+const ACCOUNT_NAME = { apex: 'EA / PSN / Xbox name', fortnite: 'Epic Games name', roblox: 'Roblox username' };
+function profileLinks(g, name, plat){
+  const n = encodeURIComponent(name);
+  if (g === 'fortnite') return [['Fortnite.gg', 'https://fortnite.gg/stats?player=' + n], ['Fortnite Tracker', 'https://fortnitetracker.com/profile/all/' + n]];
+  if (g === 'apex') return [['Apex Tracker', 'https://apex.tracker.gg/apex/profile/' + plat + '/' + n + '/overview'], ['Apex Legends Status', 'https://apexlegendsstatus.com/profile/search/' + n]];
+  return [['Find on Roblox', 'https://www.roblox.com/search/users?keyword=' + n]];
+}
+function renderProfile(){
+  const p = profiles[game] || {};
+  const name = (p.name || '').trim();
+  const gname = GAMES[game].name;
+  $('acctForm').hidden = true;
+  $('acctView').hidden = false;
+  if (!name) {
+    $('acctView').innerHTML = `<div class="acct-id"><div class="k">${gname} account</div><div class="v">Not linked</div></div>
+      <button class="btn" id="acctLinkBtn" type="button">Link ${gname} account</button>`;
+  } else {
+    const plat = PLATFORMS[game].find(x => x[0] === p.platform);
+    $('acctView').innerHTML = `<div class="acct-id"><div class="k">${gname} account${plat ? ' · ' + esc(plat[1]) : ''}</div><div class="v">${esc(name)}<span class="ok">✓ Linked</span></div></div>
+      <button class="btn ghost" id="acctLinkBtn" type="button">Change</button>
+      <div class="acct-links">${profileLinks(game, name, p.platform || 'origin').map(([l, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('')}</div>`;
+  }
+  $('acctLinkBtn').onclick = openAccountForm;
+}
+function openAccountForm(){
+  const p = profiles[game] || {};
+  $('p-name').value = p.name || '';
+  $('p-name').placeholder = ACCOUNT_NAME[game];
+  $('p-platform').innerHTML = PLATFORMS[game].map(([v, l]) => `<option value="${v}"${v === p.platform ? ' selected' : ''}>${l}</option>`).join('');
+  $('p-platform-wrap').hidden = !PLATFORMS[game].length;
+  $('acctUnlink').hidden = !p.name;
+  $('acctView').hidden = true;
+  $('acctForm').hidden = false;
+  $('p-name').focus();
+}
+function storeProfiles(){ try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles)); } catch (e) {} }
+$('acctForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('p-name').value.trim().slice(0, 40);
+  if (!name) return;
+  profiles[game] = { name, platform: PLATFORMS[game].length ? $('p-platform').value : '' };
+  storeProfiles(); renderProfile();
+  showToast(GAMES[game].name + ' account linked.');
+});
+$('acctCancel').onclick = renderProfile;
+$('acctUnlink').onclick = () => {
+  const g = game, prev = profiles[g];
+  profiles[g] = { name: '', platform: '' }; storeProfiles(); renderProfile();
+  showToast(GAMES[g].name + ' account unlinked.', () => { profiles[g] = prev; storeProfiles(); renderProfile(); });
+};
+
+// ---- In-game currency prices ----
+// Typical US store prices before tax. They change and differ by country and
+// platform, so viewers can edit them; edits stay on their device.
+const CURRENCY = {
+  fortnite: { name: 'V-Bucks', unit: 'V-Bucks', store: 'https://www.fortnite.com', packs: [[1000, 8.99], [2800, 22.99], [5000, 36.99], [13500, 89.99]] },
+  apex: { name: 'Apex Coins', unit: 'coins', store: 'https://www.ea.com/games/apex-legends', packs: [[1000, 9.99], [2150, 19.99], [4350, 39.99], [6700, 59.99], [11500, 99.99]] },
+  roblox: { name: 'Robux', unit: 'Robux', store: 'https://www.roblox.com/upgrades/robux', packs: [[400, 4.99], [800, 9.99], [1700, 19.99], [4500, 49.99], [10000, 99.99]] },
+};
+const PRICE_KEY = 'gglog_prices';
+let priceEdits = {};
+try { priceEdits = JSON.parse(localStorage.getItem(PRICE_KEY)) || {}; } catch (e) {}
+let editingPrices = false;
+function packsFor(g){
+  const e = priceEdits[g];
+  return Array.isArray(e) && e.length === CURRENCY[g].packs.length ? e : CURRENCY[g].packs;
+}
+function bestRate(g){ return Math.min(...packsFor(g).map(([n, usd]) => usd / n)); } // dollars per unit
+function money(v){ return '$' + v.toFixed(2); }
+
+function renderCurrency(){
+  const g = game, c = CURRENCY[g], packs = packsFor(g);
+  const perK = packs.map(([n, usd]) => usd / n * 1000);
+  const bestIdx = perK.indexOf(Math.min(...perK));
+  $('curTitle').textContent = c.name + ' prices';
+  $('curEdit').textContent = editingPrices ? 'Done' : 'Edit prices';
+  $('curAmount').placeholder = String(packs[0][0]);
+  $('curAmount').setAttribute('aria-label', 'Number of ' + c.name);
+  $('curAmount').previousSibling.textContent = c.name + ' amount';
+  $('curTable').innerHTML = `<thead><tr><th>${esc(c.name)}</th><th>Price</th><th>Per 1,000</th></tr></thead><tbody>` +
+    packs.map(([n, usd], i) => `<tr>
+      <td>${editingPrices ? `<input type="number" min="1" data-i="${i}" data-f="0" value="${n}" aria-label="Pack size">` : fmt(n)}</td>
+      <td>${editingPrices ? `<input type="number" min="0" step="0.01" data-i="${i}" data-f="1" value="${usd}" aria-label="Price in dollars">` : money(usd)}</td>
+      <td>${money(perK[i])}${i === bestIdx && !editingPrices ? '<span class="best">Best value</span>' : ''}</td></tr>`).join('') + '</tbody>';
+  $('curNote').innerHTML = (priceEdits[g] ? 'Using your edited prices. <button class="link-btn" id="curReset" type="button">Reset</button> ' : 'Typical US prices before tax. ') +
+    `Prices change and differ by country and platform. <a class="link-btn" href="${c.store}" target="_blank" rel="noopener">Check the official store ↗</a>`;
+  const reset = $('curReset');
+  if (reset) reset.onclick = () => { delete priceEdits[g]; storePrices(); renderCurrency(); render(); };
+  $('curTable').querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
+    const next = packsFor(g).map(p => p.slice());
+    const v = Number(inp.value);
+    if (!(v > 0)) { renderCurrency(); return; }
+    next[Number(inp.dataset.i)][Number(inp.dataset.f)] = inp.dataset.f === '0' ? Math.round(v) : Math.round(v * 100) / 100;
+    priceEdits[g] = next; storePrices(); renderCurrency(); render();
+  }));
+  updateCalc();
+}
+function storePrices(){ try { localStorage.setItem(PRICE_KEY, JSON.stringify(priceEdits)); } catch (e) {} }
+function updateCalc(){
+  const g = game, amt = Number($('curAmount').value);
+  if (!(amt > 0)) { $('curOutValue').textContent = '–'; $('curOutNote').textContent = 'Type an amount to see what it costs.'; return; }
+  $('curOutValue').textContent = '≈ ' + money(amt * bestRate(g));
+  const cheapest = packsFor(g).slice().sort((a, b) => a[1] - b[1]);
+  const smallestPack = cheapest.find(([n]) => n >= amt);
+  $('curOutNote').textContent = 'at the best-value rate' + (smallestPack ? ` · smallest pack that covers it: ${fmt(smallestPack[0])} for ${money(smallestPack[1])}` : '');
+}
+$('curAmount').addEventListener('input', updateCalc);
+$('curEdit').onclick = () => { editingPrices = !editingPrices; renderCurrency(); };
+
+// ---- Scan a results screenshot with Claude (runs on your own Claude plan) ----
+let sampleFn = null, canImages = false;
+if (window.claude && window.claude.use) {
+  window.claude.use('sample').then(async (s) => {
+    sampleFn = s;
+    if (s) { const lim = await s.limits().catch(() => null); canImages = !!(lim && lim.images); }
+    updateShotBox();
+  }, () => {});
+}
+function updateShotBox(){ $('shotBox').hidden = !(sampleFn && canImages); }
+$('shotBtn').onclick = () => $('shotInput').click();
+document.addEventListener('paste', (e) => {
+  if (!sampleFn || !canImages || !$('logBox').open) return;
+  const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/'));
+  if (item) scanShot(item.getAsFile());
+});
+$('shotInput').onchange = () => { const f = $('shotInput').files[0]; $('shotInput').value = ''; if (f) scanShot(f); };
+
+async function scanShot(file){
+  const g = game, cfg = GAMES[g];
+  const keys = cfg.fields.map(f => f.key);
+  const shape = {
+    apex: '{"mode": one of ' + JSON.stringify(cfg.modes || []) + ' or "", "legend": string, "place": number, "kills": number, "assists": number, "damage": number}',
+    fortnite: '{"mode": one of ' + JSON.stringify(cfg.modes || []) + ' or "", "place": number, "kills": number (eliminations), "assists": number, "damage": number (damage to players)}',
+    roblox: '{"experience": string (the game name), "minutes": number, "wins": number, "robux": number}',
+  }[g];
+  const prompt = 'This is a screenshot from ' + cfg.name + ', usually the end-of-match results or a stats screen. ' +
+    'Read the player\'s numbers for that one match. Reply with ONLY a JSON object shaped like ' + shape + '. ' +
+    'Use null for anything the screenshot does not show. Do not guess.';
+  $('shotText').textContent = 'Reading screenshot… this can take up to a minute.';
+  $('shotBtn').disabled = true;
+  try {
+    const out = await sampleFn.json(prompt, { images: [file], modelTier: 'default' });
+    let filled = 0;
+    keys.forEach(k => {
+      const v = out && out[k];
+      const el = $('f-' + k);
+      if (!el || v == null || v === '') return;
+      if (el.tagName === 'SELECT') { if ([...el.options].some(o => o.value === v)) { el.value = v; filled++; } }
+      else { el.value = typeof v === 'number' ? Math.round(v) : String(v).slice(0, 80); filled++; }
+    });
+    $('shotText').textContent = filled ? 'Filled in ' + filled + ' field' + (filled === 1 ? '' : 's') + '. Check them, then save.' : "Couldn't find match stats in that screenshot. Try the results screen.";
+  } catch (e) {
+    const c = e && e.code;
+    if (['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'images_unavailable'].includes(c)) { sampleFn = null; updateShotBox(); showToast('Screenshot scanning isn\'t available here. You can still type your stats.'); }
+    else $('shotText').textContent = c === 'rate_limited' ? "You've hit your Claude usage limit for now. Try again later." : c === 'image_rejected' ? "That image couldn't be read. Try a PNG or JPEG screenshot." : "Couldn't read that screenshot. Try again, or type the numbers.";
+  } finally {
+    $('shotBtn').disabled = false;
+  }
+}
+
+// ---- Toast ----
+let undoFn = null, toastTimer = null;
+function showToast(msg, undo){
+  $('toastMsg').textContent = msg; undoFn = undo || null; $('toastUndo').hidden = !undo; $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, undo ? 7000 : 3000);
+}
+$('toastUndo').onclick = () => { const f = undoFn; $('toast').hidden = true; undoFn = null; if (f) f(); };
+
+// ---- Backup ----
+let downloads = null;
+if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { downloads = d; }, () => {});
+$('backupBtn').onclick = async () => {
+  const filename = 'gg-log-backup-' + todayIso() + '.json';
+  const json = JSON.stringify({ app: 'gglog', version: 1, exported: new Date().toISOString(), data }, null, 2);
+  if (window.claude) {
+    if (!downloads) { showToast("Saving files isn't available in this view."); return; }
+    try { await downloads.save({ filename, data: json }); showToast('Backup saved.'); }
+    catch (e) { if (!e || e.code !== 'declined') showToast("Couldn't save the backup here."); }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  showToast('Backup saved.');
+};
+$('restoreBtn').onclick = () => $('restoreInput').click();
+$('restoreInput').onchange = async () => {
+  const file = $('restoreInput').files[0]; $('restoreInput').value = '';
+  if (!file) return;
+  let parsed = null;
+  try { parsed = JSON.parse(await file.text()); } catch (e) {}
+  if (!parsed || parsed.app !== 'gglog' || !parsed.data) { showToast("That file isn't a GG Log backup."); return; }
+  const before = JSON.stringify(data);
+  let added = 0;
+  for (const g of Object.keys(GAMES)) {
+    (Array.isArray(parsed.data[g]) ? parsed.data[g] : []).forEach(m => {
+      if (m && m.id && !data[g].some(x => x.id === m.id)) { data[g].push(m); added++; }
+    });
+  }
+  if (!added) { showToast('Everything in that backup is already here.'); return; }
+  save(); buildForm(); render();
+  showToast('Added ' + added + ' entr' + (added === 1 ? 'y' : 'ies') + ' from the backup.', () => { data = JSON.parse(before); save(); buildForm(); render(); });
+};
+
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => renderChart(sorted(entries(game))), 150); });
+
+buildForm();
+render();
+renderProfile();
+renderCurrency();
+</script>
+<script>
+(function () {
+  var KEY = 'gglog_just_updated';
+  function banner(text, action, label) {
+    var b = document.createElement('div');
+    b.setAttribute('role', 'status');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:99;background:#15171A;color:#fff;font:14px system-ui,sans-serif;padding:10px 14px;border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)';
+    b.appendChild(document.createTextNode(text));
+    if (action) { var btn = document.createElement('button'); btn.textContent = label; btn.style.cssText = 'background:none;border:0;color:#fff;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;padding:0'; btn.onclick = action; b.appendChild(btn); }
+    document.body.appendChild(b);
+    if (!action) setTimeout(function () { b.remove(); }, 3500);
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  try { if (sessionStorage.getItem(KEY)) { sessionStorage.removeItem(KEY); setTimeout(function () { banner('GG Log updated to the latest version.'); }, 300); } } catch (e) {}
+  if (!('serviceWorker' in navigator)) return;
+  var hadController = !!navigator.serviceWorker.controller, reloading = false;
+  function reloadNow() { if (reloading) return; reloading = true; try { sessionStorage.setItem(KEY, '1'); } catch (e) {} location.reload(); }
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadController) return;
+    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    if (typing && document.visibilityState === 'visible') banner('A new version of GG Log is ready.', reloadNow, 'Update');
+    else reloadNow();
+  });
+  navigator.serviceWorker.register('sw.js').then(function (reg) {
+    function check() { reg.update().catch(function () {}); }
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

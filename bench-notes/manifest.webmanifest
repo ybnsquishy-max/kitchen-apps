@@ -1,14 +1,14 @@
 {
-  "name": "Mise",
-  "short_name": "Mise",
-  "description": "Photo notes, methods, pantry stock and a running shopping list.",
+  "name": "Bench Notes",
+  "short_name": "Bench Notes",
+  "description": "Photo notes and prep workflows for commercial cookery.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#E4E7EA",
-  "theme_color": "#E4E7EA",
+  "background_color": "#F1EFE8",
+  "theme_color": "#F1EFE8",
   "icons": [
     {
       "src": "icons/icon-192.png",

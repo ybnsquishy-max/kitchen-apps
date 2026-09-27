@@ -1,7 +1,7 @@
-// Offline support for the installable Mise app (version 3a31eb8543).
+// Offline support for the installable Bench Notes app (version d93fd6954d).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-3a31eb8543';
-const FONT_CACHE = 'mise-fonts';
+const CACHE = 'benchnotes-d93fd6954d';
+const FONT_CACHE = 'benchnotes-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', (event) => {

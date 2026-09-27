@@ -1,0 +1,1263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Photo notes and prep workflows for commercial cookery.">
+<meta name="theme-color" content="#F1EFE8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#181A1F" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bench Notes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Bench Notes</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F1EFE8;
+  --ink:#20242B;
+  --ink-soft:#565D6B;
+  --line:#C9C4B6;
+  --marker:#E0A400;
+  --card:#FFFFFF;
+  --danger:#B5482E;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#181A1F;
+    --ink:#EDEBE4;
+    --ink-soft:#9CA1AC;
+    --line:#3A3D45;
+    --card:#22252C;
+    --danger:#E07A5F;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#181A1F;
+  --ink:#EDEBE4;
+  --ink-soft:#9CA1AC;
+  --line:#3A3D45;
+  --card:#22252C;
+  --danger:#E07A5F;
+}
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+html,body{min-height:100%;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+}
+header{
+  padding:18px 20px 14px;
+  border-bottom:1px solid var(--line);
+}
+header h1{
+  margin:0;
+  font-size:1.3rem;
+  letter-spacing:-0.01em;
+}
+header p{
+  margin:4px 0 0;
+  color:var(--ink-soft);
+  font-size:0.85rem;
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+}
+nav{
+  display:flex;
+  border-bottom:1px solid var(--line);
+}
+nav button{
+  flex:1;
+  padding:12px 8px;
+  background:none;
+  border:none;
+  color:var(--ink-soft);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-size:0.95rem;
+  font-weight:700;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+}
+nav button.active{
+  color:var(--ink);
+  border-bottom-color:var(--marker);
+}
+main{
+  padding:16px;
+  max-width:640px;
+  margin:0 auto;
+}
+.view{display:none;}
+.view.active{display:block;}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{
+  outline:2px solid var(--marker);
+  outline-offset:2px;
+}
+
+/* Notes view */
+.capture-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:16px;
+}
+.btn{
+  border:1px solid var(--ink);
+  background:var(--ink);
+  color:var(--paper);
+  padding:10px 16px;
+  border-radius:3px;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-weight:700;
+  font-size:0.9rem;
+  cursor:pointer;
+}
+.btn.secondary{
+  background:none;
+  color:var(--ink);
+}
+.btn:disabled{opacity:0.4;cursor:default;}
+#photoInput,#libraryInput{display:none;}
+.status{
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.78rem;
+  color:var(--ink-soft);
+  margin:-6px 0 16px;
+}
+.status.warn{color:var(--danger);}
+.note-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+  gap:10px;
+}
+.note-card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:4px;
+  overflow:hidden;
+  position:relative;
+}
+.note-card img{
+  width:100%;
+  max-width:100%;
+  aspect-ratio:3/4;
+  object-fit:cover;
+  display:block;
+}
+.note-card .sel{
+  position:absolute;
+  top:6px;
+  left:6px;
+  width:20px;
+  height:20px;
+  accent-color:var(--marker);
+}
+.note-card input.title{
+  width:100%;
+  border:none;
+  background:none;
+  color:var(--ink);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.72rem;
+  padding:6px 8px;
+  border-top:1px solid var(--line);
+}
+.note-card .del{
+  position:absolute;
+  top:6px;
+  right:6px;
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  border:none;
+  background:rgba(0,0,0,0.55);
+  color:#fff;
+  font-size:0.8rem;
+  cursor:pointer;
+  line-height:22px;
+  text-align:center;
+  padding:0;
+}
+.note-card .cvt{
+  position:absolute;
+  bottom:34px;
+  right:6px;
+  border:none;
+  background:var(--marker);
+  color:#20242B;
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.68rem;
+  font-weight:500;
+  border-radius:3px;
+  padding:3px 6px;
+  cursor:pointer;
+}
+.empty{
+  color:var(--ink-soft);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.85rem;
+  padding:30px 0;
+  text-align:center;
+}
+.typed{
+  margin-top:18px;
+  border-top:1px solid var(--line);
+  padding-top:12px;
+}
+.typed summary{
+  cursor:pointer;
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.8rem;
+  color:var(--ink-soft);
+}
+.typed textarea{
+  display:block;
+  width:100%;
+  min-height:120px;
+  margin:10px 0;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:3px;
+  background:var(--card);
+  color:var(--ink);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.8rem;
+  resize:vertical;
+}
+
+/* Workflow view */
+.wf-title{
+  width:100%;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-size:1.1rem;
+  font-weight:700;
+  border:none;
+  border-bottom:1px solid var(--line);
+  background:none;
+  color:var(--ink);
+  padding:6px 0;
+  margin-bottom:14px;
+}
+.step{
+  display:flex;
+  gap:10px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  padding:10px;
+  margin-bottom:8px;
+  background:var(--card);
+}
+.step .num{
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  color:var(--marker);
+  font-weight:500;
+  padding-top:6px;
+  min-width:22px;
+  font-variant-numeric:tabular-nums;
+}
+.step .fields{flex:1;min-width:0;}
+.step input.stitle{
+  width:100%;
+  border:none;
+  background:none;
+  color:var(--ink);
+  font-weight:700;
+  font-size:0.95rem;
+  padding:4px 0;
+}
+.step textarea.sdetail{
+  width:100%;
+  border:none;
+  background:none;
+  color:var(--ink-soft);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.8rem;
+  resize:vertical;
+  min-height:34px;
+  padding:2px 0;
+}
+.step .meta-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:4px;
+}
+.step input.smeta{
+  flex:1 1 140px;
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:3px;
+  background:none;
+  color:var(--ink-soft);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.72rem;
+  padding:4px 6px;
+}
+.step .actions{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.step .actions button{
+  border:none;
+  background:none;
+  color:var(--ink-soft);
+  cursor:pointer;
+  font-size:0.85rem;
+  padding:2px 4px;
+}
+.bottom-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:14px;
+}
+
+.sync{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;
+  padding:8px 16px;border-bottom:1px solid var(--line);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:0.75rem;color:var(--ink-soft);
+}
+.sync .dot{width:8px;height:8px;border-radius:50%;background:var(--marker);flex:none;}
+.sync.warn{color:var(--danger);}
+.sync.warn .dot{background:var(--danger);}
+.sync span{flex:1 1 200px;}
+.readonly .edit-only{display:none !important;}
+.source{display:flex;gap:6px;padding:10px 16px 0;max-width:640px;margin:0 auto;}
+.source button{
+  flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);border-radius:3px;
+  padding:8px 6px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;
+}
+.source button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);box-shadow:inset 0 -2px 0 var(--marker);}
+.changes{
+  max-width:640px;margin:10px auto 0;padding:0 16px;
+}
+.changes div{
+  border:1px solid var(--marker);border-radius:4px;background:var(--card);padding:10px 12px;
+  font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:0.78rem;line-height:1.5;
+}
+.changes ul{margin:4px 0 8px;padding-left:18px;}
+.changes button{background:none;border:none;color:var(--ink);text-decoration:underline;font:inherit;cursor:pointer;padding:0;}
+.new-badge{
+  position:absolute;top:32px;left:6px;background:var(--marker);color:#20242B;border-radius:3px;
+  font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:0.62rem;font-weight:500;padding:1px 5px;
+}
+.step .new-badge{position:static;display:inline-block;margin-bottom:2px;}
+.shared-only{display:none;}
+.in-shared .shared-only{display:inline-block;}
+
+/* Print output, used only when the page runs outside Claude */
+#printArea{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  #printArea, #printArea *{visibility:visible;}
+  #printArea{
+    display:block !important;
+    position:absolute;
+    top:0;left:0;
+    width:100%;
+    color:#000;
+    background:#fff;
+  }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bench Notes</h1>
+  <p>photo notes &amp; prep sheets — Cert III Commercial Cookery</p>
+</header>
+
+<nav>
+  <button id="tabNotes" class="active">Notes</button>
+  <button id="tabWorkflow">Workflow</button>
+</nav>
+<div class="source" id="sourceBar" hidden>
+  <button id="srcShared" aria-pressed="true">Shared notebook</button>
+  <button id="srcMine" aria-pressed="false">My copy</button>
+</div>
+<div class="changes" id="changesBox" hidden><div id="changesInner"></div></div>
+<div class="sync" id="syncBar" hidden>
+  <i class="dot"></i><span id="syncText"></span>
+  <label id="followWrap" hidden style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="followBox"> Get updates from the shared notebook</label>
+  <button class="btn secondary edit-only" id="migrateBtn" hidden style="padding:6px 10px;font-size:0.75rem;"></button>
+</div>
+
+<main>
+  <section id="viewNotes" class="view active">
+    <div class="capture-row edit-only">
+      <button class="btn" id="takePhotoBtn">Take photo</button>
+      <button class="btn secondary" id="addPhotoBtn">Add from library</button>
+    </div>
+    <div class="capture-row">
+      <button class="btn edit-only" id="convertBtn" disabled>Convert selected → workflow</button>
+      <button class="btn secondary" id="printNotesBtn" disabled>Print selected</button>
+      <button class="btn secondary shared-only" id="copyNotesBtn" disabled>Copy selected to my copy</button>
+    </div>
+    <p class="status" id="convertStatus" hidden></p>
+    <input type="file" accept="image/*" capture="environment" id="photoInput">
+    <input type="file" accept="image/*" id="libraryInput" multiple>
+    <div class="note-grid" id="noteGrid"></div>
+    <div class="empty" id="notesEmpty">No notes yet. Take a photo of your notes to start.</div>
+
+    <details class="typed edit-only" id="typedBox" hidden>
+      <summary>Or paste typed notes</summary>
+      <textarea id="typedNotes" placeholder="e.g. Hollandaise: clarify 250g butter. Reduce vinegar + peppercorns. Whisk yolks over bain-marie to 65°C, ribbon stage. Hold below 63°C for max 2 hrs. Contains egg, dairy."></textarea>
+      <button class="btn secondary" id="convertTextBtn">Convert text → workflow</button>
+    </details>
+  </section>
+
+  <section id="viewWorkflow" class="view">
+    <input class="wf-title" id="wfTitle" placeholder="Workflow title (e.g. Hollandaise sauce)">
+    <div id="stepList"></div>
+    <div class="bottom-row wf-controls">
+      <button class="btn secondary edit-only" id="addStepBtn">+ Add step</button>
+      <button class="btn" id="printWfBtn">Print workflow</button>
+      <button class="btn secondary shared-only" id="copyWfBtn">Copy workflow to my copy</button>
+    </div>
+    <p class="status" id="wfStatus" hidden style="margin-top:10px;"></p>
+  </section>
+</main>
+
+<div id="printArea"></div>
+
+<script>
+const LS_NOTES = 'bn_notes';
+const LS_WF = 'bn_workflow';
+const MAX_PHOTO_SIDE = 1600; // px; Claude reads photos at about 1.2 MP anyway
+
+function load(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+// Returns false when the browser refused the write (usually storage full).
+function save(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+  catch(e){ return false; }
+}
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+let notes = load(LS_NOTES, []); // {id, img, title, selected}
+let workflow = load(LS_WF, { title:'', steps:[] });
+if (!Array.isArray(workflow.steps)) workflow.steps = [];
+workflow.steps.forEach(st => { if (!st.id) st.id = uid(); });
+
+// ---- Shared notebook ----
+// Inside Claude, everyone who can open this page sees one notebook. It is
+// saved as files next to the page (notebook.json plus one JPEG per photo),
+// published as a new version whenever someone with edit access changes it.
+// Outside Claude, or before sharing is available, it works per device.
+let shared = false;       // true once the shared notebook is loaded
+let artifactApi = null;
+let readOnly = false;
+let server = null;        // notebook as last published: {notes:[{id,title}], workflow}
+let syncTimer = null, syncing = false, syncAgain = false, retried = false;
+const deviceNotes = notes.slice();
+const deviceWorkflow = JSON.parse(JSON.stringify(workflow));
+const LS_SEL = 'bn_selected_shared';
+const LS_MIGRATED = 'bn_migrated_to_shared';
+const PENDING = 'bn_pending_shared';
+const LS_SEEN = 'bn_seen_shared';   // what this person last saw in the shared notebook
+let sharedAvailable = false;       // shared notebook loaded (you may be viewing My copy)
+let newIds = new Set();
+const LS_FOLLOW = 'bn_follow_shared';      // '0' = don't update My copy automatically
+const LS_FOLLOW_BASE = 'bn_follow_base';   // shared notebook as last applied to My copy
+
+// Claude access comes from the page's host (claude.ai), on the viewer's own
+// plan. There is no API key and nothing to pay for separately.
+let sampleFn = null;
+let maxImagesPerCall = 0;  // 0 = this view can't send photos
+let aiOff = false;         // viewer declined access, or it's unavailable
+let downloads = null;
+let converting = false;
+
+const tabNotes = document.getElementById('tabNotes');
+const tabWorkflow = document.getElementById('tabWorkflow');
+const viewNotes = document.getElementById('viewNotes');
+const viewWorkflow = document.getElementById('viewWorkflow');
+const photoInput = document.getElementById('photoInput');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+const libraryInput = document.getElementById('libraryInput');
+const addPhotoBtn = document.getElementById('addPhotoBtn');
+const noteGrid = document.getElementById('noteGrid');
+const notesEmpty = document.getElementById('notesEmpty');
+const printNotesBtn = document.getElementById('printNotesBtn');
+const convertBtn = document.getElementById('convertBtn');
+const convertStatus = document.getElementById('convertStatus');
+const typedBox = document.getElementById('typedBox');
+const typedNotes = document.getElementById('typedNotes');
+const convertTextBtn = document.getElementById('convertTextBtn');
+const wfTitleInput = document.getElementById('wfTitle');
+const stepList = document.getElementById('stepList');
+const addStepBtn = document.getElementById('addStepBtn');
+const printWfBtn = document.getElementById('printWfBtn');
+const wfStatus = document.getElementById('wfStatus');
+const copyNotesBtn = document.getElementById('copyNotesBtn');
+const copyWfBtn = document.getElementById('copyWfBtn');
+
+function photosReady(){ return !!sampleFn && !aiOff && maxImagesPerCall > 0; }
+
+function setStatus(el, text, warn){
+  el.textContent = text || '';
+  el.hidden = !text;
+  el.classList.toggle('warn', !!warn);
+}
+
+function saveNotes(){
+  if (shared) { saveSelection(); scheduleSync(); return; }
+  if (!save(LS_NOTES, notes)) {
+    setStatus(convertStatus, 'This browser is out of space for Bench Notes. Delete a few old photos to keep new ones after a reload.', true);
+  }
+}
+function saveWorkflow(){
+  if (shared) { scheduleSync(); return; }
+  if (!save(LS_WF, workflow)) {
+    setStatus(wfStatus, 'This browser is out of space, so recent edits may not be kept. Delete a few photos on the Notes tab.', true);
+  }
+}
+
+function refreshConvertAvailability(){
+  typedBox.hidden = !sampleFn || aiOff;
+  // Only explain what's unavailable; never overwrite a result or error message.
+  if (!sampleFn) {
+    setStatus(convertStatus, 'Photo-to-workflow conversion works when Bench Notes is opened in Claude. You can still add steps by hand on the Workflow tab.');
+  } else if (!aiOff && !maxImagesPerCall) {
+    setStatus(convertStatus, "This view can't send photos to Claude. Paste typed notes below instead.");
+  }
+  renderNotes();
+}
+
+// ---- Tabs ----
+tabNotes.onclick = () => switchTab('notes');
+tabWorkflow.onclick = () => switchTab('workflow');
+function switchTab(t){
+  tabNotes.classList.toggle('active', t==='notes');
+  tabWorkflow.classList.toggle('active', t==='workflow');
+  viewNotes.classList.toggle('active', t==='notes');
+  viewWorkflow.classList.toggle('active', t==='workflow');
+}
+
+// ---- Notes ----
+takePhotoBtn.onclick = () => photoInput.click();
+addPhotoBtn.onclick = () => libraryInput.click();
+
+photoInput.onchange = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  addPhotoFile(file);
+  photoInput.value = '';
+};
+
+libraryInput.onchange = (e) => {
+  const files = Array.from(e.target.files || []);
+  files.forEach(addPhotoFile);
+  libraryInput.value = '';
+};
+
+function readAsDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Phone photos are often 3-5 MB. Shrinking them keeps many more notes within
+// the browser's storage limit and makes uploads to Claude faster.
+function shrinkPhoto(file){
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_PHOTO_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(readAsDataUrl(file)); };
+    img.src = url;
+  });
+}
+
+async function addPhotoFile(file){
+  try {
+    const img = await shrinkPhoto(file);
+    notes.push({ id: uid(), img, title: '', selected: true });
+    saveNotes();
+    renderNotes();
+  } catch (e) {
+    setStatus(convertStatus, "That photo couldn't be opened. Try a JPEG or PNG.", true);
+  }
+}
+
+function renderNotes(){
+  noteGrid.innerHTML = '';
+  notesEmpty.hidden = notes.length > 0;
+  notes.forEach(n => {
+    const card = document.createElement('div');
+    card.className = 'note-card';
+    card.innerHTML = `
+      <input type="checkbox" class="sel" aria-label="Select note" ${n.selected ? 'checked' : ''}>
+      <img src="${esc(n.img)}" alt="${esc(n.title || 'Note photo')}">
+      ${shared && newIds.has(n.id) ? '<span class="new-badge">NEW</span>' : ''}
+      <button class="del edit-only" aria-label="Delete note">×</button>
+      <button class="cvt edit-only" ${photosReady() ? '' : 'hidden'}>→ Workflow</button>
+      <input class="title" placeholder="label..." value="${esc(n.title)}">
+    `;
+    card.querySelector('.sel').onchange = (ev) => { n.selected = ev.target.checked; if (shared) saveSelection(); else saveNotes(); updateButtons(); };
+    card.querySelector('.del').onclick = () => { notes = notes.filter(x => x.id !== n.id); saveNotes(); renderNotes(); };
+    card.querySelector('.cvt').onclick = () => convertNotesToWorkflow({ chosen: [n] });
+    const titleIn = card.querySelector('.title');
+    titleIn.readOnly = readOnly && shared;
+    titleIn.oninput = (ev) => { n.title = ev.target.value; saveNotes(); };
+    noteGrid.appendChild(card);
+  });
+  updateButtons();
+}
+function updateButtons(){
+  const anySelected = notes.some(n => n.selected);
+  printNotesBtn.disabled = !anySelected;
+  copyNotesBtn.disabled = !anySelected;
+  convertBtn.disabled = converting || !anySelected || !photosReady();
+  convertTextBtn.disabled = converting;
+}
+
+const STEP_SHAPE =
+  'Reply with ONLY a JSON array of step objects, no other text, each shaped like: ' +
+  '{"title": "short step name", "detail": "method / safety notes", "temp": "temperature or time if mentioned, else empty string", "allergens": "comma-separated allergens if mentioned, else empty string"}. ' +
+  'Keep the order the notes give. If a word is hard to read, give your best reading followed by [?].';
+
+function photoPrompt(count){
+  return 'The attached ' + (count > 1 ? count + ' images show' : 'image shows') +
+    ' handwritten or printed cooking method notes from a TAFE Certificate III Commercial Cookery class. ' +
+    'Read them and turn them into a step-by-step kitchen workflow. ' + STEP_SHAPE;
+}
+function textPrompt(text){
+  return 'Below are typed cooking method notes from a TAFE Certificate III Commercial Cookery class. ' +
+    'Turn them into a step-by-step kitchen workflow. ' + STEP_SHAPE + '\n\nNotes:\n' + text.slice(0, 20000);
+}
+
+function dataUrlToBlob(dataUrl){
+  const commaIdx = dataUrl.indexOf(',');
+  const mimeMatch = dataUrl.slice(0, commaIdx).match(/data:([^;]+);base64/);
+  const binary = atob(dataUrl.slice(commaIdx + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeMatch ? mimeMatch[1] : 'image/jpeg' });
+}
+
+function describeError(e){
+  switch (e && e.code) {
+    case 'not_granted':
+    case 'sampling_disabled':
+    case 'not_declared':
+    case 'capability_disabled':
+    case 'capability_removed':
+      aiOff = true;
+      return "Claude access wasn't allowed, so conversion is off until you reload the page. You can still add steps by hand.";
+    case 'images_unavailable':
+      maxImagesPerCall = 0;
+      return "This view can't send photos to Claude. Paste typed notes below instead.";
+    case 'rate_limited': return "You've reached your Claude usage limit for now. Wait a while, then try again.";
+    case 'session_expired': return 'Your Claude sign-in has expired. Sign in again, then retry.';
+    case 'image_rejected': return "That photo couldn't be used. Try a clearer or smaller image.";
+    case 'refused': return "Claude couldn't process that. Try a clearer photo or different notes.";
+    case 'prompt_too_large': return 'That is too much text at once. Convert a shorter section.';
+    case 'invalid_json':
+    case 'empty_completion':
+    case 'empty': return "Couldn't make sense of the notes. Try a clearer photo.";
+    default: return "Couldn't reach Claude just now. Try again, or add the steps by hand.";
+  }
+}
+
+function cleanSteps(steps){
+  if (!Array.isArray(steps)) return [];
+  return steps.filter(s => s && typeof s === 'object').map(s => ({
+    title: String(s.title || '').slice(0, 200),
+    detail: String(s.detail || '').slice(0, 2000),
+    temp: String(s.temp || '').slice(0, 100),
+    allergens: String(s.allergens || '').slice(0, 200),
+  }));
+}
+
+async function convertNotesToWorkflow({ chosen = [], text = '' }){
+  if (converting || !sampleFn || aiOff) return;
+  if (!chosen.length && !text.trim()) return;
+  converting = true;
+  updateButtons();
+  setStatus(convertStatus, 'Reading notes… this can take up to a minute.');
+  try {
+    let steps = [];
+    if (chosen.length) {
+      // Send photos in batches the viewer's plan accepts, in order.
+      const batches = [];
+      for (let i = 0; i < chosen.length; i += maxImagesPerCall) batches.push(chosen.slice(i, i + maxImagesPerCall));
+      for (let b = 0; b < batches.length; b++) {
+        if (batches.length > 1) setStatus(convertStatus, 'Reading photos ' + (b * maxImagesPerCall + 1) + '–' + (b * maxImagesPerCall + batches[b].length) + ' of ' + chosen.length + '…');
+        const images = await Promise.all(batches[b].map(photoBlob));
+        steps = steps.concat(cleanSteps(await sampleFn.json(photoPrompt(images.length), { images, modelTier: 'default' })));
+      }
+    } else {
+      steps = cleanSteps(await sampleFn.json(textPrompt(text), { modelTier: 'default' }));
+    }
+    if (!steps.length) throw { code: 'empty' };
+    workflow.steps = workflow.steps.concat(steps.map(st => ({ id: uid(), ...st })));
+    if (!workflow.title) workflow.title = (chosen[0] && chosen[0].title) || 'Untitled workflow';
+    saveWorkflow();
+    wfTitleInput.value = workflow.title;
+    renderWorkflow();
+    setStatus(convertStatus, 'Added ' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ' to the workflow.');
+    if (text) typedNotes.value = '';
+    switchTab('workflow');
+  } catch (e) {
+    if (!e || e.code !== 'cancelled') setStatus(convertStatus, describeError(e), true);
+  } finally {
+    converting = false;
+    refreshConvertAvailability();
+  }
+}
+
+convertBtn.onclick = () => convertNotesToWorkflow({ chosen: notes.filter(n => n.selected) });
+convertTextBtn.onclick = () => convertNotesToWorkflow({ text: typedNotes.value });
+
+// ---- Printable sheets ----
+// Claude's viewer can't open the print dialog, so the sheet is saved as a
+// small HTML file you open and print. Outside Claude it prints directly.
+const SHEET_CSS = 'body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;margin:24px;max-width:720px}' +
+  'h1{font-size:20px;margin:0 0 14px}.note{break-inside:avoid;margin-bottom:14px}' +
+  '.note img{width:100%;max-height:6in;object-fit:contain}.note p{font-family:monospace;font-size:11px;margin:4px 0 0}' +
+  '.step{break-inside:avoid;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #ccc}' +
+  '.step h2{margin:0 0 2px;font-size:14px}.step p{margin:0;font-size:12px;white-space:pre-wrap}.meta{font-style:italic}';
+
+function slug(s){ return (s || 'bench-notes').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60) || 'bench-notes'; }
+
+async function outputSheet(title, bodyHtml, statusEl){
+  if (!downloads) {
+    const area = document.getElementById('printArea');
+    area.innerHTML = '<style>' + SHEET_CSS + '</style>' + bodyHtml;
+    window.print();
+    return;
+  }
+  const doc = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>' + esc(title) + '</title><style>' + SHEET_CSS + '</style></head><body>' + bodyHtml + '</body></html>';
+  try {
+    await downloads.save({ filename: slug(title) + '.html', data: doc });
+    setStatus(statusEl, 'Saved. Open the file and print it from your browser.');
+  } catch (e) {
+    if (e && e.code === 'declined') return;
+    setStatus(statusEl, e && e.code === 'rate_limited' ? 'A save is already waiting for your answer.' : "Couldn't save the sheet in this view.", true);
+  }
+}
+
+printNotesBtn.onclick = async () => {
+  const chosen = notes.filter(n => n.selected);
+  if(!chosen.length) return;
+  const imgs = await Promise.all(chosen.map(n => photoBlob(n).then(blobToDataUrl).catch(() => n.img)));
+  outputSheet('Bench notes', '<h1>Notes</h1>' + chosen.map((n, i) => `
+    <div class="note">
+      <img src="${esc(imgs[i])}" alt="">
+      ${n.title ? `<p>${esc(n.title)}</p>` : ''}
+    </div>`).join(''), convertStatus);
+};
+
+// ---- Workflow ----
+wfTitleInput.value = workflow.title || '';
+wfTitleInput.oninput = (e) => { workflow.title = e.target.value; saveWorkflow(); };
+
+addStepBtn.onclick = () => {
+  workflow.steps.push({ id: uid(), title:'', detail:'', temp:'', allergens:'' });
+  saveWorkflow();
+  renderWorkflow();
+};
+
+function renderWorkflow(){
+  wfTitleInput.readOnly = readOnly && shared;
+  stepList.innerHTML = '';
+  workflow.steps.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'step';
+    row.innerHTML = `
+      <div class="num">${i+1}</div>
+      <div class="fields">
+        ${shared && newIds.has(s.id) ? '<span class="new-badge">NEW</span>' : ''}
+        <input class="stitle" placeholder="Step title" value="${esc(s.title)}">
+        <textarea class="sdetail" placeholder="Method / safety notes">${esc(s.detail)}</textarea>
+        <div class="meta-row">
+          <input class="smeta temp" placeholder="Temp / time (e.g. 180°C, 12 min)" value="${esc(s.temp)}">
+          <input class="smeta allerg" placeholder="Allergens (e.g. gluten, dairy)" value="${esc(s.allergens)}">
+        </div>
+      </div>
+      <div class="actions edit-only">
+        <button class="up" aria-label="Move step up">▲</button>
+        <button class="down" aria-label="Move step down">▼</button>
+        <button class="rm" aria-label="Remove step">✕</button>
+      </div>
+    `;
+    row.querySelectorAll('input,textarea').forEach(el => { el.readOnly = readOnly && shared; });
+    row.querySelector('.stitle').oninput = (e) => { s.title = e.target.value; saveWorkflow(); };
+    row.querySelector('.sdetail').oninput = (e) => { s.detail = e.target.value; saveWorkflow(); };
+    row.querySelector('.temp').oninput = (e) => { s.temp = e.target.value; saveWorkflow(); };
+    row.querySelector('.allerg').oninput = (e) => { s.allergens = e.target.value; saveWorkflow(); };
+    row.querySelector('.up').onclick = () => { if(i>0){ [workflow.steps[i-1], workflow.steps[i]] = [workflow.steps[i], workflow.steps[i-1]]; saveWorkflow(); renderWorkflow(); } };
+    row.querySelector('.down').onclick = () => { if(i<workflow.steps.length-1){ [workflow.steps[i+1], workflow.steps[i]] = [workflow.steps[i], workflow.steps[i+1]]; saveWorkflow(); renderWorkflow(); } };
+    row.querySelector('.rm').onclick = () => { workflow.steps.splice(i,1); saveWorkflow(); renderWorkflow(); };
+    stepList.appendChild(row);
+  });
+}
+
+printWfBtn.onclick = () => {
+  const title = workflow.title || 'Workflow';
+  outputSheet(title, `<h1>${esc(title)}</h1>` + workflow.steps.map((s,i) => `
+    <div class="step">
+      <h2>${i+1}. ${esc(s.title || 'Untitled step')}</h2>
+      ${s.detail ? `<p>${esc(s.detail)}</p>` : ''}
+      ${(s.temp || s.allergens) ? `<p class="meta">${esc([s.temp, s.allergens ? 'Allergens: ' + s.allergens : ''].filter(Boolean).join(' — '))}</p>` : ''}
+    </div>`).join(''), wfStatus);
+};
+
+// ---- Shared notebook: load, merge, save ----
+function photoBlob(n){
+  if (String(n.img).startsWith('data:')) return Promise.resolve(dataUrlToBlob(n.img));
+  return fetch(n.img).then(r => { if (!r.ok) throw new Error('photo'); return r.blob(); });
+}
+function blobToDataUrl(blob){ return readAsDataUrl(blob); }
+function currentNotebook(){
+  return {
+    v: 1,
+    notes: notes.map(n => ({ id: n.id, title: n.title || '' })),
+    workflow: {
+      title: workflow.title || '',
+      steps: workflow.steps.map(st => ({ id: st.id, title: st.title || '', detail: st.detail || '', temp: st.temp || '', allergens: st.allergens || '' })),
+    },
+  };
+}
+function emptyNotebook(){ return { v: 1, notes: [], workflow: { title: '', steps: [] } }; }
+function cleanNotebook(nb){
+  const out = emptyNotebook();
+  if (!nb || typeof nb !== 'object') return out;
+  if (Array.isArray(nb.notes)) out.notes = nb.notes.filter(n => n && n.id).map(n => ({ id: String(n.id), title: String(n.title || '') }));
+  const wf = nb.workflow || {};
+  out.workflow.title = String(wf.title || '');
+  if (Array.isArray(wf.steps)) out.workflow.steps = wf.steps.filter(st => st && st.id).map(st => ({ id: String(st.id), title: String(st.title || ''), detail: String(st.detail || ''), temp: String(st.temp || ''), allergens: String(st.allergens || '') }));
+  return out;
+}
+
+// Three-way merge: apply what I changed since `base` on top of `live`,
+// so two people saving at once both keep their additions and removals.
+function mergeList(baseL, mineL, liveL, fields){
+  const byId = l => new Map(l.map(x => [x.id, x]));
+  const B = byId(baseL), M = byId(mineL);
+  let out = liveL.map(x => ({ ...x }));
+  out = out.filter(x => !(B.has(x.id) && !M.has(x.id)));            // I removed it
+  for (const x of out) {                                              // my edits win per field
+    const b = B.get(x.id), m = M.get(x.id);
+    if (b && m) for (const f of fields) if (m[f] !== b[f]) x[f] = m[f];
+  }
+  const baseOrder = baseL.map(x => x.id).filter(id => M.has(id));
+  const mineOrder = mineL.map(x => x.id).filter(id => B.has(id));
+  if (baseOrder.join() !== mineOrder.join()) {                        // I reordered
+    const pos = new Map(mineOrder.map((id, i) => [id, i]));
+    const mine = out.filter(x => pos.has(x.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
+    const rest = out.filter(x => !pos.has(x.id));
+    out = mine.concat(rest);
+  }
+  const have = new Set(out.map(x => x.id));
+  for (const m of mineL) if (!B.has(m.id) && !have.has(m.id)) out.push({ ...m }); // I added it
+  return out;
+}
+function merge3(base, mine, live){
+  return {
+    v: 1,
+    notes: mergeList(base.notes, mine.notes, live.notes, ['title']),
+    workflow: {
+      title: mine.workflow.title !== base.workflow.title ? mine.workflow.title : live.workflow.title,
+      steps: mergeList(base.workflow.steps, mine.workflow.steps, live.workflow.steps, ['title', 'detail', 'temp', 'allergens']),
+    },
+  };
+}
+
+function loadSelection(){ try { return new Set(JSON.parse(localStorage.getItem(LS_SEL)) || []); } catch (e) { return new Set(); } }
+function saveSelection(){ try { localStorage.setItem(LS_SEL, JSON.stringify(notes.filter(n => n.selected).map(n => n.id))); } catch (e) {} }
+
+// Show a notebook, keeping photos this view added but hasn't published yet.
+function applyNotebook(nb, localPhotos){
+  const sel = loadSelection();
+  notes = nb.notes.map(n => ({ id: n.id, title: n.title, img: (localPhotos && localPhotos[n.id]) || ('photos/' + n.id + '.jpg'), selected: sel.has(n.id) }));
+  workflow = JSON.parse(JSON.stringify(nb.workflow));
+  wfTitleInput.value = workflow.title || '';
+  renderNotes();
+  renderWorkflow();
+}
+function unsentPhotos(){
+  const onServer = new Set(server.notes.map(n => n.id));
+  const out = {};
+  notes.forEach(n => { if (!onServer.has(n.id) && String(n.img).startsWith('data:')) out[n.id] = n.img; });
+  return out;
+}
+function stashPending(){
+  // Survives the reload that follows someone else's save.
+  try { sessionStorage.setItem(PENDING, JSON.stringify({ base: server, mine: currentNotebook(), photos: unsentPhotos() })); }
+  catch (e) { try { sessionStorage.setItem(PENDING, JSON.stringify({ base: server, mine: currentNotebook(), photos: {} })); } catch (e2) {} }
+}
+function setSync(text, warn){
+  const bar = document.getElementById('syncBar');
+  bar.hidden = !text;
+  bar.classList.toggle('warn', !!warn);
+  document.getElementById('syncText').textContent = text || '';
+}
+function idleText(){
+  return readOnly
+    ? 'Shared notebook · view only. Ask the owner for edit access to add or remove things.'
+    : 'Shared notebook · everyone you share this page with sees these notes, and people with edit access can change them.';
+}
+function scheduleSync(){
+  if (!shared || readOnly) return;
+  stashPending();
+  setSync('Saving soon…');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(doSync, 2500);
+}
+async function doSync(){
+  if (syncing) { syncAgain = true; return; }
+  const mine = currentNotebook();
+  if (JSON.stringify(mine) === JSON.stringify(server)) { setSync(idleText()); return; }
+  syncing = true;
+  setSync('Saving…');
+  const files = { 'notebook.json': { content: JSON.stringify(mine), contentType: 'application/json' } };
+  const photos = unsentPhotos();
+  for (const id of Object.keys(photos)) files['photos/' + id + '.jpg'] = dataUrlToBlob(photos[id]);
+  const keep = new Set(mine.notes.map(n => n.id));
+  for (const n of server.notes) if (!keep.has(n.id)) files['photos/' + n.id + '.jpg'] = null;
+  try {
+    await artifactApi.publish(files);
+    server = mine;
+    retried = false;
+    markSeen(mine);
+    try { sessionStorage.removeItem(PENDING); } catch (e) {}
+    setSync('Saved · ' + idleText().replace(/^Shared notebook · /, ''));
+  } catch (e) {
+    const code = e && e.code;
+    if (code === 'conflict') {
+      setSync('Someone else saved at the same time. Reloading with both sets of changes…');
+    } else if (code === 'not_writer' || code === 'not_granted' || code === 'consent_required') {
+      goReadOnly();
+    } else if (code === 'capability_disabled' || code === 'not_declared') {
+      setSync("Changes can't be saved while this page is shared by public link. Share it by inviting people instead. Your changes are kept on this page for now.", true);
+    } else if (code === 'too_large') {
+      setSync('The notebook is too big to save. Delete a few photos, then try again.', true);
+    } else if ((code === 'rate_limited' || code === 'upstream_error' || !code) && !retried) {
+      retried = true;
+      setSync('Saving is slow right now. Trying again…', true);
+      setTimeout(doSync, code === 'rate_limited' ? 15000 : 4000);
+    } else {
+      setSync("Couldn't save your changes. They're kept on this page; make any edit to try again.", true);
+    }
+  } finally {
+    syncing = false;
+    if (syncAgain) { syncAgain = false; scheduleSync(); }
+  }
+}
+function goReadOnly(){
+  readOnly = true;
+  document.body.classList.add('readonly');
+  try { sessionStorage.removeItem(PENDING); } catch (e) {}
+  if (server) applyNotebook(server);
+  setSync(idleText());
+}
+
+function showMigrate(){
+  const btn = document.getElementById('migrateBtn');
+  let done = false;
+  try { done = localStorage.getItem(LS_MIGRATED) === '1'; } catch (e) {}
+  const onServer = new Set(notes.map(n => n.id));
+  const extraNotes = deviceNotes.filter(n => n && n.id && n.img && !onServer.has(n.id));
+  const extraSteps = deviceWorkflow.steps.filter(st => !workflow.steps.some(x => x.id === st.id));
+  if (done || readOnly || (!extraNotes.length && !extraSteps.length)) { btn.hidden = true; return; }
+  const parts = [];
+  if (extraNotes.length) parts.push(extraNotes.length + ' note' + (extraNotes.length === 1 ? '' : 's'));
+  if (extraSteps.length) parts.push(extraSteps.length + ' step' + (extraSteps.length === 1 ? '' : 's'));
+  btn.textContent = 'Add my ' + parts.join(' and ') + ' from this device';
+  btn.hidden = false;
+  btn.onclick = () => {
+    extraNotes.forEach(n => notes.push({ id: n.id, img: n.img, title: n.title || '', selected: false }));
+    extraSteps.forEach(st => workflow.steps.push({ ...st }));
+    if (!workflow.title && deviceWorkflow.title) workflow.title = deviceWorkflow.title;
+    try { localStorage.setItem(LS_MIGRATED, '1'); } catch (e) {}
+    btn.hidden = true;
+    wfTitleInput.value = workflow.title || '';
+    renderNotes(); renderWorkflow();
+    scheduleSync();
+  };
+}
+
+// ---- What changed since this person last looked ----
+function markSeen(nb){
+  try { localStorage.setItem(LS_SEEN, JSON.stringify({
+    notes: nb.notes.map(n => ({ id: n.id, title: n.title })),
+    steps: nb.workflow.steps.map(st => ({ id: st.id, title: st.title })),
+  })); } catch (e) {}
+}
+function showChanges(live){
+  let seen = null;
+  try { seen = JSON.parse(localStorage.getItem(LS_SEEN)); } catch (e) {}
+  const box = document.getElementById('changesBox');
+  if (!seen) { markSeen(live); box.hidden = true; newIds = new Set(); return; }  // first visit: nothing to compare
+  const seenN = new Set(seen.notes.map(n => n.id)), seenS = new Set(seen.steps.map(x => x.id));
+  const liveN = new Set(live.notes.map(n => n.id)), liveS = new Set(live.workflow.steps.map(x => x.id));
+  const addedN = live.notes.filter(n => !seenN.has(n.id));
+  const removedN = seen.notes.filter(n => !liveN.has(n.id));
+  const addedS = live.workflow.steps.filter(x => !seenS.has(x.id));
+  const removedS = seen.steps.filter(x => !liveS.has(x.id));
+  newIds = new Set([...addedN.map(n => n.id), ...addedS.map(x => x.id)]);
+  const lines = [];
+  const name = (t, fallback) => t ? '“' + esc(t) + '”' : fallback;
+  if (addedN.length) lines.push('Added ' + addedN.length + ' note' + (addedN.length === 1 ? '' : 's') + (addedN.some(n => n.title) ? ': ' + addedN.filter(n => n.title).map(n => name(n.title)).join(', ') : ''));
+  if (removedN.length) lines.push('Removed ' + removedN.length + ' note' + (removedN.length === 1 ? '' : 's') + (removedN.some(n => n.title) ? ': ' + removedN.filter(n => n.title).map(n => name(n.title)).join(', ') : ''));
+  if (addedS.length) lines.push('Added step' + (addedS.length === 1 ? '' : 's') + ': ' + addedS.map(x => name(x.title, 'untitled step')).join(', '));
+  if (removedS.length) lines.push('Removed step' + (removedS.length === 1 ? '' : 's') + ': ' + removedS.map(x => name(x.title, 'untitled step')).join(', '));
+  if (!lines.length) { box.hidden = true; return; }
+  document.getElementById('changesInner').innerHTML = '<strong>Changed since you last looked</strong><ul>' + lines.map(l => '<li>' + l + '</li>').join('') + '</ul><button id="changesOk">Got it</button>';
+  box.hidden = false;
+  document.getElementById('changesOk').onclick = () => { markSeen(live); newIds = new Set(); box.hidden = true; renderNotes(); renderWorkflow(); };
+}
+
+// ---- Shared notebook vs My copy ----
+function setSource(which){
+  const toShared = which === 'shared';
+  if (!toShared && shared && !readOnly && JSON.stringify(currentNotebook()) !== JSON.stringify(server)) {
+    clearTimeout(syncTimer); doSync();   // save shared edits before leaving
+  }
+  shared = toShared;
+  document.getElementById('srcShared').setAttribute('aria-pressed', String(toShared));
+  document.getElementById('srcMine').setAttribute('aria-pressed', String(!toShared));
+  document.body.classList.toggle('in-shared', toShared);
+  document.getElementById('followWrap').hidden = toShared;
+  document.body.classList.toggle('readonly', toShared && readOnly);
+  try { localStorage.setItem('bn_source', which); } catch (e) {}
+  if (toShared) {
+    applyNotebook(server);
+    setSync(idleText());
+    showMigrate();
+  } else {
+    notes = load(LS_NOTES, []);
+    workflow = load(LS_WF, { title: '', steps: [] });
+    if (!Array.isArray(workflow.steps)) workflow.steps = [];
+    workflow.steps.forEach(st => { if (!st.id) st.id = uid(); });
+    wfTitleInput.value = workflow.title || '';
+    document.getElementById('changesBox').hidden = true;
+    setSync(lastUpdateNote || 'My copy · only on this device. Change anything here without affecting the shared notebook.');
+    followBox.checked = followOn();
+    document.getElementById('migrateBtn').hidden = true;
+    renderNotes(); renderWorkflow();
+  }
+  refreshConvertAvailability();
+}
+document.getElementById('srcShared').onclick = () => { setSource('shared'); if (server) showChanges(server); };
+document.getElementById('srcMine').onclick = () => setSource('mine');
+
+async function copyToMine(chosenNotes, steps, wfTitle){
+  const mineNotes = load(LS_NOTES, []);
+  const mineWf = load(LS_WF, { title: '', steps: [] });
+  if (!Array.isArray(mineWf.steps)) mineWf.steps = [];
+  let added = 0;
+  for (const n of chosenNotes) {
+    if (mineNotes.some(m => m.id === n.id)) continue;
+    let img = n.img;
+    if (!String(img).startsWith('data:')) { try { img = await blobToDataUrl(await photoBlob(n)); } catch (e) { continue; } }
+    mineNotes.push({ id: n.id, img, title: n.title || '', selected: false });
+    added++;
+  }
+  for (const st of steps) {
+    if (mineWf.steps.some(m => m.id === st.id)) continue;
+    mineWf.steps.push({ id: st.id, title: st.title, detail: st.detail, temp: st.temp, allergens: st.allergens });
+    added++;
+  }
+  if (wfTitle && !mineWf.title) mineWf.title = wfTitle;
+  const ok = save(LS_NOTES, mineNotes) && save(LS_WF, mineWf);
+  return ok ? added : -1;
+}
+copyNotesBtn.onclick = async () => {
+  const n = await copyToMine(notes.filter(x => x.selected), [], '');
+  setStatus(convertStatus, n < 0 ? "This device is out of space for more photos. Delete some from My copy first." : n ? 'Copied ' + n + ' note' + (n === 1 ? '' : 's') + ' to My copy.' : 'Those notes are already in My copy.', n < 0);
+};
+copyWfBtn.onclick = async () => {
+  const n = await copyToMine([], workflow.steps, workflow.title);
+  setStatus(wfStatus, n < 0 ? "This device is out of space. Delete some photos from My copy first." : n ? 'Copied ' + n + ' step' + (n === 1 ? '' : 's') + ' to My copy.' : 'Those steps are already in My copy.', n < 0);
+};
+
+// ---- Keep My copy up to date with the shared notebook ----
+function followOn(){ try { return localStorage.getItem(LS_FOLLOW) !== '0'; } catch (e) { return true; } }
+function localNotebook(){
+  const ln = load(LS_NOTES, []), lw = load(LS_WF, { title: '', steps: [] });
+  const steps = (Array.isArray(lw.steps) ? lw.steps : []).map(st => ({ id: st.id || uid(), title: st.title || '', detail: st.detail || '', temp: st.temp || '', allergens: st.allergens || '' }));
+  return { nb: cleanNotebook({ notes: ln, workflow: { title: lw.title || '', steps } }), notes: ln };
+}
+// Apply what changed in the shared notebook since last time onto My copy,
+// keeping anything the person changed in their own copy.
+async function updateMyCopy(live){
+  if (!followOn()) return null;
+  let base = null;
+  try { base = JSON.parse(localStorage.getItem(LS_FOLLOW_BASE)); } catch (e) {}
+  const { nb: mine, notes: mineNotes } = localNotebook();
+  if (!base) {
+    // First time: a person with an empty copy gets the whole notebook.
+    if (mine.notes.length || mine.workflow.steps.length) {
+      try { localStorage.setItem(LS_FOLLOW_BASE, JSON.stringify(live)); } catch (e) {}
+      return null;
+    }
+    base = emptyNotebook();
+  }
+  base = cleanNotebook(base);
+  const merged = merge3(base, live, mine);
+  const imgs = new Map(mineNotes.map(n => [n.id, n]));
+  const outNotes = [];
+  let addedN = 0;
+  for (const n of merged.notes) {
+    const have = imgs.get(n.id);
+    if (have) { outNotes.push({ ...have, title: n.title }); continue; }
+    try {
+      const img = await blobToDataUrl(await photoBlob({ img: 'photos/' + n.id + '.jpg' }));
+      outNotes.push({ id: n.id, img, title: n.title, selected: false });
+      addedN++;
+    } catch (e) {}
+  }
+  const removedN = mine.notes.filter(n => !merged.notes.some(m => m.id === n.id)).length;
+  const addedS = merged.workflow.steps.filter(x => !mine.workflow.steps.some(m => m.id === x.id)).length;
+  const removedS = mine.workflow.steps.filter(x => !merged.workflow.steps.some(m => m.id === x.id)).length;
+  if (!save(LS_NOTES, outNotes) || !save(LS_WF, merged.workflow)) return { full: true };
+  try { localStorage.setItem(LS_FOLLOW_BASE, JSON.stringify(live)); } catch (e) {}
+  return { addedN, removedN, addedS, removedS };
+}
+function describeUpdate(u){
+  if (!u) return '';
+  if (u.full) return "My copy couldn't take the latest changes because this device is out of space. Delete some photos from My copy.";
+  const parts = [];
+  if (u.addedN) parts.push('+' + u.addedN + ' note' + (u.addedN === 1 ? '' : 's'));
+  if (u.removedN) parts.push('−' + u.removedN + ' note' + (u.removedN === 1 ? '' : 's'));
+  if (u.addedS) parts.push('+' + u.addedS + ' step' + (u.addedS === 1 ? '' : 's'));
+  if (u.removedS) parts.push('−' + u.removedS + ' step' + (u.removedS === 1 ? '' : 's'));
+  return parts.length ? 'My copy updated from the shared notebook: ' + parts.join(', ') + '.' : '';
+}
+let lastUpdateNote = '';
+const followBox = document.getElementById('followBox');
+followBox.onchange = async () => {
+  try { localStorage.setItem(LS_FOLLOW, followBox.checked ? '1' : '0'); } catch (e) {}
+  if (followBox.checked && server) {
+    lastUpdateNote = describeUpdate(await updateMyCopy(server));
+    if (!shared) setSource('mine');
+  }
+};
+
+async function startShared(claude){
+  artifactApi = await claude.use('artifact').catch(() => null);
+  if (!artifactApi) return;
+  let live;
+  try {
+    const res = await fetch('notebook.json', { cache: 'no-store' });
+    if (res.ok) live = cleanNotebook(await res.json());
+    else if (res.status === 404) live = emptyNotebook();
+    else return;
+  } catch (e) { return; }
+  server = live;
+  shared = true;
+  const user = await claude.use('user').catch(() => null);
+  if (user) { const can = await user.canEdit().catch(() => null); if (can === false) readOnly = true; }
+  if (readOnly) document.body.classList.add('readonly');
+
+  let pending = null;
+  try { pending = JSON.parse(sessionStorage.getItem(PENDING)); } catch (e) {}
+  sharedAvailable = true;
+  document.getElementById('sourceBar').hidden = false;
+  document.body.classList.add('in-shared');
+  if (pending && pending.base && pending.mine && !readOnly) {
+    const merged = merge3(cleanNotebook(pending.base), cleanNotebook(pending.mine), live);
+    applyNotebook(merged, pending.photos || {});
+    scheduleSync();
+  } else {
+    showChanges(live);
+    applyNotebook(live);
+    setSync(idleText());
+  }
+  showMigrate();
+  lastUpdateNote = describeUpdate(await updateMyCopy(live));
+  let lastSource = null;
+  try { lastSource = localStorage.getItem('bn_source'); } catch (e) {}
+  if (lastSource === 'mine' && !(pending && pending.mine)) setSource('mine');
+}
+
+// ---- Initial render, then connect to Claude ----
+renderNotes();
+renderWorkflow();
+
+(async () => {
+  const claude = window.claude;
+  if (claude && claude.use) {
+    const [s, d] = await Promise.all([
+      claude.use('sample').catch(() => null),
+      claude.use('downloads').catch(() => null),
+    ]);
+    sampleFn = s;
+    downloads = d;
+    await startShared(claude);
+    if (sampleFn) {
+      const limits = await sampleFn.limits().catch(() => null);
+      maxImagesPerCall = (limits && limits.images && limits.images.maxCount) || 0;
+    }
+  }
+  if (downloads) {
+    printNotesBtn.textContent = 'Save selected to print';
+    printWfBtn.textContent = 'Save workflow to print';
+  }
+  refreshConvertAvailability();
+})();
+</script>
+<script>
+(function () {
+  var KEY = 'benchnotes_just_updated';
+  function banner(text, action, label) {
+    var b = document.createElement('div');
+    b.setAttribute('role', 'status');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:99;background:#15171A;color:#fff;font:14px system-ui,sans-serif;padding:10px 14px;border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)';
+    b.appendChild(document.createTextNode(text));
+    if (action) { var btn = document.createElement('button'); btn.textContent = label; btn.style.cssText = 'background:none;border:0;color:#fff;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;padding:0'; btn.onclick = action; b.appendChild(btn); }
+    document.body.appendChild(b);
+    if (!action) setTimeout(function () { b.remove(); }, 3500);
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  try { if (sessionStorage.getItem(KEY)) { sessionStorage.removeItem(KEY); setTimeout(function () { banner('Bench Notes updated to the latest version.'); }, 300); } } catch (e) {}
+  if (!('serviceWorker' in navigator)) return;
+  var hadController = !!navigator.serviceWorker.controller, reloading = false;
+  function reloadNow() { if (reloading) return; reloading = true; try { sessionStorage.setItem(KEY, '1'); } catch (e) {} location.reload(); }
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadController) return;
+    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    if (typing && document.visibilityState === 'visible') banner('A new version of Bench Notes is ready.', reloadNow, 'Update');
+    else reloadNow();
+  });
+  navigator.serviceWorker.register('sw.js').then(function (reg) {
+    function check() { reg.update().catch(function () {}); }
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

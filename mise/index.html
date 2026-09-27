@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Mise">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Mise</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <style>
@@ -987,23 +987,32 @@ render();
 </script>
 <script>
 (function () {
-  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  try { if (sessionStorage.getItem('mise_just_updated')) { sessionStorage.removeItem('mise_just_updated'); setTimeout(() => toast('Mise updated to the latest version.'), 300); } } catch (e) {}
+  var KEY = 'mise_just_updated';
+  function banner(text, action, label) {
+    var b = document.createElement('div');
+    b.setAttribute('role', 'status');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:99;background:#15171A;color:#fff;font:14px system-ui,sans-serif;padding:10px 14px;border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)';
+    b.appendChild(document.createTextNode(text));
+    if (action) { var btn = document.createElement('button'); btn.textContent = label; btn.style.cssText = 'background:none;border:0;color:#fff;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;padding:0'; btn.onclick = action; b.appendChild(btn); }
+    document.body.appendChild(b);
+    if (!action) setTimeout(function () { b.remove(); }, 3500);
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  try { if (sessionStorage.getItem(KEY)) { sessionStorage.removeItem(KEY); setTimeout(function () { banner('Mise updated to the latest version.'); }, 300); } } catch (e) {}
   if (!('serviceWorker' in navigator)) return;
-  const hadController = !!navigator.serviceWorker.controller;
-  let reloading = false;
-  function reloadNow(){ if (reloading) return; reloading = true; try { sessionStorage.setItem('mise_just_updated', '1'); } catch (e) {} location.reload(); }
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  var hadController = !!navigator.serviceWorker.controller, reloading = false;
+  function reloadNow() { if (reloading) return; reloading = true; try { sessionStorage.setItem(KEY, '1'); } catch (e) {} location.reload(); }
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
     if (!hadController) return;
-    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
-    if (typing && document.visibilityState === 'visible') toast('A new version of Mise is ready.', reloadNow), document.getElementById('toastUndo').textContent = 'Update';
+    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    if (typing && document.visibilityState === 'visible') banner('A new version of Mise is ready.', reloadNow, 'Update');
     else reloadNow();
   });
-  navigator.serviceWorker.register('sw.js').then(reg => {
-    const check = () => reg.update().catch(() => {});
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  navigator.serviceWorker.register('sw.js').then(function (reg) {
+    function check() { reg.update().catch(function () {}); }
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
     setInterval(check, 30 * 60 * 1000);
-  }).catch(() => {});
+  }).catch(function () {});
 })();
 </script>
 </body>

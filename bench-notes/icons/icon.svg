@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B303A"/>
+      <stop offset="1" stop-color="#171A20"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bBg)"/>
+  <!-- Notepad -->
+  <rect x="136" y="120" width="240" height="292" rx="18" fill="#F1EFE8"/>
+  <rect x="136" y="120" width="240" height="46" rx="18" fill="#E0A400"/>
+  <rect x="136" y="146" width="240" height="20" fill="#E0A400"/>
+  <!-- Spiral rings -->
+  <g fill="none" stroke="#20242B" stroke-width="10" stroke-linecap="round">
+    <path d="M186 100v40M226 100v40M266 100v40M306 100v40"/>
+  </g>
+  <!-- Method lines -->
+  <g stroke="#565D6B" stroke-width="10" stroke-linecap="round">
+    <path d="M200 214h128M200 262h110M200 310h128M200 358h80"/>
+  </g>
+  <!-- Step numbers -->
+  <g fill="#E0A400">
+    <circle cx="172" cy="214" r="10"/><circle cx="172" cy="262" r="10"/><circle cx="172" cy="310" r="10"/><circle cx="172" cy="358" r="10"/>
+  </g>
+  <!-- Camera badge: photo notes -->
+  <circle cx="366" cy="378" r="58" fill="#20242B" stroke="#F1EFE8" stroke-width="10"/>
+  <rect x="336" y="358" width="60" height="42" rx="8" fill="none" stroke="#F1EFE8" stroke-width="8"/>
+  <circle cx="366" cy="379" r="11" fill="none" stroke="#E0A400" stroke-width="7"/>
+  <path d="M352 358l6-9h16l6 9" fill="none" stroke="#F1EFE8" stroke-width="7" stroke-linejoin="round"/>
+</svg>
