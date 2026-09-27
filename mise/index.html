@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Photo notes, methods, pantry stock and a running shopping list.">
+<meta name="theme-color" content="#E4E7EA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1113" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mise">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}</style>
+<title>Mise</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E4E7EA;
+  --surface:#FBFAF6;
+  --raised:#EEF0F2;
+  --line:#CDD2D7;
+  --ink:#15171A;
+  --ink-soft:#5B626B;
+  --accent:#F2A60C;
+  --accent-ink:#15171A;
+  --danger:#B5482E;
+  --ok:#3E7B4F;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F1113; --surface:#1A1D21; --raised:#23272C; --line:#2F343A;
+    --ink:#ECEDEA; --ink-soft:#98A0A9; --accent:#F5B53A; --danger:#E07A5F; --ok:#6FB283;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F1113; --surface:#1A1D21; --raised:#23272C; --line:#2F343A;
+  --ink:#ECEDEA; --ink-soft:#98A0A9; --accent:#F5B53A; --danger:#E07A5F; --ok:#6FB283;
+}
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+body{margin:0;background:var(--surface);color:var(--ink);font-family:'Barlow',system-ui,sans-serif;font-size:15px;}
+button,input,select,textarea{font:inherit;color:inherit;}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+.topbar{background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px 10px;text-align:center;position:sticky;top:env(safe-area-inset-top,0px);z-index:3;}
+.brand{display:flex;align-items:center;justify-content:center;gap:12px;}
+.brand .logo{width:44px;height:44px;border-radius:11px;flex:none;box-shadow:0 3px 10px rgba(0,0,0,0.25);}
+.brand > div{text-align:left;}
+.topbar h1{line-height:1;margin:0;font-family:'Barlow Condensed',system-ui,sans-serif;font-weight:700;font-size:1.75rem;letter-spacing:0.08em;}
+.tag{font-size:0.75rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.06em;}
+.source{display:flex;gap:6px;margin-top:10px;}
+.source button{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 6px;font-size:0.8rem;font-weight:600;color:var(--ink-soft);cursor:pointer;text-transform:uppercase;letter-spacing:0.04em;}
+.source button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent);}
+
+main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(96px + env(safe-area-inset-bottom,0px));}
+.view{display:none;}
+.view.active{display:block;}
+
+.sync{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:0.8rem;color:var(--ink-soft);margin-bottom:12px;}
+.sync .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;}
+.sync.warn{color:var(--danger);} .sync.warn .dot{background:var(--danger);}
+.sync span{flex:1 1 200px;}
+.changes{border:1px solid var(--accent);border-radius:8px;background:var(--raised);padding:10px 12px;margin-bottom:14px;font-size:0.85rem;line-height:1.5;}
+.changes ul{margin:4px 0 8px;padding-left:18px;}
+.linkish{background:none;border:none;padding:0;color:var(--ink);text-decoration:underline;cursor:pointer;font-weight:600;}
+
+.stat-box{border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:18px;text-align:center;background:var(--surface);}
+.stat-number{font-family:'Barlow Condensed',system-ui,sans-serif;font-size:2.2rem;font-weight:700;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums;}
+.stat-label{font-size:0.75rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;}
+
+.section-title{font-size:0.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}
+.item{background:var(--raised);border-radius:6px;padding:10px 12px;display:flex;align-items:center;gap:10px;}
+.item .name{flex:1;min-width:0;font-weight:500;background:none;border:none;padding:0;overflow-wrap:anywhere;}
+.item .unit{color:var(--ink-soft);font-size:0.85rem;}
+.item.done .name{text-decoration:line-through;color:var(--ink-soft);}
+.item input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none;}
+.icon-btn{background:none;border:none;color:var(--ink-soft);cursor:pointer;padding:4px;font-size:0.95rem;}
+.new-badge{display:inline-block;background:var(--accent);color:var(--accent-ink);border-radius:3px;font-size:0.65rem;font-weight:600;padding:1px 5px;margin-right:6px;vertical-align:middle;}
+
+.btn{background:var(--ink);color:var(--surface);border:1px solid var(--ink);border-radius:6px;padding:9px 14px;font-weight:600;cursor:pointer;}
+.btn.secondary{background:none;color:var(--ink);}
+.btn.accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+.btn.small{padding:6px 10px;font-size:0.85rem;}
+.btn:disabled{opacity:0.4;cursor:default;}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.add-form{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.add-form input,.add-form select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 9px;min-width:0;}
+.add-form .grow{flex:1 1 140px;}
+.add-form .qty{width:64px;}
+.add-form .unitin{width:70px;}
+.hint{font-size:0.8rem;color:var(--ink-soft);}
+.status{font-size:0.85rem;color:var(--ink-soft);margin:0 0 12px;}
+.status.warn{color:var(--danger);}
+
+/* Notes */
+#photoInput,#libraryInput,#restoreInput{display:none;}
+.note-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+.note-card{background:var(--raised);border-radius:6px;overflow:hidden;position:relative;}
+.note-card img{width:100%;max-width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:var(--line);}
+.note-card .sel{position:absolute;top:6px;left:6px;width:20px;height:20px;accent-color:var(--accent);}
+.note-card .del{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:none;background:rgba(0,0,0,0.55);color:#fff;cursor:pointer;padding:0;}
+.note-card .new-badge{position:absolute;top:32px;left:6px;}
+.note-card input.title{width:100%;border:none;background:none;padding:7px 8px;font-size:0.8rem;}
+.typed{margin-top:18px;}
+.typed summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
+.typed textarea{display:block;width:100%;min-height:110px;margin:10px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);resize:vertical;}
+
+/* Method */
+.wf-title{width:100%;font-family:'Barlow Condensed',system-ui,sans-serif;font-size:1.4rem;font-weight:700;border:none;border-bottom:1px solid var(--line);background:none;padding:4px 0;margin-bottom:12px;}
+.step{display:flex;gap:10px;background:var(--raised);border-radius:6px;padding:10px;margin-bottom:6px;}
+.step .num{font-family:'Barlow Condensed',system-ui,sans-serif;font-weight:700;font-size:1.2rem;color:var(--accent);min-width:22px;font-variant-numeric:tabular-nums;}
+.step .fields{flex:1;min-width:0;}
+.step input.stitle{width:100%;border:none;background:none;font-weight:600;padding:2px 0;}
+.step textarea{width:100%;border:none;background:none;color:var(--ink-soft);resize:vertical;min-height:34px;padding:2px 0;font-size:0.9rem;}
+.step .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.step .meta input{flex:1 1 130px;min-width:0;border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:4px 6px;font-size:0.8rem;}
+.step .actions{display:flex;flex-direction:column;gap:2px;}
+
+/* Pantry */
+.cat{margin-bottom:6px;}
+.pitem{flex-wrap:wrap;}
+.pitem .main{display:flex;align-items:center;gap:8px;width:100%;}
+.qty-ctrl{display:flex;align-items:center;gap:4px;}
+.qty-ctrl button{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;line-height:1;}
+.qty-ctrl .q{min-width:28px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;}
+.pitem.out .q{color:var(--danger);}
+.pitem .sub{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;width:100%;padding-left:2px;font-size:0.8rem;color:var(--ink-soft);}
+.pitem .sub input[type=date]{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:2px 4px;font-size:0.8rem;}
+.pitem .sub select{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:2px 4px;font-size:0.8rem;margin-left:auto;max-width:150px;}
+.soon{color:#9A6A00;} .expired{color:var(--danger);font-weight:600;}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .soon{color:#E0A83A;} }
+:root[data-theme="dark"] .soon{color:#E0A83A;}
+
+/* Share sheet */
+.sheet{border:1px solid var(--line);border-radius:8px;background:var(--raised);padding:14px;margin:14px 0;font-size:0.9rem;line-height:1.5;}
+.sheet h2{margin:0 0 6px;font-family:'Barlow Condensed',system-ui,sans-serif;font-size:1.2rem;}
+.sheet ol{margin:6px 0 10px;padding-left:20px;}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:4;display:flex;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);}
+.tab{flex:1;padding:10px 4px 8px;border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;}
+.tab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;}
+.tab.active{color:var(--ink);border-top-color:var(--accent);}
+.readonly .edit-only{display:none !important;}
+.toast{position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;padding:0 16px;z-index:5;pointer-events:none;}
+.toast div{display:flex;gap:14px;align-items:center;max-width:600px;width:100%;background:var(--ink);color:var(--surface);border-radius:6px;padding:10px 14px;font-size:0.9rem;pointer-events:auto;}
+.toast span{flex:1;}
+.toast button{background:none;border:none;color:var(--surface);font-weight:600;text-decoration:underline;cursor:pointer;padding:0;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><svg viewBox="0 0 512 512" aria-hidden="true" class="logo">
+  <defs>
+    <radialGradient id="hdrBg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#2E343C"/>
+      <stop offset="1" stop-color="#101214"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#hdrBg)"/>
+  <!-- Four prep bowls, seen from above -->
+  <g stroke="#ECEDEA" stroke-width="12">
+    <circle cx="186" cy="186" r="70" fill="#1A1D21"/>
+    <circle cx="326" cy="186" r="70" fill="#1A1D21"/>
+    <circle cx="186" cy="326" r="70" fill="#1A1D21"/>
+    <circle cx="326" cy="326" r="70" fill="#1A1D21"/>
+  </g>
+  <!-- Diced carrot -->
+  <g fill="#F2A60C">
+    <rect x="156" y="160" width="24" height="24" rx="4"/><rect x="190" y="152" width="24" height="24" rx="4"/>
+    <rect x="170" y="190" width="24" height="24" rx="4"/><rect x="202" y="184" width="22" height="22" rx="4"/>
+    <rect x="150" y="194" width="18" height="18" rx="4"/>
+  </g>
+  <!-- Chopped herbs -->
+  <g fill="#6FB283">
+    <circle cx="306" cy="170" r="11"/><circle cx="336" cy="162" r="10"/><circle cx="350" cy="192" r="11"/>
+    <circle cx="318" cy="200" r="12"/><circle cx="296" cy="192" r="8"/><circle cx="334" cy="214" r="9"/>
+  </g>
+  <!-- Tomato -->
+  <circle cx="186" cy="328" r="34" fill="#E0553A"/>
+  <path d="M186 308v40M166 328h40M172 314l28 28M200 314l-28 28" stroke="#F5B8A8" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="186" cy="328" r="7" fill="#F5B8A8"/>
+  <!-- Flour -->
+  <path d="M290 344q36-44 72 0z" fill="#ECEDEA"/>
+  <!-- Amber sweep: the "ready" tick -->
+  <path d="M146 420h220" stroke="#F2A60C" stroke-width="16" stroke-linecap="round"/>
+</svg><div><h1>MISE</h1>
+  <div class="tag" id="tagline">Running count</div></div></div>
+  <div class="source" id="sourceBar" hidden>
+    <button id="srcShared" aria-pressed="true">Shared</button>
+    <button id="srcMine" aria-pressed="false">My copy</button>
+  </div>
+</header>
+
+<main>
+  <div class="sync" id="syncBar" hidden>
+    <i class="dot"></i><span id="syncText"></span>
+    <label id="followWrap" hidden style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="followBox"> Get updates from the shared list</label>
+    <button class="btn secondary small edit-only" id="migrateBtn" hidden></button>
+  </div>
+  <div class="changes" id="changesBox" hidden></div>
+
+  <!-- Notes -->
+  <section class="view" id="view-notes">
+    <div class="row edit-only">
+      <button class="btn" id="takePhotoBtn">Take photo</button>
+      <button class="btn secondary" id="addPhotoBtn">Add from library</button>
+    </div>
+    <div class="row">
+      <button class="btn accent edit-only" id="convertBtn" disabled>Selected → Method</button>
+      <button class="btn secondary" id="copyNotesBtn" hidden disabled>Copy selected to my copy</button>
+    </div>
+    <p class="status" id="notesStatus" hidden></p>
+    <input type="file" accept="image/*" capture="environment" id="photoInput">
+    <input type="file" accept="image/*" id="libraryInput" multiple>
+    <div class="note-grid" id="noteGrid"></div>
+    <p class="hint" id="notesEmpty">No notes yet. Photograph your class notes or a recipe to start.</p>
+    <details class="typed edit-only" id="typedBox" hidden>
+      <summary>Or paste typed notes</summary>
+      <textarea id="typedNotes" placeholder="e.g. Hollandaise: clarify 250g butter. Reduce vinegar + peppercorns. Whisk yolks over bain-marie to 65°C. Hold below 63°C, max 2 hrs. Contains egg, dairy."></textarea>
+      <button class="btn secondary" id="convertTextBtn">Text → Method</button>
+    </details>
+  </section>
+
+  <!-- Method -->
+  <section class="view" id="view-method">
+    <input class="wf-title" id="wfTitle" placeholder="Dish or method name">
+    <div id="stepList"></div>
+    <p class="hint" id="stepsEmpty">No steps yet. Add one, or turn a photo of your notes into steps on the Notes tab.</p>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn secondary edit-only" id="addStepBtn">+ Add step</button>
+      <button class="btn secondary" id="printWfBtn">Save to print</button>
+      <button class="btn secondary" id="copyWfBtn" hidden>Copy method to my copy</button>
+    </div>
+    <p class="status" id="methodStatus" hidden></p>
+  </section>
+
+  <!-- Pantry -->
+  <section class="view" id="view-pantry">
+    <div id="useSoon"></div>
+    <div id="pantryCats"></div>
+    <div class="add-form edit-only">
+      <input class="grow" id="newCat" placeholder="New area (e.g. Freezer)">
+      <button class="btn secondary small" id="addCatBtn">Add area</button>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn secondary small edit-only" id="outToShopBtn">Add everything out of stock to Shopping</button>
+    </div>
+  </section>
+
+  <!-- Shopping -->
+  <section class="view" id="view-shopping">
+    <div class="stat-box"><div class="stat-number" id="needCount">0</div><div class="stat-label">Items needed</div></div>
+    <div id="shopGroups"></div>
+    <div class="add-form edit-only">
+      <input class="grow" id="shopName" placeholder="Add an item">
+      <input class="qty" id="shopQty" type="number" min="1" value="1" aria-label="Quantity">
+      <input class="unitin" id="shopUnit" placeholder="unit" aria-label="Unit">
+      <input class="grow" id="shopArea" placeholder="Area (e.g. Dry Store)" list="areaList" aria-label="Area">
+      <datalist id="areaList"></datalist>
+      <button class="btn small" id="shopAddBtn">Add</button>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn secondary small edit-only" id="clearDoneBtn" hidden>Clear ticked items</button>
+    </div>
+    <p class="hint">Ticking off an item that came from the Pantry adds it back to your stock count.</p>
+  </section>
+
+  <button class="btn secondary" id="shareBtn" style="width:100%;margin-top:18px;">📤 Share</button>
+  <div class="sheet" id="shareSheet" hidden>
+    <h2>Share Mise</h2>
+    <p>Everyone you share with sees the shared list. They also get <strong>My copy</strong>, their own version that updates when you add or remove things and keeps their own changes.</p>
+    <ol>
+      <li>Tap <strong>Share</strong> at the top of this page in Claude.</li>
+      <li>Invite people by email. <strong>Editor</strong> lets them change the shared list. <strong>Viewer</strong> lets them see it and keep their own copy.</li>
+      <li>Turn off "Anyone with the link". Changes can't be saved while it's on.</li>
+    </ol>
+    <p class="hint">You can also send someone a file copy of everything, or bring in a backup from the Pantry app.</p>
+    <div class="row">
+      <button class="btn secondary small" id="backupBtn">Save backup file</button>
+      <button class="btn secondary small edit-only" id="restoreBtn">Restore or import backup</button>
+      <input type="file" id="restoreInput" accept=".json,application/json">
+    </div>
+  </div>
+</main>
+
+<nav class="tabbar" aria-label="Sections">
+  <button class="tab" data-tab="notes"><svg viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M8 6l2-3h4l2 3"/><circle cx="12" cy="13" r="3.5"/></svg>Notes</button>
+  <button class="tab" data-tab="method"><svg viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round"><path d="M6 3h12v17l-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5L6 20z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>Method</button>
+  <button class="tab" data-tab="pantry"><svg viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round"><path d="M3 5h18M3 12h18M3 19h18"/><path d="M6 12V8h3v4M12 12V9h3v3M7 19v-4h4v4M15 19v-3h3v3"/></svg>Pantry</button>
+  <button class="tab" data-tab="shopping"><svg viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Shopping</button>
+</nav>
+
+<div class="toast" id="toast" hidden><div role="status"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div></div>
+
+<script>
+// ===== Data =====
+// One "book" holds everything:
+//   notes [{id,title,img}], steps [{id,title,detail,temp,allergens}], methodTitle,
+//   cats [{id,name}], pantry [{id,cat,name,qty,unit,expires}], shop [{id,name,qty,unit,area,done,pantryId}]
+// Inside Claude there's a shared book (saved as files next to the page:
+// book.json plus one JPEG per photo) and each person's My copy on their device.
+const LS_MINE = 'mise_mine';
+const LS_SEL = 'mise_selected';
+const LS_TAB = 'mise_tab';
+const LS_SOURCE = 'mise_source';
+const LS_SEEN = 'mise_seen_shared';
+const LS_FOLLOW = 'mise_follow';
+const LS_FOLLOW_BASE = 'mise_follow_base';
+const PENDING = 'mise_pending';
+const MAX_PHOTO_SIDE = 1600;
+const LISTS = {
+  notes: ['title'],
+  steps: ['title', 'detail', 'temp', 'allergens'],
+  cats: ['name'],
+  pantry: ['cat', 'name', 'qty', 'unit', 'expires'],
+  shop: ['name', 'qty', 'unit', 'area', 'done', 'pantryId'],
+};
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function load(key, fallback){ try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+function store(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
+const $ = id => document.getElementById(id);
+
+function emptyBook(){ return { v: 1, methodTitle: '', notes: [], steps: [], cats: [], pantry: [], shop: [] }; }
+function starterBook(){
+  const dry = uid(), cool = uid();
+  return { v: 1, methodTitle: '', notes: [], steps: [],
+    cats: [{ id: dry, name: 'Dry Store' }, { id: cool, name: 'Cool Room' }],
+    pantry: [],
+    shop: [
+      ['Flour', 'kg', 'Dry Store'], ['Sugar', 'kg', 'Dry Store'], ['Rice', 'kg', 'Dry Store'],
+      ['Butter', 'kg', 'Cool Room'], ['Milk', 'L', 'Cool Room'], ['Eggs', 'dozen', 'Cool Room'],
+    ].map(([name, unit, area]) => ({ id: uid(), name, qty: 1, unit, area, done: false, pantryId: '' })) };
+}
+function clean(b, keepImg){
+  const out = emptyBook();
+  if (!b || typeof b !== 'object') return out;
+  out.methodTitle = String(b.methodTitle || '');
+  for (const key of Object.keys(LISTS)) {
+    if (!Array.isArray(b[key])) continue;
+    out[key] = b[key].filter(x => x && x.id).map(x => {
+      const o = { id: String(x.id) };
+      for (const f of LISTS[key]) {
+        if (f === 'qty') o[f] = Number.isFinite(Number(x[f])) ? Number(x[f]) : 0;
+        else if (f === 'done') o[f] = !!x[f];
+        else o[f] = String(x[f] == null ? '' : x[f]);
+      }
+      if (keepImg && key === 'notes' && x.img) o.img = String(x.img);
+      return o;
+    });
+  }
+  return out;
+}
+
+// Three-way merge: apply what `mine` changed since `base` on top of `live`.
+function mergeList(baseL, mineL, liveL, fields){
+  const B = new Map(baseL.map(x => [x.id, x])), M = new Map(mineL.map(x => [x.id, x]));
+  let out = liveL.filter(x => !(B.has(x.id) && !M.has(x.id))).map(x => ({ ...x }));
+  for (const x of out) { const b = B.get(x.id), m = M.get(x.id); if (b && m) for (const f of fields) if (m[f] !== b[f]) x[f] = m[f]; }
+  const baseOrder = baseL.map(x => x.id).filter(id => M.has(id));
+  const mineOrder = mineL.map(x => x.id).filter(id => B.has(id));
+  if (baseOrder.join() !== mineOrder.join()) {
+    const pos = new Map(mineOrder.map((id, i) => [id, i]));
+    out = out.filter(x => pos.has(x.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id)).concat(out.filter(x => !pos.has(x.id)));
+  }
+  const have = new Set(out.map(x => x.id));
+  for (const m of mineL) if (!B.has(m.id) && !have.has(m.id)) out.push({ ...m });
+  return out;
+}
+function merge3(base, mine, live){
+  const out = { v: 1, methodTitle: mine.methodTitle !== base.methodTitle ? mine.methodTitle : live.methodTitle };
+  for (const key of Object.keys(LISTS)) out[key] = mergeList(base[key], mine[key], live[key], LISTS[key]);
+  return out;
+}
+
+// ===== State =====
+let book = clean(load(LS_MINE, null), true);
+let firstRun = !localStorage.getItem(LS_MINE);
+if (firstRun) book = starterBook();
+let shared = false, sharedAvailable = false, readOnly = false;
+let artifactApi = null, server = null;
+let sampleFn = null, maxImages = 0, aiOff = false, downloads = null, converting = false;
+let syncTimer = null, syncing = false, syncAgain = false, retried = false;
+let newIds = new Set();
+let lastUpdateNote = '';
+let tab = load(LS_TAB, 'shopping');
+if (!['notes', 'method', 'pantry', 'shopping'].includes(tab)) tab = 'shopping';
+
+function selection(){ return new Set(load(LS_SEL, [])); }
+function persist(){
+  if (shared) { scheduleSync(); return; }
+  if (!store(LS_MINE, book)) setStatus($('notesStatus'), "This device is out of space. Delete a few photos to keep new changes.", true);
+  firstRun = false;
+}
+function setStatus(el, text, warn){ el.textContent = text || ''; el.hidden = !text; el.classList.toggle('warn', !!warn); }
+
+// ===== Toast =====
+let undoFn = null, toastTimer = null;
+function toast(msg, undo){
+  $('toastMsg').textContent = msg; undoFn = undo || null; $('toastUndo').hidden = !undo; $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, undo ? 7000 : 3000);
+}
+$('toastUndo').onclick = () => { const f = undoFn; $('toast').hidden = true; undoFn = null; if (f) f(); };
+function removeWithUndo(key, item, label){
+  const i = book[key].indexOf(item);
+  book[key].splice(i, 1); persist(); render();
+  toast('Removed ' + (label || 'item') + '.', () => { book[key].splice(Math.min(i, book[key].length), 0, item); persist(); render(); });
+}
+
+// ===== Tabs =====
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; store(LS_TAB, tab); render(); window.scrollTo(0, 0); });
+const TAGLINES = { notes: 'Photo notes', method: 'Method', pantry: 'Stock by area', shopping: 'Running count' };
+
+function render(){
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + tab));
+  $('tagline').textContent = TAGLINES[tab];
+  document.body.classList.toggle('readonly', shared && readOnly);
+  const inShared = shared && sharedAvailable;
+  $('copyNotesBtn').hidden = !inShared;
+  $('copyWfBtn').hidden = !inShared;
+  renderNotes(); renderMethod(); renderPantry(); renderShopping();
+}
+const locked = () => shared && readOnly;
+const isNew = id => shared && newIds.has(id);
+const badge = id => isNew(id) ? '<span class="new-badge">NEW</span>' : '';
+
+// ===== Notes =====
+$('takePhotoBtn').onclick = () => $('photoInput').click();
+$('addPhotoBtn').onclick = () => $('libraryInput').click();
+$('photoInput').onchange = e => { const f = e.target.files[0]; if (f) addPhoto(f); e.target.value = ''; };
+$('libraryInput').onchange = e => { Array.from(e.target.files || []).forEach(addPhoto); e.target.value = ''; };
+function readAsDataUrl(blob){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); }); }
+function shrinkPhoto(file){
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_PHOTO_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(readAsDataUrl(file)); };
+    img.src = url;
+  });
+}
+async function addPhoto(file){
+  try {
+    const img = await shrinkPhoto(file);
+    const n = { id: uid(), title: '', img };
+    book.notes.push(n);
+    const sel = selection(); sel.add(n.id); store(LS_SEL, [...sel]);
+    persist(); render();
+  } catch (e) { setStatus($('notesStatus'), "That photo couldn't be opened. Try a JPEG or PNG.", true); }
+}
+function photoSrc(n){ return n.img || ('photos/' + n.id + '.jpg'); }
+function dataUrlToBlob(du){
+  const i = du.indexOf(','), mime = (du.slice(0, i).match(/data:([^;]+);base64/) || [])[1] || 'image/jpeg';
+  const bin = atob(du.slice(i + 1)), bytes = new Uint8Array(bin.length);
+  for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+  return new Blob([bytes], { type: mime });
+}
+function photoBlob(n){
+  const src = photoSrc(n);
+  if (src.startsWith('data:')) return Promise.resolve(dataUrlToBlob(src));
+  return fetch(src).then(r => { if (!r.ok) throw new Error('photo'); return r.blob(); });
+}
+function renderNotes(){
+  const sel = selection();
+  const grid = $('noteGrid');
+  grid.innerHTML = '';
+  $('notesEmpty').hidden = book.notes.length > 0;
+  book.notes.forEach(n => {
+    const card = document.createElement('div');
+    card.className = 'note-card';
+    card.innerHTML = `<input type="checkbox" class="sel" aria-label="Select note" ${sel.has(n.id) ? 'checked' : ''}>
+      <img src="${esc(photoSrc(n))}" alt="${esc(n.title || 'Note photo')}">${badge(n.id)}
+      <button class="del edit-only" aria-label="Delete note">×</button>
+      <input class="title" placeholder="label…" value="${esc(n.title)}" ${locked() ? 'readonly' : ''}>`;
+    card.querySelector('.sel').onchange = e => { const s = selection(); e.target.checked ? s.add(n.id) : s.delete(n.id); store(LS_SEL, [...s]); updateNoteButtons(); };
+    card.querySelector('.del').onclick = () => removeWithUndo('notes', n, n.title || 'photo');
+    card.querySelector('.title').oninput = e => { n.title = e.target.value; persist(); };
+    grid.appendChild(card);
+  });
+  $('typedBox').hidden = !sampleFn || aiOff;
+  updateNoteButtons();
+}
+function chosenNotes(){ const s = selection(); return book.notes.filter(n => s.has(n.id)); }
+function updateNoteButtons(){
+  const any = chosenNotes().length > 0;
+  $('convertBtn').disabled = converting || !any || !sampleFn || aiOff || !maxImages;
+  $('copyNotesBtn').disabled = !any;
+  $('convertTextBtn').disabled = converting;
+}
+
+// Claude reads notes on the viewer's own plan: no API key.
+const STEP_SHAPE = 'Reply with ONLY a JSON array of step objects, no other text, each shaped like: {"title": "short step name", "detail": "method / safety notes", "temp": "temperature or time if mentioned, else empty string", "allergens": "comma-separated allergens if mentioned, else empty string"}. Keep the order the notes give. If a word is hard to read, give your best reading followed by [?].';
+function cleanSteps(a){ return (Array.isArray(a) ? a : []).filter(s => s && typeof s === 'object').map(s => ({ id: uid(), title: String(s.title || '').slice(0, 200), detail: String(s.detail || '').slice(0, 2000), temp: String(s.temp || '').slice(0, 100), allergens: String(s.allergens || '').slice(0, 200) })); }
+function aiError(e){
+  switch (e && e.code) {
+    case 'not_granted': case 'sampling_disabled': case 'not_declared': case 'capability_disabled': case 'capability_removed':
+      aiOff = true; return "Claude access wasn't allowed, so reading notes is off until you reload. You can still add steps by hand.";
+    case 'images_unavailable': maxImages = 0; return "This view can't send photos to Claude. Paste typed notes instead.";
+    case 'rate_limited': return "You've reached your Claude usage limit for now. Try again later.";
+    case 'image_rejected': return "That photo couldn't be used. Try a clearer or smaller image.";
+    case 'refused': return "Claude couldn't read that. Try a clearer photo.";
+    case 'invalid_json': case 'empty_completion': case 'empty': return "Couldn't make sense of the notes. Try a clearer photo.";
+    default: return "Couldn't reach Claude just now. Try again, or add steps by hand.";
+  }
+}
+async function convert({ notes = [], text = '' }){
+  if (converting || !sampleFn || aiOff) return;
+  converting = true; updateNoteButtons();
+  setStatus($('notesStatus'), 'Reading notes… this can take up to a minute.');
+  try {
+    let steps = [];
+    if (notes.length) {
+      for (let i = 0; i < notes.length; i += maxImages) {
+        const batch = notes.slice(i, i + maxImages);
+        const images = await Promise.all(batch.map(photoBlob));
+        const prompt = 'The attached ' + (images.length > 1 ? images.length + ' images show' : 'image shows') + ' handwritten or printed cooking method notes from a commercial cookery class. Read them and turn them into a step-by-step kitchen method. ' + STEP_SHAPE;
+        steps = steps.concat(cleanSteps(await sampleFn.json(prompt, { images, modelTier: 'default' })));
+      }
+    } else {
+      steps = cleanSteps(await sampleFn.json('Below are typed cooking method notes from a commercial cookery class. Turn them into a step-by-step kitchen method. ' + STEP_SHAPE + '\n\nNotes:\n' + text.slice(0, 20000), { modelTier: 'default' }));
+    }
+    if (!steps.length) throw { code: 'empty' };
+    book.steps = book.steps.concat(steps);
+    if (!book.methodTitle) book.methodTitle = (notes[0] && notes[0].title) || 'Untitled method';
+    persist();
+    setStatus($('notesStatus'), 'Added ' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ' to Method.');
+    if (text) $('typedNotes').value = '';
+    tab = 'method'; store(LS_TAB, tab);
+  } catch (e) {
+    if (!e || e.code !== 'cancelled') setStatus($('notesStatus'), aiError(e), true);
+  } finally { converting = false; render(); }
+}
+$('convertBtn').onclick = () => convert({ notes: chosenNotes() });
+$('convertTextBtn').onclick = () => convert({ text: $('typedNotes').value });
+
+// ===== Method =====
+$('wfTitle').oninput = e => { book.methodTitle = e.target.value; persist(); };
+$('addStepBtn').onclick = () => { book.steps.push({ id: uid(), title: '', detail: '', temp: '', allergens: '' }); persist(); render(); };
+function renderMethod(){
+  $('wfTitle').value = book.methodTitle || '';
+  $('wfTitle').readOnly = locked();
+  const list = $('stepList');
+  list.innerHTML = '';
+  $('stepsEmpty').hidden = book.steps.length > 0;
+  book.steps.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'step';
+    const ro = locked() ? 'readonly' : '';
+    row.innerHTML = `<div class="num">${i + 1}</div>
+      <div class="fields">${badge(s.id)}
+        <input class="stitle" placeholder="Step" value="${esc(s.title)}" ${ro} aria-label="Step title">
+        <textarea class="sdetail" placeholder="Method / safety notes" ${ro} aria-label="Details">${esc(s.detail)}</textarea>
+        <div class="meta">
+          <input class="temp" placeholder="Temp / time (e.g. 180°C, 12 min)" value="${esc(s.temp)}" ${ro} aria-label="Temperature or time">
+          <input class="allerg" placeholder="Allergens" value="${esc(s.allergens)}" ${ro} aria-label="Allergens">
+        </div>
+      </div>
+      <div class="actions edit-only">
+        <button class="icon-btn up" aria-label="Move step up">▲</button>
+        <button class="icon-btn down" aria-label="Move step down">▼</button>
+        <button class="icon-btn rm" aria-label="Remove step">✕</button>
+      </div>`;
+    row.querySelector('.stitle').oninput = e => { s.title = e.target.value; persist(); };
+    row.querySelector('.sdetail').oninput = e => { s.detail = e.target.value; persist(); };
+    row.querySelector('.temp').oninput = e => { s.temp = e.target.value; persist(); };
+    row.querySelector('.allerg').oninput = e => { s.allergens = e.target.value; persist(); };
+    row.querySelector('.up').onclick = () => { if (i > 0) { [book.steps[i - 1], book.steps[i]] = [book.steps[i], book.steps[i - 1]]; persist(); render(); } };
+    row.querySelector('.down').onclick = () => { if (i < book.steps.length - 1) { [book.steps[i + 1], book.steps[i]] = [book.steps[i], book.steps[i + 1]]; persist(); render(); } };
+    row.querySelector('.rm').onclick = () => removeWithUndo('steps', s, s.title ? '“' + s.title + '”' : 'step');
+    list.appendChild(row);
+  });
+}
+$('printWfBtn').onclick = async () => {
+  const title = book.methodTitle || 'Method';
+  const css = 'body{font-family:Arial,sans-serif;margin:24px;max-width:720px}h1{font-size:20px}.s{break-inside:avoid;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #ccc}.s h2{margin:0 0 2px;font-size:14px}.s p{margin:0;font-size:12px;white-space:pre-wrap}';
+  const body = `<h1>${esc(title)}</h1>` + book.steps.map((s, i) => `<div class="s"><h2>${i + 1}. ${esc(s.title || 'Step')}</h2>${s.detail ? `<p>${esc(s.detail)}</p>` : ''}${s.temp || s.allergens ? `<p><i>${esc([s.temp, s.allergens ? 'Allergens: ' + s.allergens : ''].filter(Boolean).join(' — '))}</i></p>` : ''}</div>`).join('');
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${body}</body></html>`;
+  await saveFile((title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'method') + '.html', doc, $('methodStatus'), 'Saved. Open the file and print it from your browser.');
+};
+
+// ===== Pantry =====
+function isoToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function daysLeft(iso){ const [y, m, d] = iso.split('-').map(Number); const t = new Date(); return Math.round((new Date(y, m - 1, d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000); }
+function dateNote(iso){
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return '';
+  const n = daysLeft(iso);
+  const cls = n < 0 ? 'expired' : n <= 3 ? 'soon' : '';
+  const txt = n < -1 ? 'expired ' + (-n) + ' days ago' : n === -1 ? 'expired yesterday' : n === 0 ? 'use today' : n === 1 ? 'tomorrow' : n + ' days left';
+  return `<span class="${cls}">${txt}</span>`;
+}
+$('addCatBtn').onclick = () => { const name = $('newCat').value.trim(); if (!name) return; book.cats.push({ id: uid(), name }); $('newCat').value = ''; persist(); render(); };
+$('newCat').onkeydown = e => { if (e.key === 'Enter') $('addCatBtn').click(); };
+function addToShopping(p){
+  const cat = book.cats.find(c => c.id === p.cat);
+  if (book.shop.some(s => !s.done && (s.pantryId === p.id || s.name.toLowerCase() === p.name.toLowerCase()))) return false;
+  book.shop.push({ id: uid(), name: p.name, qty: 1, unit: p.unit, area: cat ? cat.name : '', done: false, pantryId: p.id });
+  return true;
+}
+$('outToShopBtn').onclick = () => {
+  const n = book.pantry.filter(p => p.qty <= 0).reduce((c, p) => c + (addToShopping(p) ? 1 : 0), 0);
+  if (n) { persist(); render(); }
+  toast(n ? 'Added ' + n + ' item' + (n === 1 ? '' : 's') + ' to Shopping.' : 'Nothing new to add. Everything out of stock is already on the list.');
+};
+function renderPantry(){
+  // Use soon
+  const soon = book.pantry.filter(p => /^\d{4}-\d{2}-\d{2}$/.test(p.expires) && daysLeft(p.expires) <= 7).sort((a, b) => daysLeft(a.expires) - daysLeft(b.expires));
+  $('useSoon').innerHTML = soon.length ? `<div class="section-title">Use soon · ${soon.length}</div><ul class="list">${soon.map(p => `<li class="item"><span class="name">${esc(p.name)}</span>${dateNote(p.expires)}</li>`).join('')}</ul>` : '';
+  const wrap = $('pantryCats');
+  wrap.innerHTML = '';
+  if (!book.cats.length) wrap.innerHTML = '<p class="hint">Add an area below, like Dry Store or Cool Room, then add what\'s in it.</p>';
+  book.cats.forEach((cat, ci) => {
+    const items = book.pantry.filter(p => p.cat === cat.id);
+    const sec = document.createElement('div');
+    sec.className = 'cat';
+    sec.innerHTML = `<div class="section-title"><span>${badge(cat.id)}${esc(cat.name)} · ${items.length}</span>
+      <span class="edit-only"><button class="icon-btn cup" aria-label="Move area up">▲</button><button class="icon-btn cdel" aria-label="Remove area">✕</button></span></div>
+      <ul class="list"></ul>
+      <div class="add-form edit-only">
+        <input class="grow pname" placeholder="Add to ${esc(cat.name)}" aria-label="Item name">
+        <input class="qty pqty" type="number" min="0" value="1" aria-label="Quantity">
+        <input class="unitin punit" placeholder="unit" aria-label="Unit">
+        <button class="btn small padd">Add</button>
+      </div>`;
+    const ul = sec.querySelector('ul');
+    items.forEach(p => {
+      const li = document.createElement('li');
+      li.className = 'item pitem' + (p.qty <= 0 ? ' out' : '');
+      const others = book.cats.filter(c => c.id !== cat.id);
+      li.innerHTML = `<div class="main">
+          <input class="name" value="${esc(p.name)}" ${locked() ? 'readonly' : ''} aria-label="Item name">
+          <div class="qty-ctrl"><button class="edit-only minus" aria-label="One less">−</button><span class="q">${p.qty}</span><button class="edit-only plus" aria-label="One more">+</button></div>
+          <span class="unit">${esc(p.unit)}</span>
+          <button class="icon-btn edit-only pdel" aria-label="Remove item">✕</button>
+        </div>
+        <div class="sub">${badge(p.id)}
+          <label>use by <input type="date" class="pexp" value="${esc(p.expires)}" ${locked() ? 'disabled' : ''}></label>${dateNote(p.expires)}
+          ${p.qty <= 0 ? '<button class="linkish edit-only tobuy">Add to Shopping</button>' : ''}
+          ${others.length ? `<select class="edit-only pmove" aria-label="Move to another area"><option value="">Move to…</option>${others.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : ''}
+        </div>`;
+      li.querySelector('.name').oninput = e => { p.name = e.target.value; persist(); };
+      li.querySelector('.minus').onclick = () => { p.qty = Math.max(0, p.qty - 1); persist(); render(); };
+      li.querySelector('.plus').onclick = () => { p.qty = p.qty + 1; persist(); render(); };
+      li.querySelector('.pdel').onclick = () => removeWithUndo('pantry', p, p.name);
+      li.querySelector('.pexp').onchange = e => { p.expires = e.target.value || ''; persist(); render(); };
+      const tb = li.querySelector('.tobuy'); if (tb) tb.onclick = () => { if (addToShopping(p)) { persist(); render(); toast(p.name + ' added to Shopping.'); } else toast(p.name + ' is already on the list.'); };
+      const mv = li.querySelector('.pmove'); if (mv) mv.onchange = () => { const to = book.cats.find(c => c.id === mv.value); if (to) { p.cat = to.id; persist(); render(); toast('Moved ' + p.name + ' to ' + to.name + '.'); } };
+      ul.appendChild(li);
+    });
+    sec.querySelector('.cup').onclick = () => { if (ci > 0) { [book.cats[ci - 1], book.cats[ci]] = [book.cats[ci], book.cats[ci - 1]]; persist(); render(); } };
+    sec.querySelector('.cdel').onclick = () => {
+      const i = book.cats.indexOf(cat), removed = book.pantry.filter(p => p.cat === cat.id);
+      book.cats.splice(i, 1); book.pantry = book.pantry.filter(p => p.cat !== cat.id); persist(); render();
+      toast('Removed ' + cat.name + (removed.length ? ' and its ' + removed.length + ' items' : '') + '.', () => { book.cats.splice(Math.min(i, book.cats.length), 0, cat); book.pantry = book.pantry.concat(removed); persist(); render(); });
+    };
+    const addP = () => {
+      const name = sec.querySelector('.pname').value.trim(); if (!name) return;
+      book.pantry.push({ id: uid(), cat: cat.id, name, qty: Math.max(0, Math.round(Number(sec.querySelector('.pqty').value) || 0)), unit: sec.querySelector('.punit').value.trim(), expires: '' });
+      persist(); render();
+      const again = [...document.querySelectorAll('.cat')][ci]; if (again) again.querySelector('.pname').focus();
+    };
+    sec.querySelector('.padd').onclick = addP;
+    sec.querySelector('.pname').onkeydown = e => { if (e.key === 'Enter') addP(); };
+    wrap.appendChild(sec);
+  });
+}
+
+// ===== Shopping =====
+function renderShopping(){
+  const open = book.shop.filter(s => !s.done), done = book.shop.filter(s => s.done);
+  $('needCount').textContent = open.length;
+  $('areaList').innerHTML = [...new Set(book.cats.map(c => c.name).concat(book.shop.map(s => s.area)).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('');
+  const groups = new Map();
+  open.forEach(s => { const k = s.area || 'Other'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
+  const wrap = $('shopGroups');
+  wrap.innerHTML = open.length ? '' : '<p class="hint">Nothing to buy. Add items below, or send out-of-stock items here from the Pantry.</p>';
+  const row = s => {
+    const li = document.createElement('li');
+    li.className = 'item' + (s.done ? ' done' : '');
+    li.innerHTML = `<input type="checkbox" ${s.done ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="Got it">
+      <span class="name">${badge(s.id)}${esc(s.name)}</span><span class="unit">${s.qty > 1 ? s.qty + ' ' : ''}${esc(s.unit)}</span>
+      <button class="icon-btn edit-only sdel" aria-label="Remove">✕</button>`;
+    li.querySelector('input').onchange = e => {
+      s.done = e.target.checked;
+      const p = s.pantryId && book.pantry.find(x => x.id === s.pantryId);
+      if (p) p.qty = Math.max(0, p.qty + (s.done ? (s.qty || 1) : -(s.qty || 1)));   // restock the pantry
+      persist(); render();
+    };
+    li.querySelector('.sdel').onclick = () => removeWithUndo('shop', s, s.name);
+    return li;
+  };
+  for (const [area, items] of groups) {
+    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area)}</span>`;
+    const ul = document.createElement('ul'); ul.className = 'list'; items.forEach(s => ul.appendChild(row(s)));
+    wrap.appendChild(t); wrap.appendChild(ul);
+  }
+  if (done.length) {
+    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>Got it · ${done.length}</span>`;
+    const ul = document.createElement('ul'); ul.className = 'list'; done.forEach(s => ul.appendChild(row(s)));
+    wrap.appendChild(t); wrap.appendChild(ul);
+  }
+  $('clearDoneBtn').hidden = !done.length;
+}
+$('shopAddBtn').onclick = () => {
+  const name = $('shopName').value.trim(); if (!name) return;
+  book.shop.push({ id: uid(), name, qty: Math.max(1, Math.round(Number($('shopQty').value) || 1)), unit: $('shopUnit').value.trim(), area: $('shopArea').value.trim(), done: false, pantryId: '' });
+  $('shopName').value = ''; $('shopQty').value = 1; $('shopUnit').value = '';
+  persist(); render(); $('shopName').focus();
+};
+$('shopName').onkeydown = e => { if (e.key === 'Enter') $('shopAddBtn').click(); };
+$('clearDoneBtn').onclick = () => {
+  const before = book.shop.slice();
+  book.shop = book.shop.filter(s => !s.done); persist(); render();
+  toast('Cleared ticked items.', () => { book.shop = before; persist(); render(); });
+};
+
+// ===== Files: backup, print =====
+async function saveFile(filename, data, statusEl, okText){
+  if (window.claude) {
+    if (!downloads) { setStatus(statusEl, "Saving files isn't available in this view.", true); return; }
+    try { await downloads.save({ filename, data }); setStatus(statusEl, okText); }
+    catch (e) { if (!e || e.code !== 'declined') setStatus(statusEl, "Couldn't save the file here.", true); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data])); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove(); setStatus(statusEl, okText);
+}
+$('shareBtn').onclick = () => { $('shareSheet').hidden = !$('shareSheet').hidden; };
+$('backupBtn').onclick = async () => {
+  const withPhotos = clean(book, true);
+  for (const n of withPhotos.notes) if (!n.img || !n.img.startsWith('data:')) { try { n.img = await readAsDataUrl(await photoBlob(n)); } catch (e) {} }
+  await saveFile('mise-backup-' + isoToday() + '.json', JSON.stringify({ app: 'mise', version: 1, exported: new Date().toISOString(), book: withPhotos }), $('notesStatus'), 'Backup saved.');
+  toast('Backup saved.');
+};
+$('restoreBtn').onclick = () => $('restoreInput').click();
+$('restoreInput').onchange = async () => {
+  const f = $('restoreInput').files[0]; $('restoreInput').value = ''; if (!f) return;
+  let j = null; try { j = JSON.parse(await f.text()); } catch (e) {}
+  let incoming = null;
+  if (j && j.app === 'mise' && j.book) incoming = clean(j.book, true);
+  else if (j && (j.app === 'pantry' || Array.isArray(j))) {
+    // A backup from the Pantry app: categories become areas.
+    incoming = emptyBook();
+    (Array.isArray(j) ? j : j.data || []).forEach(c => {
+      if (!c || !c.id) return;
+      incoming.cats.push({ id: String(c.id), name: String(c.name || '') });
+      (c.items || []).forEach(it => it && it.id && incoming.pantry.push({ id: String(it.id), cat: String(c.id), name: String(it.name || ''), qty: Number(it.qty) || 0, unit: String(it.unit || ''), expires: /^\d{4}-\d{2}-\d{2}$/.test(it.expires || '') ? it.expires : '' }));
+    });
+  }
+  if (!incoming) { toast("That file isn't a Mise or Pantry backup."); return; }
+  const before = JSON.parse(JSON.stringify(book));
+  let added = 0;
+  for (const key of Object.keys(LISTS)) for (const x of incoming[key]) if (!book[key].some(y => y.id === x.id)) { book[key].push(x); added++; }
+  if (!book.methodTitle && incoming.methodTitle) book.methodTitle = incoming.methodTitle;
+  if (!added) { toast('Everything in that file is already here.'); return; }
+  persist(); render();
+  toast('Added ' + added + ' thing' + (added === 1 ? '' : 's') + ' from the backup.', () => { book = before; persist(); render(); });
+};
+
+// ===== Sharing =====
+function sharedForm(b){ const o = clean(b, false); return o; }
+function unsentPhotos(){
+  const onServer = new Set(server.notes.map(n => n.id)), out = {};
+  book.notes.forEach(n => { if (!onServer.has(n.id) && n.img && n.img.startsWith('data:')) out[n.id] = n.img; });
+  return out;
+}
+function setSync(text, warn){ $('syncBar').hidden = !text; $('syncBar').classList.toggle('warn', !!warn); $('syncText').textContent = text || ''; }
+function idleText(){
+  return readOnly ? 'Shared list · view only. Your own version is in My copy.' : 'Shared list · everyone you share Mise with sees this. Editors can change it.';
+}
+function stash(){
+  const data = { base: server, mine: sharedForm(book), photos: unsentPhotos() };
+  try { sessionStorage.setItem(PENDING, JSON.stringify(data)); } catch (e) { try { data.photos = {}; sessionStorage.setItem(PENDING, JSON.stringify(data)); } catch (e2) {} }
+}
+function scheduleSync(){
+  if (!shared || readOnly) return;
+  stash(); setSync('Saving soon…');
+  clearTimeout(syncTimer); syncTimer = setTimeout(doSync, 2500);
+}
+async function doSync(){
+  if (syncing) { syncAgain = true; return; }
+  const mine = sharedForm(book);
+  if (JSON.stringify(mine) === JSON.stringify(server)) { setSync(idleText()); return; }
+  syncing = true; setSync('Saving…');
+  const files = { 'book.json': { content: JSON.stringify(mine), contentType: 'application/json' } };
+  const photos = unsentPhotos();
+  for (const id of Object.keys(photos)) files['photos/' + id + '.jpg'] = dataUrlToBlob(photos[id]);
+  const keep = new Set(mine.notes.map(n => n.id));
+  for (const n of server.notes) if (!keep.has(n.id)) files['photos/' + n.id + '.jpg'] = null;
+  try {
+    await artifactApi.publish(files);
+    server = mine; retried = false; markSeen(mine);
+    try { sessionStorage.removeItem(PENDING); } catch (e) {}
+    setSync('Saved · ' + idleText().replace(/^Shared list · /, ''));
+  } catch (e) {
+    const c = e && e.code;
+    if (c === 'conflict') setSync('Someone else saved at the same time. Reloading with both sets of changes…');
+    else if (c === 'not_writer' || c === 'not_granted' || c === 'consent_required') { readOnly = true; try { sessionStorage.removeItem(PENDING); } catch (e2) {} applyShared(server); setSync(idleText()); }
+    else if (c === 'capability_disabled' || c === 'not_declared') setSync('Changes can\'t be saved while Mise is shared by public link. Turn that off in Share and invite people instead. Your changes stay on this page for now.', true);
+    else if (c === 'too_large') setSync('Too much to save. Delete a few photos, then try again.', true);
+    else if (!retried) { retried = true; setSync('Saving is slow right now. Trying again…', true); setTimeout(doSync, c === 'rate_limited' ? 15000 : 4000); }
+    else setSync("Couldn't save. Your changes stay on this page; make any edit to try again.", true);
+  } finally { syncing = false; if (syncAgain) { syncAgain = false; scheduleSync(); } }
+}
+function applyShared(b, localPhotos){
+  book = clean(b, true);
+  book.notes.forEach(n => { n.img = (localPhotos && localPhotos[n.id]) || ''; });
+  render();
+}
+
+// What changed since this person last looked at the shared list.
+const NAMES = { notes: ['photo', 'photos'], steps: ['step', 'steps'], cats: ['area', 'areas'], pantry: ['pantry item', 'pantry items'], shop: ['shopping item', 'shopping items'] };
+function label(key, x){ return x.title || x.name || ''; }
+function markSeen(b){ const s = {}; for (const k of Object.keys(LISTS)) s[k] = b[k].map(x => ({ id: x.id, t: label(k, x) })); store(LS_SEEN, s); }
+function showChanges(live){
+  const seen = load(LS_SEEN, null);
+  if (!seen) { markSeen(live); newIds = new Set(); $('changesBox').hidden = true; return; }
+  newIds = new Set();
+  const lines = [];
+  for (const k of Object.keys(LISTS)) {
+    const was = seen[k] || [], wasIds = new Set(was.map(x => x.id)), nowIds = new Set(live[k].map(x => x.id));
+    const added = live[k].filter(x => !wasIds.has(x.id)), removed = was.filter(x => !nowIds.has(x.id));
+    added.forEach(x => newIds.add(x.id));
+    const names = arr => { const n = arr.map(x => x.t || label(k, x)).filter(Boolean); return n.length ? ': ' + n.slice(0, 6).map(t => '“' + esc(t) + '”').join(', ') + (n.length > 6 ? '…' : '') : ''; };
+    if (added.length) lines.push('Added ' + added.length + ' ' + NAMES[k][added.length === 1 ? 0 : 1] + names(added));
+    if (removed.length) lines.push('Removed ' + removed.length + ' ' + NAMES[k][removed.length === 1 ? 0 : 1] + names(removed));
+  }
+  if (!lines.length) { $('changesBox').hidden = true; return; }
+  $('changesBox').innerHTML = '<strong>Changed since you last looked</strong><ul>' + lines.map(l => '<li>' + l + '</li>').join('') + '</ul><button class="linkish" id="changesOk">Got it</button>';
+  $('changesBox').hidden = false;
+  $('changesOk').onclick = () => { markSeen(live); newIds = new Set(); $('changesBox').hidden = true; render(); };
+}
+
+// My copy follows the shared list, keeping the person's own changes.
+function followOn(){ return load(LS_FOLLOW, true) !== false; }
+async function updateMyCopy(live){
+  if (!followOn()) return '';
+  let base = load(LS_FOLLOW_BASE, null);
+  const mineFull = clean(load(LS_MINE, null), true);
+  const hasMine = localStorage.getItem(LS_MINE) && Object.keys(LISTS).some(k => mineFull[k].length);
+  if (!base) { if (hasMine) { store(LS_FOLLOW_BASE, live); return ''; } base = emptyBook(); }
+  base = clean(base, false);
+  const merged = merge3(base, live, clean(mineFull, false));
+  const imgs = new Map(mineFull.notes.map(n => [n.id, n.img]));
+  const outNotes = [];
+  for (const n of merged.notes) {
+    if (imgs.get(n.id)) { outNotes.push({ ...n, img: imgs.get(n.id) }); continue; }
+    try { outNotes.push({ ...n, img: await readAsDataUrl(await photoBlob({ id: n.id })) }); } catch (e) {}
+  }
+  merged.notes = outNotes;
+  let changed = 0;
+  for (const k of Object.keys(LISTS)) {
+    const a = new Set(mineFull[k].map(x => x.id)), b = new Set(merged[k].map(x => x.id));
+    changed += [...b].filter(id => !a.has(id)).length + [...a].filter(id => !b.has(id)).length;
+  }
+  if (!store(LS_MINE, merged)) return 'My copy couldn\'t take the latest changes because this device is out of space.';
+  store(LS_FOLLOW_BASE, live);
+  return changed ? 'My copy updated from the shared list (' + changed + ' change' + (changed === 1 ? '' : 's') + ').' : '';
+}
+$('followBox').onchange = async () => { store(LS_FOLLOW, $('followBox').checked); if ($('followBox').checked && server) { lastUpdateNote = await updateMyCopy(server); setSource('mine'); } };
+
+function setSource(which){
+  const toShared = which === 'shared';
+  if (!toShared && shared && !readOnly && JSON.stringify(sharedForm(book)) !== JSON.stringify(server)) { clearTimeout(syncTimer); doSync(); }
+  shared = toShared;
+  $('srcShared').setAttribute('aria-pressed', String(toShared));
+  $('srcMine').setAttribute('aria-pressed', String(!toShared));
+  $('followWrap').hidden = toShared;
+  store(LS_SOURCE, which);
+  if (toShared) { applyShared(server); setSync(idleText()); showChanges(server); showMigrate(); }
+  else {
+    book = clean(load(LS_MINE, null), true);
+    $('changesBox').hidden = true; $('migrateBtn').hidden = true;
+    $('followBox').checked = followOn();
+    setSync(lastUpdateNote || 'My copy · only on this device. Change anything here without affecting the shared list.');
+    render();
+  }
+}
+$('srcShared').onclick = () => setSource('shared');
+$('srcMine').onclick = () => setSource('mine');
+
+async function copyToMine(notes, steps){
+  const mine = clean(load(LS_MINE, null), true);
+  let added = 0;
+  for (const n of notes) {
+    if (mine.notes.some(m => m.id === n.id)) continue;
+    try { mine.notes.push({ id: n.id, title: n.title, img: n.img && n.img.startsWith('data:') ? n.img : await readAsDataUrl(await photoBlob(n)) }); added++; } catch (e) {}
+  }
+  for (const s of steps) if (!mine.steps.some(m => m.id === s.id)) { mine.steps.push({ ...s }); added++; }
+  if (steps.length && !mine.methodTitle) mine.methodTitle = book.methodTitle;
+  return store(LS_MINE, mine) ? added : -1;
+}
+$('copyNotesBtn').onclick = async () => { const n = await copyToMine(chosenNotes(), []); setStatus($('notesStatus'), n < 0 ? 'This device is out of space.' : n ? 'Copied ' + n + ' to My copy.' : 'Already in My copy.', n < 0); };
+$('copyWfBtn').onclick = async () => { const n = await copyToMine([], book.steps); setStatus($('methodStatus'), n < 0 ? 'This device is out of space.' : n ? 'Copied ' + n + ' steps to My copy.' : 'Already in My copy.', n < 0); };
+
+// Offer to put what's already on this device into the shared list.
+function showMigrate(){
+  const btn = $('migrateBtn');
+  const mine = clean(load(LS_MINE, null), true);
+  const extra = Object.keys(LISTS).reduce((c, k) => c + mine[k].filter(x => !book[k].some(y => y.id === x.id)).length, 0);
+  if (readOnly || !extra || load('mise_migrated', false) || !localStorage.getItem(LS_MINE)) { btn.hidden = true; return; }
+  btn.textContent = 'Add my ' + extra + ' thing' + (extra === 1 ? '' : 's') + ' from this device to the shared list';
+  btn.hidden = false;
+  btn.onclick = () => {
+    for (const k of Object.keys(LISTS)) for (const x of mine[k]) if (!book[k].some(y => y.id === x.id)) book[k].push({ ...x });
+    if (!book.methodTitle) book.methodTitle = mine.methodTitle;
+    store('mise_migrated', true); btn.hidden = true; persist(); render();
+  };
+}
+
+async function startShared(claude){
+  artifactApi = await claude.use('artifact').catch(() => null);
+  if (!artifactApi) return;
+  let live;
+  try {
+    const res = await fetch('book.json', { cache: 'no-store' });
+    if (res.ok) live = clean(await res.json(), false);
+    else if (res.status === 404) live = null;
+    else return;
+  } catch (e) { return; }
+  const user = await claude.use('user').catch(() => null);
+  if (user) { const can = await user.canEdit().catch(() => null); if (can === false) readOnly = true; }
+  // A brand-new shared list starts from the owner's starter list (saved on first edit).
+  server = live || emptyBook();
+  sharedAvailable = true; shared = true;
+  $('sourceBar').hidden = false;
+  let pending = null; try { pending = JSON.parse(sessionStorage.getItem(PENDING)); } catch (e) {}
+  if (pending && pending.base && pending.mine && !readOnly) {
+    applyShared(merge3(clean(pending.base, false), clean(pending.mine, false), server), pending.photos || {});
+    scheduleSync();
+  } else {
+    showChanges(server);
+    if (!live && !readOnly) applyShared(starterBook()); else applyShared(server);
+    setSync(idleText());
+  }
+  showMigrate();
+  lastUpdateNote = await updateMyCopy(server);
+  if (load(LS_SOURCE, 'shared') === 'mine' && !(pending && pending.mine)) setSource('mine');
+}
+
+// ===== Start =====
+render();
+(async () => {
+  const claude = window.claude;
+  if (!claude || !claude.use) return;
+  const [s, d] = await Promise.all([claude.use('sample').catch(() => null), claude.use('downloads').catch(() => null)]);
+  sampleFn = s; downloads = d;
+  if (sampleFn) { const lim = await sampleFn.limits().catch(() => null); maxImages = (lim && lim.images && lim.images.maxCount) || 0; }
+  await startShared(claude);
+  render();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+</script>
+</body>
+</html>

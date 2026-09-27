@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Pantry inventory by category, with use-by dates.">
+<meta name="theme-color" content="#F3EFE6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1B17" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pantry">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>img{max-width:100%}</style>
+<title>Pantry</title>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3EFE6;
+  --ink:#2B2A24;
+  --ink-soft:#7A7666;
+  --line:#DAD3C0;
+  --accent:#4C6E4A;
+  --card:#FFFFFF;
+  --low:#B5482E;
+  --soon:#946400;
+  --tint:rgba(76,110,74,0.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#1B1B17;
+    --ink:#EFEBDF;
+    --ink-soft:#9C978A;
+    --line:#3A382F;
+    --card:#242420;
+    --low:#E07A5F;
+    --soon:#E0A83A;
+    --tint:rgba(127,163,124,0.18);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#1B1B17; --ink:#EFEBDF; --ink-soft:#9C978A; --line:#3A382F; --card:#242420;
+  --low:#E07A5F; --soon:#E0A83A; --tint:rgba(127,163,124,0.18);
+}
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+:root{
+  background:var(--bg);
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+}
+header{padding:18px 18px 14px;border-bottom:1px solid var(--line);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand svg{width:46px;height:46px;flex:none;border-radius:11px;box-shadow:0 2px 6px rgba(0,0,0,0.15);}
+h1{
+  margin:0;
+  font-family:'Zilla Slab',Georgia,serif;
+  font-size:1.6rem;
+  font-weight:700;
+  line-height:1.1;
+}
+header p{margin:2px 0 0;color:var(--ink-soft);font-size:0.82rem;}
+
+.link-btn{background:none;border:none;color:var(--accent);font:inherit;font-weight:500;cursor:pointer;padding:0;text-decoration:underline;}
+.install-card{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+  border:1px solid var(--line);border-radius:6px;background:var(--card);
+  padding:10px 12px;margin-bottom:16px;font-size:0.78rem;line-height:1.5;
+}
+.install-card p{margin:0;flex:1 1 220px;}
+.backup{
+  margin-top:28px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:0.78rem;color:var(--ink-soft);line-height:1.5;
+}
+.backup h2{margin:0 0 4px;font-family:'Zilla Slab',Georgia,serif;font-size:1rem;font-weight:600;color:var(--ink);}
+.backup p{margin:0 0 10px;}
+.backup .row{display:flex;flex-wrap:wrap;gap:8px;}
+.backup a{color:var(--accent);}
+#restoreInput{display:none;}
+main{max-width:560px;margin:0 auto;padding:16px 16px 96px;}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+.whats-new{
+  display:flex;gap:10px;align-items:flex-start;
+  border:1px solid var(--accent);border-radius:6px;background:var(--tint);
+  padding:10px 12px;margin-bottom:16px;font-size:0.78rem;line-height:1.5;
+}
+.whats-new p{margin:0;flex:1;}
+.whats-new strong{font-weight:500;}
+.whats-new button{background:none;border:none;color:var(--accent);font:inherit;font-weight:500;cursor:pointer;padding:0;}
+
+.soon-box{
+  border:1px solid var(--line);border-radius:6px;background:var(--card);
+  padding:12px 14px;margin-bottom:18px;
+}
+.soon-box h2{
+  margin:0 0 6px;font-family:'Zilla Slab',Georgia,serif;font-size:1.05rem;font-weight:600;
+}
+.soon-box ul{list-style:none;margin:0;padding:0;}
+.soon-box li button{
+  display:flex;gap:8px;align-items:baseline;width:100%;
+  background:none;border:none;border-top:1px solid var(--line);
+  padding:7px 0;color:var(--ink);font:inherit;font-size:0.8rem;text-align:left;cursor:pointer;
+}
+.soon-box li:first-child button{border-top:none;}
+.soon-box .s-name{flex:1;min-width:0;overflow-wrap:anywhere;}
+.soon-box .s-cat{color:var(--ink-soft);font-size:0.72rem;}
+.soon-box .s-when{font-size:0.72rem;white-space:nowrap;}
+
+.add-cat{display:flex;gap:8px;margin-bottom:18px;}
+.add-cat input{
+  flex:1;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:4px;
+  background:var(--card);color:var(--ink);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:0.85rem;
+}
+.btn{
+  border:1px solid var(--accent);background:var(--accent);color:#fff;
+  padding:9px 14px;border-radius:4px;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-weight:500;font-size:0.85rem;cursor:pointer;
+}
+.btn.secondary{background:none;color:var(--accent);}
+.btn.small{padding:5px 9px;font-size:0.75rem;}
+
+.category{
+  border:1px solid var(--line);border-radius:6px;margin-bottom:14px;background:var(--card);overflow:hidden;
+}
+.cat-head{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 10px 8px 6px;
+}
+.cat-toggle{
+  flex:1;min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:0 8px;
+  background:none;border:none;color:var(--ink);text-align:left;cursor:pointer;padding:4px 0;font:inherit;
+}
+.cat-toggle h2{
+  margin:0;font-family:'Zilla Slab',Georgia,serif;font-size:1.05rem;font-weight:600;overflow-wrap:anywhere;
+}
+.cat-head .count{color:var(--ink-soft);font-size:0.75rem;}
+.cat-head .count .bad{color:var(--low);}
+.cat-head .del-cat{
+  background:none;border:none;color:var(--ink-soft);font-size:0.8rem;cursor:pointer;font-family:inherit;
+}
+.cat-body{
+  border-top:1px solid var(--line);
+  padding:4px 14px 14px;
+}
+
+.handle{
+  background:none;border:none;color:var(--ink-soft);
+  cursor:grab;touch-action:none;font-size:1.05rem;line-height:1;padding:6px 4px;
+}
+.handle:active{cursor:grabbing;}
+.drag-ghost{opacity:0.35;}
+.sortable-chosen{background:var(--card);}
+
+.item-list{min-height:12px;}
+.item-list:empty::before{
+  content:'No items yet. Add one below, or drag one here.';
+  display:block;padding:10px 0 2px;color:var(--ink-soft);font-size:0.75rem;
+}
+.item-row{padding:8px 0;border-bottom:1px solid var(--line);}
+.item-row:last-child{border-bottom:none;}
+.item-main{display:flex;align-items:center;gap:8px;}
+.item-row .item-handle{margin-left:-6px;}
+.item-row .iname{
+  flex:1;min-width:0;border:none;background:none;color:var(--ink);font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:0.85rem;padding:2px 0;
+}
+.qty-ctrl{display:flex;align-items:center;gap:6px;}
+.qty-ctrl button{
+  width:26px;height:26px;border-radius:50%;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink);font-size:1rem;cursor:pointer;line-height:1;
+}
+.qty-ctrl .qty{
+  min-width:34px;text-align:center;font-weight:500;font-size:0.85rem;font-variant-numeric:tabular-nums;
+}
+.qty-ctrl .unit{color:var(--ink-soft);font-size:0.72rem;min-width:32px;}
+.item-row.low .qty{color:var(--low);}
+.item-row .del-item{
+  background:none;border:none;color:var(--ink-soft);font-size:0.9rem;cursor:pointer;padding:0 2px;
+}
+.item-sub{
+  display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;
+  padding-left:22px;margin-top:4px;font-size:0.72rem;color:var(--ink-soft);
+}
+.date-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  border:1px solid var(--line);border-radius:3px;padding:1px 2px 1px 6px;
+}
+.date-chip input{
+  border:none;background:none;color:inherit;font:inherit;padding:1px 0;min-width:0;
+}
+.date-chip .clear-date{
+  background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:0 4px;
+}
+.date-chip.expired,.rel.expired{color:var(--low);}
+.date-chip.expired{border-color:var(--low);}
+.date-chip.soon,.rel.soon{color:var(--soon);}
+.date-chip.soon{border-color:var(--soon);}
+.add-date{
+  background:none;border:1px dashed var(--line);border-radius:3px;color:var(--ink-soft);
+  font:inherit;cursor:pointer;padding:2px 6px;
+}
+.move{margin-left:auto;}
+.move select{
+  border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--ink-soft);
+  font:inherit;padding:2px 4px;max-width:150px;
+}
+.item-row.flash{animation:flash 1.8s ease-out;}
+@keyframes flash{from{background:var(--tint);}to{background:transparent;}}
+@media (prefers-reduced-motion: reduce){ .item-row.flash{animation:none;background:var(--tint);} }
+
+.add-item{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.add-item input{
+  border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:0.8rem;padding:6px 8px;min-width:0;
+}
+.add-item .iname-in{flex:1 1 100%;}
+.add-item .qty-in{width:56px;}
+.add-item .unit-in{width:64px;}
+.add-item .exp-wrap{
+  flex:1 1 150px;display:flex;align-items:center;gap:6px;
+  font-size:0.72rem;color:var(--ink-soft);
+}
+.add-item .exp-in{flex:1;}
+
+.empty{color:var(--ink-soft);text-align:center;padding:40px 0;font-size:0.85rem;}
+
+.toast{
+  position:fixed;left:0;right:0;bottom:0;z-index:10;
+  display:flex;justify-content:center;
+  padding:0 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  pointer-events:none;
+}
+.toast-inner{
+  display:flex;align-items:center;gap:14px;max-width:528px;width:100%;
+  background:var(--ink);color:var(--bg);border-radius:6px;padding:10px 14px;
+  font-size:0.8rem;pointer-events:auto;box-shadow:0 4px 18px rgba(0,0,0,0.18);
+}
+.toast-inner span{flex:1;}
+.toast-inner button{
+  background:none;border:none;color:var(--bg);font:inherit;font-weight:500;
+  text-decoration:underline;cursor:pointer;padding:0;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 512 512" aria-hidden="true">
+      <defs>
+        <radialGradient id="pBg" cx="50%" cy="28%" r="80%"><stop offset="0" stop-color="#557A52"/><stop offset="1" stop-color="#23382A"/></radialGradient>
+        <clipPath id="pInside"><rect x="156" y="192" width="200" height="204" rx="36"/></clipPath>
+      </defs>
+      <rect width="512" height="512" fill="url(#pBg)"/>
+      <rect x="186" y="150" width="140" height="30" rx="8" fill="#F3EFE6"/>
+      <rect x="136" y="170" width="240" height="246" rx="52" fill="#F3EFE6"/>
+      <g clip-path="url(#pInside)">
+        <rect x="150" y="186" width="212" height="214" fill="#E9E3D4"/>
+        <path d="M150 252 Q186 236 222 250 T292 248 T364 244 V400 H150 Z" fill="#8DB38A"/>
+        <path d="M150 300 Q184 284 218 296 T288 294 T364 290 V400 H150 Z" fill="#E0A83A"/>
+        <path d="M150 348 Q186 332 222 346 T294 344 T364 340 V400 H150 Z" fill="#C4553A"/>
+      </g>
+      <rect x="168" y="206" width="16" height="150" rx="8" fill="#FFFFFF" opacity="0.55"/>
+      <rect x="168" y="96" width="176" height="62" rx="14" fill="#E0A83A"/>
+      <path d="M184 118 H328 M184 136 H328" stroke="#B37F1E" stroke-width="6" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>Pantry</h1>
+      <p>running inventory, by category</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="install-card" id="installCard" hidden>
+    <p id="installText">Install Pantry to open it from your home screen, even offline.</p>
+    <button class="btn small" id="installBtn" hidden>Install</button>
+    <button class="link-btn" id="installDismiss">Not now</button>
+  </div>
+
+  <div class="whats-new" id="whatsNew" hidden>
+    <p><strong>New in this update:</strong> drag ⠿ to reorder items and categories, use “Move to” to send an item to another category, and add use-by dates. Everything you added before is still here.</p>
+    <button id="whatsNewClose">Got it</button>
+  </div>
+
+  <section class="soon-box" id="soonBox" hidden>
+    <h2 id="soonTitle">Use soon</h2>
+    <ul id="soonList"></ul>
+  </section>
+
+  <div class="add-cat">
+    <input id="newCatInput" placeholder="New category (e.g. Canned goods)">
+    <button class="btn" id="addCatBtn">Add</button>
+  </div>
+  <div id="catList"></div>
+  <div class="empty" id="emptyMsg">No categories yet. Add one above to start tracking stock.</div>
+
+  <section class="backup">
+    <h2>Backup</h2>
+    <p>Save a copy of your list as a file. Restoring a backup only adds what's missing. It never deletes or changes what's already here.</p>
+    <p id="getAppNote" hidden>Want Pantry on your home screen? Save a backup here, open <a id="getAppLink" href="#" target="_blank" rel="noopener">the Pantry app</a>, install it, then restore the backup there.</p>
+    <div class="row">
+      <button class="btn secondary small" id="backupBtn">Save backup</button>
+      <button class="btn secondary small" id="restoreBtn">Restore backup</button>
+      <input type="file" id="restoreInput" accept=".json,application/json">
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden>
+  <div class="toast-inner" role="status">
+    <span id="toastMsg"></span>
+    <button id="toastUndo" hidden>Undo</button>
+  </div>
+</div>
+
+<script src="vendor/Sortable.min.js"></script>
+<script>
+// Same storage key and item shape as the first version, so an update never
+// loses what's already been added. New fields are optional:
+// [{id, name, open, items:[{id, name, qty, unit, expires?: 'YYYY-MM-DD'}]}]
+const LS = 'pantry_data';
+const LS_BACKUP = 'pantry_data_backup_v1'; // untouched copy of the list from before this update
+const LS_SEEN = 'pantry_whats_new_v2';
+const SOON_DAYS = 3;  // highlight dates this close
+const LIST_DAYS = 7;  // list in "Use soon" up to this many days ahead
+const APP_URL = '';   // where the installable version is hosted, once it is
+// The installable build adds a manifest link; the Claude artifact has none.
+const IS_APP = !!document.querySelector('link[rel="manifest"]');
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function isIsoDate(s){ return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
+function load(){
+  let raw = null;
+  try { raw = localStorage.getItem(LS); } catch(e) {}
+  if (raw) {
+    try { if (localStorage.getItem(LS_BACKUP) === null) localStorage.setItem(LS_BACKUP, raw); } catch(e) {}
+  }
+  let parsed = [];
+  try { parsed = JSON.parse(raw) || []; } catch(e) { parsed = []; }
+  return normalize(parsed);
+}
+
+// Fill in anything missing without dropping fields we don't know about.
+function normalize(d){
+  if (!Array.isArray(d)) return [];
+  return d.filter(c => c && typeof c === 'object').map(c => {
+    if (!c.id) c.id = uid();
+    c.name = String(c.name == null ? '' : c.name);
+    c.items = Array.isArray(c.items) ? c.items.filter(i => i && typeof i === 'object') : [];
+    c.items.forEach(i => {
+      if (!i.id) i.id = uid();
+      i.name = String(i.name == null ? '' : i.name);
+      i.qty = Number(i.qty) || 0;
+      if (i.unit == null) i.unit = '';
+      if (i.expires && !isIsoDate(i.expires)) i.expires = '';
+    });
+    return c;
+  });
+}
+
+function save(){
+  try { localStorage.setItem(LS, JSON.stringify(data)); return true; }
+  catch(e){ showToast("Couldn't save. This browser's storage is full or blocked."); return false; }
+}
+
+let data = load();
+
+// ---- Dates ----
+function parseDate(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function daysLeft(s){
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((parseDate(s) - today) / 86400000);
+}
+function dateState(n){ return n < 0 ? 'expired' : n <= SOON_DAYS ? 'soon' : 'ok'; }
+function relLabel(n){
+  if (n < -1) return 'expired ' + (-n) + ' days ago';
+  if (n === -1) return 'expired yesterday';
+  if (n === 0) return 'use today';
+  if (n === 1) return 'use by tomorrow';
+  return n + ' days left';
+}
+function shortDate(s){
+  const d = parseDate(s);
+  const opts = { day:'numeric', month:'short' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
+}
+
+// ---- Elements ----
+const catList = document.getElementById('catList');
+const emptyMsg = document.getElementById('emptyMsg');
+const newCatInput = document.getElementById('newCatInput');
+const soonBox = document.getElementById('soonBox');
+const soonTitle = document.getElementById('soonTitle');
+const soonList = document.getElementById('soonList');
+const whatsNew = document.getElementById('whatsNew');
+const toast = document.getElementById('toast');
+const toastMsg = document.getElementById('toastMsg');
+const toastUndo = document.getElementById('toastUndo');
+
+// ---- What's new (shown once to people who already had items) ----
+try { whatsNew.hidden = !data.length || localStorage.getItem(LS_SEEN) === '1'; } catch(e) { whatsNew.hidden = true; }
+document.getElementById('whatsNewClose').onclick = () => {
+  whatsNew.hidden = true;
+  try { localStorage.setItem(LS_SEEN, '1'); } catch(e) {}
+};
+
+// ---- Toast with undo ----
+let undoFn = null, toastTimer = null;
+function showToast(msg, undo){
+  toastMsg.textContent = msg;
+  undoFn = undo || null;
+  toastUndo.hidden = !undo;
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, undo ? 7000 : 4000);
+}
+function hideToast(){ toast.hidden = true; undoFn = null; }
+toastUndo.onclick = () => { const f = undoFn; hideToast(); if (f) f(); };
+
+// ---- Categories ----
+document.getElementById('addCatBtn').onclick = () => {
+  const name = newCatInput.value.trim();
+  if (!name) return;
+  data.push({ id: uid(), name, open: true, items: [] });
+  newCatInput.value = '';
+  save(); render();
+};
+newCatInput.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('addCatBtn').click(); };
+
+function removeCategory(cat){
+  const index = data.indexOf(cat);
+  data.splice(index, 1);
+  save(); render();
+  showToast('Removed ' + (cat.name || 'category') + (cat.items.length ? ' and its ' + cat.items.length + ' item' + (cat.items.length === 1 ? '' : 's') : '') + '.', () => {
+    data.splice(Math.min(index, data.length), 0, cat);
+    save(); render();
+  });
+}
+
+function removeItem(cat, item){
+  const index = cat.items.indexOf(item);
+  cat.items.splice(index, 1);
+  save(); render();
+  showToast('Removed ' + (item.name || 'item') + '.', () => {
+    if (!data.includes(cat)) return;
+    cat.items.splice(Math.min(index, cat.items.length), 0, item);
+    save(); render();
+  });
+}
+
+function moveItem(item, fromCat, toCat){
+  fromCat.items.splice(fromCat.items.indexOf(item), 1);
+  toCat.items.push(item);
+  save(); render();
+  showToast('Moved ' + (item.name || 'item') + ' to ' + (toCat.name || 'category') + '.', () => {
+    if (!data.includes(fromCat) || !toCat.items.includes(item)) return;
+    toCat.items.splice(toCat.items.indexOf(item), 1);
+    fromCat.items.push(item);
+    save(); render();
+  });
+}
+
+// ---- Rendering ----
+let sortables = [];
+let focusAddFor = null;
+
+function render(){
+  sortables.forEach(s => s.destroy());
+  sortables = [];
+  catList.innerHTML = '';
+  emptyMsg.hidden = data.length > 0;
+  data.forEach(cat => catList.appendChild(renderCategory(cat)));
+  renderSoon();
+  enableDragging();
+  if (focusAddFor) {
+    const input = catList.querySelector('.category[data-id="' + focusAddFor + '"] .iname-in');
+    if (input) input.focus();
+    focusAddFor = null;
+  }
+}
+
+function renderCategory(cat){
+  const expired = cat.items.filter(i => isIsoDate(i.expires) && daysLeft(i.expires) < 0).length;
+  const catEl = document.createElement('div');
+  catEl.className = 'category';
+  catEl.dataset.id = cat.id;
+  catEl.innerHTML = `
+    <div class="cat-head">
+      <button class="handle cat-handle" aria-label="Drag to reorder ${escapeHtml(cat.name)}" title="Drag to move">⠿</button>
+      <button class="cat-toggle" aria-expanded="${cat.open ? 'true' : 'false'}">
+        <h2>${escapeHtml(cat.name)}</h2>
+        <span class="count">${cat.items.length} item${cat.items.length===1?'':'s'}${expired ? ` · <span class="bad">${expired} expired</span>` : ''}</span>
+      </button>
+      <button class="del-cat">Remove category</button>
+    </div>
+    <div class="cat-body" ${cat.open ? '' : 'hidden'}>
+      <div class="item-list" data-cat="${escapeHtml(cat.id)}"></div>
+      <div class="add-item">
+        <input class="iname-in" placeholder="Item name" aria-label="New item name">
+        <input class="qty-in" type="number" placeholder="qty" value="1" aria-label="Quantity">
+        <input class="unit-in" placeholder="unit" aria-label="Unit">
+        <label class="exp-wrap">use by <input class="exp-in" type="date" aria-label="Use-by date (optional)"></label>
+        <button class="btn small add-item-btn">Add</button>
+      </div>
+    </div>
+  `;
+  catEl.querySelector('.cat-toggle').onclick = () => { cat.open = !cat.open; save(); render(); };
+  catEl.querySelector('.del-cat').onclick = () => removeCategory(cat);
+
+  const list = catEl.querySelector('.item-list');
+  cat.items.forEach(item => list.appendChild(renderItem(cat, item)));
+
+  const nameIn = catEl.querySelector('.iname-in');
+  const qtyIn = catEl.querySelector('.qty-in');
+  const unitIn = catEl.querySelector('.unit-in');
+  const expIn = catEl.querySelector('.exp-in');
+  const doAdd = () => {
+    const name = nameIn.value.trim();
+    if (!name) return;
+    const item = { id: uid(), name, qty: Number(qtyIn.value) || 0, unit: unitIn.value.trim() };
+    if (isIsoDate(expIn.value)) item.expires = expIn.value;
+    cat.items.push(item);
+    focusAddFor = cat.id;
+    save(); render();
+  };
+  catEl.querySelector('.add-item-btn').onclick = doAdd;
+  nameIn.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  return catEl;
+}
+
+function renderItem(cat, item){
+  const row = document.createElement('div');
+  row.className = 'item-row' + (item.qty <= 0 ? ' low' : '');
+  row.dataset.id = item.id;
+
+  let dateHtml;
+  if (isIsoDate(item.expires)) {
+    const n = daysLeft(item.expires);
+    const st = dateState(n);
+    dateHtml = `
+      <label class="date-chip ${st}">use by
+        <input type="date" class="exp" value="${item.expires}" aria-label="Use-by date for ${escapeHtml(item.name)}">
+        <button class="clear-date" aria-label="Clear use-by date" title="Clear date">×</button>
+      </label>
+      <span class="rel ${st}">${relLabel(n)}</span>`;
+  } else {
+    dateHtml = `
+      <button class="add-date">+ use-by date</button>
+      <label class="date-chip" hidden>use by
+        <input type="date" class="exp" aria-label="Use-by date for ${escapeHtml(item.name)}">
+      </label>`;
+  }
+  const others = data.filter(c => c !== cat);
+  const moveHtml = others.length ? `
+    <label class="move"><select class="move-sel" aria-label="Move ${escapeHtml(item.name)} to another category">
+      <option value="">Move to…</option>
+      ${others.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')}
+    </select></label>` : '';
+
+  row.innerHTML = `
+    <div class="item-main">
+      <button class="handle item-handle" aria-label="Drag to move ${escapeHtml(item.name)}" title="Drag to move">⠿</button>
+      <input class="iname" value="${escapeHtml(item.name)}" aria-label="Item name">
+      <div class="qty-ctrl">
+        <button class="minus" aria-label="One less">−</button>
+        <span class="qty">${item.qty}</span>
+        <button class="plus" aria-label="One more">+</button>
+        <span class="unit">${escapeHtml(item.unit || '')}</span>
+      </div>
+      <button class="del-item" aria-label="Remove ${escapeHtml(item.name)}">✕</button>
+    </div>
+    <div class="item-sub">${dateHtml}${moveHtml}</div>
+  `;
+  row.querySelector('.iname').oninput = (e) => { item.name = e.target.value; save(); };
+  row.querySelector('.minus').onclick = () => { item.qty = Math.max(0, item.qty - 1); save(); render(); };
+  row.querySelector('.plus').onclick = () => { item.qty = item.qty + 1; save(); render(); };
+  row.querySelector('.del-item').onclick = () => removeItem(cat, item);
+
+  const exp = row.querySelector('.exp');
+  exp.onchange = () => {
+    if (isIsoDate(exp.value)) item.expires = exp.value; else delete item.expires;
+    save(); render();
+  };
+  const addDate = row.querySelector('.add-date');
+  if (addDate) addDate.onclick = () => {
+    addDate.hidden = true;
+    exp.parentElement.hidden = false;
+    exp.focus();
+  };
+  const clearDate = row.querySelector('.clear-date');
+  if (clearDate) clearDate.onclick = (e) => {
+    e.preventDefault();
+    delete item.expires;
+    save(); render();
+  };
+  const moveSel = row.querySelector('.move-sel');
+  if (moveSel) moveSel.onchange = () => {
+    const target = data.find(c => c.id === moveSel.value);
+    if (target) moveItem(item, cat, target);
+  };
+  return row;
+}
+
+function renderSoon(){
+  const rows = [];
+  data.forEach(c => c.items.forEach(i => {
+    if (!isIsoDate(i.expires)) return;
+    const n = daysLeft(i.expires);
+    if (n <= LIST_DAYS) rows.push({ c, i, n });
+  }));
+  rows.sort((a, b) => a.n - b.n);
+  soonBox.hidden = !rows.length;
+  soonTitle.textContent = 'Use soon · ' + rows.length;
+  soonList.innerHTML = '';
+  rows.forEach(({ c, i, n }) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<button>
+      <span class="s-name">${escapeHtml(i.name || 'Unnamed item')} <span class="s-cat">${escapeHtml(c.name)}</span></span>
+      <span class="s-when rel ${dateState(n)}">${relLabel(n)}</span>
+    </button>`;
+    li.querySelector('button').onclick = () => showItem(c, i);
+    soonList.appendChild(li);
+  });
+}
+
+function showItem(cat, item){
+  if (!cat.open) { cat.open = true; save(); render(); }
+  const row = catList.querySelector('.item-row[data-id="' + item.id + '"]');
+  if (!row) return;
+  row.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  row.classList.remove('flash');
+  void row.offsetWidth;
+  row.classList.add('flash');
+}
+
+// ---- Drag to reorder (Move to… works even if this library can't load) ----
+function enableDragging(){
+  if (!window.Sortable) return;
+  sortables.push(Sortable.create(catList, {
+    handle: '.cat-handle', draggable: '.category', animation: 150, ghostClass: 'drag-ghost',
+    onEnd: (e) => {
+      if (e.oldIndex === e.newIndex) return;
+      const [cat] = data.splice(e.oldIndex, 1);
+      data.splice(e.newIndex, 0, cat);
+      save(); render();
+    },
+  }));
+  catList.querySelectorAll('.item-list').forEach(list => {
+    sortables.push(Sortable.create(list, {
+      group: 'pantry-items', handle: '.item-handle', draggable: '.item-row', animation: 150, ghostClass: 'drag-ghost',
+      onEnd: (e) => {
+        const from = data.find(c => c.id === e.from.dataset.cat);
+        const to = data.find(c => c.id === e.to.dataset.cat);
+        if (!from || !to || (from === to && e.oldIndex === e.newIndex)) return;
+        const [item] = from.items.splice(e.oldIndex, 1);
+        to.items.splice(e.newIndex, 0, item);
+        save(); render();
+      },
+    }));
+  });
+}
+
+// ---- Backup: save to a file, restore by merging ----
+let downloads = null; // Claude's file-save capability, when running as an artifact
+if (window.claude && window.claude.use) {
+  window.claude.use('downloads').then(d => { downloads = d; }, () => {});
+}
+
+function todayIso(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+document.getElementById('backupBtn').onclick = async () => {
+  const filename = 'pantry-backup-' + todayIso() + '.json';
+  const json = JSON.stringify({ app: 'pantry', version: 2, exported: new Date().toISOString(), data }, null, 2);
+  if (window.claude) {
+    // Inside Claude, pages can only save files through the downloads capability.
+    if (!downloads) { showToast("Saving files isn't available in this view."); return; }
+    try { await downloads.save({ filename, data: json }); showToast('Backup saved.'); }
+    catch (e) { if (!e || e.code !== 'declined') showToast("Couldn't save the backup here."); }
+    return;
+  }
+  const blob = new Blob([json], { type: 'application/json' });
+  // On phones, the share sheet is the easiest way to keep the file.
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare) {
+    const file = new File([blob], filename, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Pantry backup' }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  showToast('Backup saved.');
+};
+
+const restoreInput = document.getElementById('restoreInput');
+document.getElementById('restoreBtn').onclick = () => restoreInput.click();
+restoreInput.onchange = async () => {
+  const file = restoreInput.files[0];
+  restoreInput.value = '';
+  if (!file) return;
+  let parsed = null;
+  try { parsed = JSON.parse(await file.text()); } catch (e) {}
+  const incoming = normalize(Array.isArray(parsed) ? parsed : (parsed && parsed.app === 'pantry' ? parsed.data : null));
+  if (!incoming.length) { showToast("That file isn't a Pantry backup, or it's empty."); return; }
+
+  const before = JSON.stringify(data);
+  let newCats = 0, newItems = 0;
+  incoming.forEach(ic => {
+    const existing = data.find(c => c.id === ic.id);
+    if (!existing) { data.push(ic); newCats++; newItems += ic.items.length; return; }
+    ic.items.forEach(it => {
+      if (!existing.items.some(x => x.id === it.id)) { existing.items.push(it); newItems++; }
+    });
+  });
+  if (!newCats && !newItems) { showToast('Everything in that backup is already here.'); return; }
+  save(); render();
+  showToast('Added ' + newItems + ' item' + (newItems === 1 ? '' : 's') +
+    (newCats ? ' in ' + newCats + ' new categor' + (newCats === 1 ? 'y' : 'ies') : '') + ' from the backup.', () => {
+    data = normalize(JSON.parse(before));
+    save(); render();
+  });
+};
+
+if (!IS_APP && APP_URL) {
+  document.getElementById('getAppLink').href = APP_URL;
+  document.getElementById('getAppNote').hidden = false;
+}
+
+// ---- Installable app: offline support and install prompt ----
+if (IS_APP) {
+  const installCard = document.getElementById('installCard');
+  const installBtn = document.getElementById('installBtn');
+  const installText = document.getElementById('installText');
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('pantry_install_dismissed') === '1'; } catch (e) {}
+  let deferredPrompt = null;
+
+  if (!standalone && !dismissed) {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) {
+      installText.textContent = 'Install Pantry: tap the Share button, then “Add to Home Screen”.';
+      installCard.hidden = false;
+    }
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.hidden = false;
+      installCard.hidden = false;
+    });
+  }
+  installBtn.onclick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice.catch(() => null);
+    deferredPrompt = null;
+    installCard.hidden = true;
+  };
+  document.getElementById('installDismiss').onclick = () => {
+    installCard.hidden = true;
+    try { localStorage.setItem('pantry_install_dismissed', '1'); } catch (e) {}
+  };
+  window.addEventListener('appinstalled', () => { installCard.hidden = true; });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Ask the browser not to clear this app's storage when space runs low.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+render();
+</script>
+</body>
+</html>
