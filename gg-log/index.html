@@ -789,11 +789,51 @@ renderCurrency();
     if (typing && document.visibilityState === 'visible') banner('A new version of GG Log is ready.', reloadNow, 'Update');
     else reloadNow();
   });
+  // Ask the website which version is newest (never cached), so a phone that
+  // resumed an old copy, or saw a slow connection, still catches up.
+  var VERSION = 'c2322fc180';
+  function hardRefresh() {
+    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    if (typing && document.visibilityState === 'visible') { banner('A new version of GG Log is ready.', hardRefresh2, 'Update'); return; }
+    hardRefresh2();
+  }
+  function hardRefresh2() {
+    caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return !/fonts/.test(k); }).map(function (k) { return caches.delete(k); })); })
+      .catch(function () {}).then(reloadNow);
+  }
+  var lastCheck = 0;
+  function checkVersion(manual) {
+    if (!manual && Date.now() - lastCheck < 20000) return;
+    lastCheck = Date.now();
+    return fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (!v || !v.version || v.version === VERSION) { if (manual) banner('GG Log is up to date.'); return; }
+      navigator.serviceWorker.getRegistration().then(function (reg) { if (reg) reg.update(); }).catch(function () {});
+      // Reload automatically once per new version; if that didn't take (the
+      // site can briefly serve the old page), offer a button instead of looping.
+      var tried = null; try { tried = sessionStorage.getItem(KEY + '_tried'); } catch (e) {}
+      if (tried === v.version) { banner('A new version of GG Log is available.', hardRefresh2, 'Update'); return; }
+      try { sessionStorage.setItem(KEY + '_tried', v.version); } catch (e) {}
+      setTimeout(function () { if (!reloading) hardRefresh(); }, 4000);
+    }).catch(function () { if (manual) banner("Couldn't check for updates. Are you online?"); });
+  }
+  window.__checkForUpdates = function () { return checkVersion(true); };
   navigator.serviceWorker.register('sw.js').then(function (reg) {
-    function check() { reg.update().catch(function () {}); }
+    function check() { reg.update().catch(function () {}); checkVersion(false); }
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
+    window.addEventListener('pageshow', check);
+    window.addEventListener('focus', check);
     setInterval(check, 30 * 60 * 1000);
+    check();
   }).catch(function () {});
+  // A "Check for updates" link in apps that have a Share panel.
+  var sheet = document.getElementById('shareSheet');
+  if (sheet) {
+    var p = document.createElement('p');
+    p.style.cssText = 'margin:18px 0 0;font-size:0.8rem;color:var(--ink-soft, #666)';
+    p.innerHTML = 'Version ' + VERSION.slice(0, 7) + ' · <button type="button" style="background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Check for updates</button>';
+    p.querySelector('button').onclick = function () { checkVersion(true); };
+    sheet.appendChild(p);
+  }
 })();
 </script>
 </body>

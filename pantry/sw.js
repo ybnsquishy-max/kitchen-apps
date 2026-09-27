@@ -1,7 +1,7 @@
 // Offline support for the installable Pantry app. The build script replaces
-// 411ff36cea with a hash of the app files, so each release gets a fresh cache.
+// 5fbe50bc46 with a hash of the app files, so each release gets a fresh cache.
 // Your pantry list lives in localStorage, which updates never touch.
-const CACHE = 'pantry-411ff36cea';
+const CACHE = 'pantry-5fbe50bc46';
 const FONT_CACHE = 'pantry-fonts';
 const SHELL = [
   './',
@@ -40,15 +40,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // The page itself: try the network first so updates arrive, fall back offline.
+  if (url.pathname.endsWith('/version.json')) return;   // always from the network
   if (req.mode === 'navigate') {
-    event.respondWith(
-      withTimeout(fetch(req), 4000)
-        .then((res) => {
-          if (res.ok) caches.open(CACHE).then((c) => c.put('index.html', res.clone()));
-          return res;
-        })
-        .catch(() => caches.match('index.html'))
-    );
+    const net = fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('index.html', copy)); }
+      return res;
+    });
+    event.waitUntil(net.catch(() => {}));
+    event.respondWith(withTimeout(net, 6000).catch(() => caches.match('index.html').then((hit) => hit || net)));
     return;
   }
 

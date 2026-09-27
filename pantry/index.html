@@ -820,10 +820,29 @@ if (IS_APP) {
       if (typing && document.visibilityState === 'visible') { showToast('A new version of Pantry is ready.', reloadNow); toastUndo.textContent = 'Update'; }
       else reloadNow();
     });
+    // Ask the website which version is newest (never cached), so a phone that
+    // resumed an old copy or had a slow connection still catches up.
+    const APP_VERSION = '5fbe50bc46';
+    let lastCheck = 0;
+    const checkVersion = () => {
+      if (Date.now() - lastCheck < 20000) return;
+      lastCheck = Date.now();
+      fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(v => {
+        if (!v || !v.version || v.version === APP_VERSION) return;
+        navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+        let tried = null; try { tried = sessionStorage.getItem('pantry_update_tried'); } catch (e) {}
+        if (tried === v.version) return;   // tried once this session; don't loop
+        try { sessionStorage.setItem('pantry_update_tried', v.version); } catch (e) {}
+        setTimeout(() => { if (!reloading) caches.keys().then(ks => Promise.all(ks.filter(k => !/fonts/.test(k)).map(k => caches.delete(k)))).catch(() => {}).then(reloadNow); }, 4000);
+      }).catch(() => {});
+    };
     navigator.serviceWorker.register('sw.js').then(reg => {
-      const check = () => reg.update().catch(() => {});
+      const check = () => { reg.update().catch(() => {}); checkVersion(); };
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      window.addEventListener('pageshow', check);
+      window.addEventListener('focus', check);
       setInterval(check, 30 * 60 * 1000);
+      check();
     }).catch(() => {});
   }
   // Ask the browser not to clear this app's storage when space runs low.

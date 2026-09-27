@@ -1,6 +1,6 @@
-// Offline support for the installable GG Log app (version eae4e5a3ca).
+// Offline support for the installable GG Log app (version c2322fc180).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'gglog-eae4e5a3ca';
+const CACHE = 'gglog-c2322fc180';
 const FONT_CACHE = 'gglog-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
@@ -22,10 +22,16 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.pathname.endsWith('/version.json')) return;   // always from the network
   if (req.mode === 'navigate') {
-    event.respondWith(withTimeout(fetch(req), 4000)
-      .then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put('index.html', res.clone())); return res; })
-      .catch(() => caches.match('index.html')));
+    // Newest page from the network; on a slow connection show the saved copy
+    // but keep downloading, so the next open is up to date.
+    const net = fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('index.html', copy)); }
+      return res;
+    });
+    event.waitUntil(net.catch(() => {}));
+    event.respondWith(withTimeout(net, 6000).catch(() => caches.match('index.html').then((hit) => hit || net)));
     return;
   }
   if (url.origin === self.location.origin) {
