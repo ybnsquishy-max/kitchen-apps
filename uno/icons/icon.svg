@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262838"/>
+      <stop offset="1" stop-color="#11121A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="55%" r="45%">
+      <stop offset="0" stop-color="#F2B705" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#F2B705" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <!-- Fanned hand: blue, green, yellow, and the last card in red -->
+  <g transform="translate(256 300)">
+    <g transform="rotate(-30)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#1E63C8" stroke="#fff" stroke-width="10"/></g>
+    <g transform="rotate(-12)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#178F52" stroke="#fff" stroke-width="10"/></g>
+    <g transform="rotate(6)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#F2B705" stroke="#fff" stroke-width="10"/></g>
+    <g transform="rotate(24)">
+      <rect x="-78" y="-200" width="156" height="226" rx="22" fill="#D7263D" stroke="#fff" stroke-width="10"/>
+      <ellipse cx="0" cy="-87" rx="50" ry="84" transform="rotate(28 0 -87)" fill="#fff"/>
+      <text x="0" y="-52" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="104" fill="#D7263D">1</text>
+    </g>
+  </g>
+</svg>
