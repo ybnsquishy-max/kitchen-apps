@@ -148,6 +148,12 @@ main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(9
 .tab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;}
 .tab.active{color:var(--ink);border-top-color:var(--accent);}
 .readonly .edit-only{display:none !important;}
+.handle{background:none;border:none;color:var(--ink-soft);cursor:grab;touch-action:none;font-size:1.1rem;line-height:1;padding:4px 2px;flex:none;}
+.drag-ghost{opacity:0.35;}
+.sortable-chosen{box-shadow:0 4px 14px rgba(0,0,0,0.15);}
+.drop-zone{min-height:10px;}
+.tools{display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 6px;}
+.note-card .handle{position:absolute;bottom:34px;left:6px;background:rgba(0,0,0,0.55);color:#fff;border-radius:6px;padding:4px 6px;}
 .install{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--raised);padding:10px 12px;margin-bottom:14px;}
 .install svg{width:44px;height:44px;border-radius:10px;flex:none;}
 .install div{flex:1;min-width:0;font-size:0.85rem;line-height:1.4;}
@@ -266,6 +272,7 @@ main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(9
     <p class="status" id="notesStatus" hidden></p>
     <input type="file" accept="image/*" capture="environment" id="photoInput">
     <input type="file" accept="image/*" id="libraryInput" multiple>
+    <p class="hint edit-only" id="notesDragHint" hidden>Drag ⠿ to put your photos in order.</p>
     <div class="note-grid" id="noteGrid"></div>
     <p class="hint" id="notesEmpty">No notes yet. Photograph your class notes or a recipe to start.</p>
     <details class="typed edit-only" id="typedBox" hidden>
@@ -290,6 +297,7 @@ main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(9
 
   <!-- Pantry -->
   <section class="view" id="view-pantry">
+    <div class="tools edit-only"><button class="btn secondary small" id="sortPantryBtn">Sort A–Z</button></div>
     <div id="useSoon"></div>
     <div id="pantryCats"></div>
     <div class="add-form edit-only">
@@ -304,6 +312,7 @@ main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(9
   <!-- Shopping -->
   <section class="view" id="view-shopping">
     <div class="stat-box"><div class="stat-number" id="needCount">0</div><div class="stat-label">Items needed</div></div>
+    <div class="tools edit-only"><button class="btn secondary small" id="sortShopBtn">Sort A–Z</button></div>
     <div id="shopGroups"></div>
     <div class="add-form edit-only">
       <input class="grow" id="shopName" placeholder="Add an item">
@@ -346,6 +355,7 @@ main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(9
 
 <div class="toast" id="toast" hidden><div role="status"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div></div>
 
+<script src="vendor/Sortable.min.js"></script>
 <script>
 // ===== Data =====
 // One "book" holds everything:
@@ -478,6 +488,7 @@ function render(){
   $('copyNotesBtn').hidden = !inShared;
   $('copyWfBtn').hidden = !inShared;
   renderNotes(); renderMethod(); renderPantry(); renderShopping();
+  enableDragging();
 }
 const locked = () => shared && readOnly;
 const isNew = id => shared && newIds.has(id);
@@ -533,9 +544,11 @@ function renderNotes(){
   book.notes.forEach(n => {
     const card = document.createElement('div');
     card.className = 'note-card';
+    card.dataset.id = n.id;
     card.innerHTML = `<input type="checkbox" class="sel" aria-label="Select note" ${sel.has(n.id) ? 'checked' : ''}>
       <img src="${esc(photoSrc(n))}" alt="${esc(n.title || 'Note photo')}">${badge(n.id)}
       <button class="del edit-only" aria-label="Delete note">×</button>
+      <button class="handle edit-only" aria-label="Drag to reorder photo">⠿</button>
       <input class="title" placeholder="label…" value="${esc(n.title)}" ${locked() ? 'readonly' : ''}>`;
     card.querySelector('.sel').onchange = e => { const s = selection(); e.target.checked ? s.add(n.id) : s.delete(n.id); store(LS_SEL, [...s]); updateNoteButtons(); };
     card.querySelector('.del').onclick = () => removeWithUndo('notes', n, n.title || 'photo');
@@ -677,9 +690,10 @@ function renderPantry(){
     const items = book.pantry.filter(p => p.cat === cat.id);
     const sec = document.createElement('div');
     sec.className = 'cat';
-    sec.innerHTML = `<div class="section-title"><span>${badge(cat.id)}${esc(cat.name)} · ${items.length}</span>
-      <span class="edit-only"><button class="icon-btn cup" aria-label="Move area up">▲</button><button class="icon-btn cdel" aria-label="Remove area">✕</button></span></div>
-      <ul class="list"></ul>
+    sec.dataset.id = cat.id;
+    sec.innerHTML = `<div class="section-title"><span><button class="handle chandle edit-only" aria-label="Drag to reorder area">⠿</button> ${badge(cat.id)}${esc(cat.name)} · ${items.length}</span>
+      <span class="edit-only"><button class="icon-btn cdel" aria-label="Remove area">✕</button></span></div>
+      <ul class="list drop-zone pantry-list" data-cat="${esc(cat.id)}"></ul>
       <div class="add-form edit-only">
         <input class="grow pname" placeholder="Add to ${esc(cat.name)}" aria-label="Item name">
         <input class="qty pqty" type="number" min="0" value="1" aria-label="Quantity">
@@ -690,8 +704,10 @@ function renderPantry(){
     items.forEach(p => {
       const li = document.createElement('li');
       li.className = 'item pitem' + (p.qty <= 0 ? ' out' : '');
+      li.dataset.id = p.id;
       const others = book.cats.filter(c => c.id !== cat.id);
       li.innerHTML = `<div class="main">
+          <button class="handle edit-only" aria-label="Drag to move item">⠿</button>
           <input class="name" value="${esc(p.name)}" ${locked() ? 'readonly' : ''} aria-label="Item name">
           <div class="qty-ctrl"><button class="edit-only minus" aria-label="One less">−</button><span class="q">${p.qty}</span><button class="edit-only plus" aria-label="One more">+</button></div>
           <span class="unit">${esc(p.unit)}</span>
@@ -711,7 +727,6 @@ function renderPantry(){
       const mv = li.querySelector('.pmove'); if (mv) mv.onchange = () => { const to = book.cats.find(c => c.id === mv.value); if (to) { p.cat = to.id; persist(); render(); toast('Moved ' + p.name + ' to ' + to.name + '.'); } };
       ul.appendChild(li);
     });
-    sec.querySelector('.cup').onclick = () => { if (ci > 0) { [book.cats[ci - 1], book.cats[ci]] = [book.cats[ci], book.cats[ci - 1]]; persist(); render(); } };
     sec.querySelector('.cdel').onclick = () => {
       const i = book.cats.indexOf(cat), removed = book.pantry.filter(p => p.cat === cat.id);
       const ids = [cat.id, ...removed.map(p => p.id)];
@@ -735,14 +750,19 @@ function renderShopping(){
   const open = book.shop.filter(s => !s.done), done = book.shop.filter(s => s.done);
   $('needCount').textContent = open.length;
   $('areaList').innerHTML = [...new Set(book.cats.map(c => c.name).concat(book.shop.map(s => s.area)).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('');
-  const groups = new Map();
-  open.forEach(s => { const k = s.area || 'Other'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
+  // Areas follow the Pantry's order, then any others A–Z, then items with no area.
+  const areaOrder = book.cats.map(c => c.name);
+  const extra = [...new Set(open.map(s => s.area).filter(a => a && !areaOrder.includes(a)))].sort((a, b) => a.localeCompare(b));
+  const groups = new Map([...areaOrder, ...extra, ''].map(a => [a, []]));
+  open.forEach(s => groups.get(groups.has(s.area) ? s.area : '').push(s));
+  for (const [k, v] of [...groups]) if (!v.length) groups.delete(k);
   const wrap = $('shopGroups');
   wrap.innerHTML = open.length ? '' : '<p class="hint">Nothing to buy. Add items below, or send out-of-stock items here from the Pantry.</p>';
   const row = s => {
     const li = document.createElement('li');
     li.className = 'item' + (s.done ? ' done' : '');
-    li.innerHTML = `<input type="checkbox" ${s.done ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="Got it">
+    li.dataset.id = s.id;
+    li.innerHTML = `${s.done ? '' : '<button class="handle edit-only" aria-label="Drag to reorder">⠿</button>'}<input type="checkbox" ${s.done ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="Got it">
       <span class="name">${badge(s.id)}${esc(s.name)}</span><span class="unit">${s.qty > 1 ? s.qty + ' ' : ''}${esc(s.unit)}</span>
       <button class="icon-btn edit-only sdel" aria-label="Remove">✕</button>`;
     li.querySelector('input').onchange = e => {
@@ -755,8 +775,8 @@ function renderShopping(){
     return li;
   };
   for (const [area, items] of groups) {
-    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area)}</span>`;
-    const ul = document.createElement('ul'); ul.className = 'list'; items.forEach(s => ul.appendChild(row(s)));
+    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area || 'Other')}</span>`;
+    const ul = document.createElement('ul'); ul.className = 'list drop-zone shop-list'; ul.dataset.area = area; items.forEach(s => ul.appendChild(row(s)));
     wrap.appendChild(t); wrap.appendChild(ul);
   }
   if (done.length) {
@@ -1018,6 +1038,56 @@ async function startShared(claude){
   lastUpdateNote = await updateMyCopy(server);
   if (load(LS_SOURCE, 'shared') === 'mine' && !(pending && pending.mine)) setSource('mine');
 }
+
+// ===== Organising: drag to reorder, drag between areas, sort A–Z =====
+let sortables = [];
+function reorderByIds(list, ids){
+  const pos = new Map(ids.map((id, i) => [id, i]));
+  return list.slice().sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e9) - (pos.has(b.id) ? pos.get(b.id) : 1e9));
+}
+function snapshot(){ return JSON.parse(JSON.stringify(book)); }
+function enableDragging(){
+  sortables.forEach(x => x.destroy()); sortables = [];
+  if (!window.Sortable || locked()) return;
+  const opts = { animation: 150, ghostClass: 'drag-ghost', handle: '.handle' };
+  // Note photos
+  const grid = $('noteGrid');
+  if (grid.children.length > 1) sortables.push(Sortable.create(grid, { ...opts, onEnd: () => {
+    book.notes = reorderByIds(book.notes, [...grid.children].map(c => c.dataset.id)); persist(); render();
+  } }));
+  $('notesDragHint').hidden = book.notes.length < 2;
+  // Pantry areas
+  const cats = $('pantryCats');
+  sortables.push(Sortable.create(cats, { ...opts, handle: '.chandle', draggable: '.cat', onEnd: () => {
+    book.cats = reorderByIds(book.cats, [...cats.querySelectorAll('.cat')].map(c => c.dataset.id)); persist(); render();
+  } }));
+  // Pantry items, within and between areas
+  cats.querySelectorAll('.pantry-list').forEach(ul => sortables.push(Sortable.create(ul, { ...opts, group: 'pantry', onEnd: (e) => {
+    const p = book.pantry.find(x => x.id === e.item.dataset.id);
+    const to = book.cats.find(c => c.id === e.to.dataset.cat);
+    if (p && to) p.cat = to.id;
+    book.pantry = reorderByIds(book.pantry, [...cats.querySelectorAll('.pantry-list li')].map(li => li.dataset.id));
+    persist(); render();
+    if (p && to && e.from !== e.to) toast('Moved ' + p.name + ' to ' + to.name + '.');
+  } })));
+  // Shopping items, within and between areas
+  const shop = $('shopGroups');
+  shop.querySelectorAll('.shop-list').forEach(ul => sortables.push(Sortable.create(ul, { ...opts, group: 'shop', onEnd: (e) => {
+    const s = book.shop.find(x => x.id === e.item.dataset.id);
+    if (s && e.from !== e.to) s.area = e.to.dataset.area;
+    book.shop = reorderByIds(book.shop, [...shop.querySelectorAll('.shop-list li')].map(li => li.dataset.id));
+    persist(); render();
+    if (s && e.from !== e.to) toast('Moved ' + s.name + ' to ' + (s.area || 'Other') + '.');
+  } })));
+}
+function sortAZ(key, label){
+  const before = snapshot();
+  book[key] = book[key].slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+  persist(); render();
+  toast('Sorted ' + label + ' A–Z.', () => { book = before; persist(); render(); });
+}
+$('sortPantryBtn').onclick = () => sortAZ('pantry', 'the pantry');
+$('sortShopBtn').onclick = () => sortAZ('shop', 'the shopping list');
 
 // ===== Home screen =====
 // The Claude page can't carry its own home-screen icon, so point to the
