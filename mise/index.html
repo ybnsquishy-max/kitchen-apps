@@ -160,6 +160,15 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .tab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;}
 .tab.active{color:var(--ink);border-top-color:var(--accent);}
 .readonly .edit-only{display:none !important;}
+.party{border:2px solid var(--accent);border-radius:12px;background:var(--raised);padding:14px;margin-bottom:22px;}
+.party-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.party-top b{font-size:1rem;flex:1 1 auto;}
+.party .people{display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--ink-soft);}
+.party .live{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(62,123,79,0.18);}
+.party .live.off{background:var(--ink-soft);box-shadow:none;}
+.party-link{display:flex;gap:8px;margin-top:12px;}
+.party-link input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface);font-size:0.85rem;}
+.party .hint{margin:10px 0 0;}
 .handle{background:none;border:none;color:var(--ink-soft);cursor:grab;touch-action:none;font-size:1.1rem;line-height:1;padding:4px 2px;flex:none;}
 .drag-ghost{opacity:0.35;}
 .sortable-chosen{box-shadow:0 4px 14px rgba(0,0,0,0.15);}
@@ -231,6 +240,18 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
     <button class="btn secondary small edit-only" id="migrateBtn" hidden></button>
   </div>
   <div class="changes" id="changesBox" hidden></div>
+  <div class="party" id="partyBar" hidden>
+    <div class="party-top">
+      <b>🎉 Party list</b>
+      <span class="people"><i class="live off" id="partyDot"></i><span id="partyPeople">Connecting…</span></span>
+      <button class="btn secondary small" id="partyLeave">Leave</button>
+    </div>
+    <div class="party-link">
+      <input id="partyLinkBox" readonly aria-label="Party link">
+      <button class="btn accent small" id="partyShareBtn">Send link</button>
+    </div>
+    <p class="hint" id="partyHint">Anyone with this link can join and edit this list with you, live. No account needed.</p>
+  </div>
   <div class="install" id="installCard" hidden>
     <svg viewBox="0 0 512 512" aria-hidden="true">
   <defs>
@@ -348,6 +369,7 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
       <button class="share-opt" id="shareShopText"><span class="ic">🛒</span><div><b>Send the shopping list</b><span>A tidy list by area, ready for Messages or WhatsApp</span></div></button>
       <button class="share-opt" id="shareMethodText"><span class="ic">📋</span><div><b>Send the method</b><span>The steps, temperatures and allergens as text</span></div></button>
       <button class="share-opt" id="backupBtn"><span class="ic">📦</span><div><b>Send a copy of everything</b><span>A file they open in their Mise. Their changes are kept when you send another.</span></div></button>
+      <button class="share-opt" id="sharePartyBtn"><span class="ic">🎉</span><div><b>Start a party</b><span>Send a link. Everyone who opens it edits the same list with you, live. No account needed.</span></div></button>
       <button class="share-opt" id="shareInvite"><span class="ic">👥</span><div><b>Invite to the shared list</b><span>They see your list live and get their own copy</span></div></button>
     </div>
     <div id="shareResult" hidden>
@@ -476,6 +498,7 @@ if (!['notes', 'method', 'pantry', 'shopping'].includes(tab)) tab = 'shopping';
 
 function selection(){ return new Set(load(LS_SEL, [])); }
 function persist(){
+  if (party) { partyPersist(); return; }
   if (shared) { scheduleSync(); return; }
   if (!store(LS_MINE, book)) setStatus($('notesStatus'), "This device is out of space. Delete a few photos to keep new changes.", true);
   firstRun = false;
@@ -1158,6 +1181,178 @@ function sortAZ(key, label){
 }
 $('sortPantryBtn').onclick = () => sortAZ('pantry', 'the pantry');
 $('sortShopBtn').onclick = () => sortAZ('shop', 'the shopping list');
+
+// ===== Party: live editing with anyone who has the link =====
+// Runs in the home-screen / website version. Phones connect directly to each
+// other (WebRTC); public Nostr relays only help them find each other. Each
+// party has its own list, kept on every device that joins, and devices merge
+// changes item by item (the newest edit wins; deletions stick).
+const PARTY_APP = 'mise-kitchen-apps-ybnsquishy';
+const WEB_APP_URL = 'https://ybnsquishy-max.github.io/kitchen-apps/mise/';
+let party = null;   // { code, room, sendState, sendPhoto, askPhoto, peers:Set, shadow, tomb }
+let partyTimer = null, partyRenderPending = false;
+
+function partyKey(code, part){ return 'mise_party_' + code + (part ? '_' + part : ''); }
+function newPartyCode(){ const a = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; for (let i = 0; i < 8; i++) c += a[Math.floor(Math.random() * a.length)]; return c; }
+function partyLink(code){ return WEB_APP_URL + '#party-' + code; }
+function canParty(){ return !window.claude && !!document.querySelector('link[rel="manifest"]'); }
+
+function loadPartyLib(){
+  if (window.MiseParty) return Promise.resolve(window.MiseParty);
+  return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/party.js'; sc.onload = () => res(window.MiseParty); sc.onerror = rej; document.head.appendChild(sc); });
+}
+
+// Stamp what changed since the last sync: edited/new items get a time, removed
+// ones get a tombstone, a reordered list gets an order time.
+function stampChanges(){
+  const now = Date.now(), prev = party.shadow;
+  book._o = book._o || {};
+  for (const key of Object.keys(LISTS)) {
+    const before = new Map((prev[key] || []).map(x => [x.id, x]));
+    for (const x of book[key]) {
+      const b = before.get(x.id);
+      const changed = !b || LISTS[key].some(f => b[f] !== x[f]) || (key === 'notes' && !b.img && x.img);
+      if (changed) x._t = now;
+      else if (b && b._t && !x._t) x._t = b._t;
+    }
+    const nowIds = new Set(book[key].map(x => x.id));
+    for (const id of before.keys()) if (!nowIds.has(id)) party.tomb[id] = now;
+    const was = (prev[key] || []).map(x => x.id).filter(id => nowIds.has(id)).join();
+    const is = book[key].map(x => x.id).filter(id => before.has(id)).join();
+    if (was !== is) book._o[key] = now;
+  }
+  if ((prev.methodTitle || '') !== (book.methodTitle || '')) book._mt = now;
+}
+function snapshotParty(){ return JSON.parse(JSON.stringify(book)); }
+function savePartyLocal(){ store(partyKey(party.code), book); store(partyKey(party.code, 'tomb'), party.tomb); }
+function stateForPeers(){
+  const b = JSON.parse(JSON.stringify(book));
+  b.notes = b.notes.map(n => ({ id: n.id, title: n.title, _t: n._t }));   // photos go separately
+  return { book: b, tomb: party.tomb };
+}
+function mergeFromPeer(inc){
+  const other = inc.book || {}, tomb = inc.tomb || {};
+  for (const [id, t] of Object.entries(tomb)) if (!(party.tomb[id] >= t)) party.tomb[id] = t;
+  const out = { ...book, _o: { ...(book._o || {}) } };
+  for (const key of Object.keys(LISTS)) {
+    const mine = book[key] || [], theirs = Array.isArray(other[key]) ? other[key] : [];
+    const M = new Map(mine.map(x => [x.id, x])), T = new Map(theirs.map(x => [x.id, x]));
+    const pick = id => {
+      const a = M.get(id), b = T.get(id);
+      let x = !a ? { ...b } : !b ? a : ((b._t || 0) > (a._t || 0) ? { ...b, img: a.img || b.img } : a);
+      if (key === 'notes' && a && a.img) x.img = a.img;
+      const dead = party.tomb[id];
+      return dead && dead >= (x._t || 0) ? null : x;
+    };
+    const theirOrderNewer = ((other._o || {})[key] || 0) > ((book._o || {})[key] || 0);
+    const first = theirOrderNewer ? theirs : mine, second = theirOrderNewer ? mine : theirs;
+    const ids = [...first.map(x => x.id), ...second.map(x => x.id).filter(id => !first.some(y => y.id === id))];
+    out[key] = ids.map(pick).filter(Boolean);
+    if (theirOrderNewer) out._o[key] = other._o[key];
+  }
+  if ((other._mt || 0) > (book._mt || 0)) { out.methodTitle = String(other.methodTitle || ''); out._mt = other._mt; }
+  // Keep only fields we know, cleaned, plus sync stamps.
+  const cleaned = clean(out, true);
+  for (const key of Object.keys(LISTS)) cleaned[key].forEach((x, i) => { x._t = out[key][i]._t; });
+  cleaned._o = out._o; cleaned._mt = out._mt;
+  book = cleaned;
+  party.shadow = snapshotParty();
+  savePartyLocal();
+  // Ask for photos we don't have yet.
+  const missing = book.notes.filter(n => !n.img).map(n => n.id);
+  if (missing.length && party.askPhoto) party.askPhoto(missing);
+  renderSoon();
+}
+function renderSoon(){
+  const el = document.activeElement;
+  if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName) && el.closest('main')) {
+    if (!partyRenderPending) { partyRenderPending = true; el.addEventListener('blur', () => { partyRenderPending = false; render(); }, { once: true }); }
+    return;
+  }
+  render();
+}
+function partyPersist(){
+  stampChanges();
+  party.shadow = snapshotParty();
+  savePartyLocal();
+  clearTimeout(partyTimer);
+  partyTimer = setTimeout(() => { if (party && party.sendState) party.sendState(stateForPeers()); }, 300);
+}
+function updatePartyBar(){
+  if (!party) { $('partyBar').hidden = true; return; }
+  $('partyBar').hidden = false;
+  $('partyLinkBox').value = partyLink(party.code);
+  const n = party.peers.size;
+  $('partyDot').classList.toggle('off', !n);
+  $('partyPeople').textContent = n ? (n + 1) + ' people here' : (party.connected ? 'Waiting for others to join…' : 'Connecting…');
+}
+async function joinParty(code, seedFromCurrent){
+  if (!canParty()) return;
+  leaveParty(true);
+  const saved = load(partyKey(code), null);
+  const start = saved ? clean(saved, true) : (seedFromCurrent ? clean(book, true) : emptyBook());
+  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; }
+  book = start;
+  party = { code, room: null, sendState: null, peers: new Set(), shadow: saved ? snapshotParty() : emptyBook(), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
+  if (!saved) stampChanges();   // a new party stamps everything it starts with
+  party.shadow = snapshotParty();
+  savePartyLocal();
+  store('mise_party_current', code);
+  if (location.hash !== '#party-' + code) history.replaceState(null, '', '#party-' + code);
+  updatePartyBar(); render();
+  let lib;
+  try { lib = await loadPartyLib(); } catch (e) { $('partyPeople').textContent = "Couldn't connect. Check your internet."; return; }
+  if (!party || party.code !== code) return;
+  const relay = load('mise_party_relay', null);   // for testing with a private relay
+  const room = relay ? lib.joinRoomRelay({ appId: PARTY_APP, relayConfig: { urls: [relay] } }, code) : lib.joinRoom({ appId: PARTY_APP }, code);
+  party.room = room;
+  const state = room.makeAction('state'), photo = room.makeAction('photo'), want = room.makeAction('want');
+  party.sendState = (data, target) => state.send(data, target ? { target } : undefined);
+  party.askPhoto = (ids) => want.send(ids);
+  state.onMessage = (data) => mergeFromPeer(data);
+  want.onMessage = (ids, { peerId }) => { (Array.isArray(ids) ? ids : []).forEach(id => { const n = book.notes.find(x => x.id === id && x.img); if (n) photo.send({ id: n.id, img: n.img }, { target: peerId }); }); };
+  photo.onMessage = (data) => { const n = data && book.notes.find(x => x.id === data.id); if (n && !n.img && typeof data.img === 'string' && data.img.startsWith('data:image/')) { n.img = data.img; party.shadow = snapshotParty(); savePartyLocal(); renderSoon(); } };
+  room.onPeerJoin = (peerId) => { party.peers.add(peerId); updatePartyBar(); party.sendState(stateForPeers(), peerId); toast('Someone joined the party.'); };
+  room.onPeerLeave = (peerId) => { party.peers.delete(peerId); updatePartyBar(); };
+  party.connected = true; updatePartyBar();
+}
+function leaveParty(quiet){
+  if (!party) return;
+  try { party.room && party.room.leave(); } catch (e) {}
+  party = null;
+  store('mise_party_current', null);
+  if (location.hash.startsWith('#party-')) history.replaceState(null, '', location.pathname);
+  book = clean(load(LS_MINE, null), true);
+  if (!localStorage.getItem(LS_MINE)) book = starterBook();
+  updatePartyBar();
+  if (!quiet) { render(); toast('Left the party. You\'re back on your own list. The party list stays on this phone if you rejoin.'); }
+}
+$('partyLeave').onclick = () => leaveParty(false);
+$('partyShareBtn').onclick = async () => {
+  const link = partyLink(party.code);
+  if (navigator.share) { try { await navigator.share({ title: 'Join my Mise party', text: 'Edit this list with me live:', url: link }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(link); toast('Party link copied. Paste it into a message.'); }
+  catch (e) { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Copy the link from the box.'); }
+};
+$('sharePartyBtn').onclick = () => {
+  if (canParty()) {
+    if (party) { toast('You\'re already in a party. Send the link at the top.'); $('shareSheet').hidden = true; window.scrollTo(0, 0); return; }
+    joinParty(newPartyCode(), true);
+    $('shareSheet').hidden = true; window.scrollTo(0, 0);
+    toast('Party started with a copy of your list. Send the link to invite people.');
+  } else {
+    // Parties need the Mise app: Claude pages can't connect phones directly.
+    $('shareResult').hidden = false;
+    $('shareText').value = WEB_APP_URL;
+    setStatus($('shareStatus'), 'Parties run in the Mise app. Open it at the link below (tap Open on the home-screen card), then tap Share → Start a party there.');
+  }
+};
+// Joining from a link, or rejoining the party this phone was in.
+(function(){
+  const m = location.hash.match(/^#party-([a-z0-9]{6,16})$/);
+  const code = m ? m[1] : load('mise_party_current', null);
+  if (code && canParty()) setTimeout(() => joinParty(code, false), 0);
+})();
 
 // ===== Home screen =====
 // The Claude page can't carry its own home-screen icon, so point to the
