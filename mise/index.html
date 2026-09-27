@@ -159,6 +159,21 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .backdrop{position:fixed;inset:0;z-index:29;background:rgba(0,0,0,0.35);}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .sheet-head h2{margin:0;}
+#areasSheet{position:fixed;top:0;right:0;bottom:0;z-index:30;width:min(420px,92vw);margin:0;border-radius:18px 0 0 18px;overflow-y:auto;
+  padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(24px + env(safe-area-inset-bottom,0px));background:var(--surface);
+  box-shadow:-10px 0 40px rgba(0,0,0,0.25);animation:slideIn .22s ease-out;}
+@media (prefers-reduced-motion: reduce){#areasSheet{animation:none;}}
+.area-row{border:1px solid var(--line);border-radius:10px;background:var(--raised);padding:12px;margin-top:10px;}
+.area-main{display:flex;align-items:center;gap:10px;}
+.area-main input{flex:1;min-width:0;border:1px solid transparent;border-radius:8px;background:none;padding:8px;font-weight:600;font-size:1rem;}
+.area-main input:focus{border-color:var(--line);background:var(--surface);}
+.area-count{font-size:0.8rem;color:var(--ink-soft);padding-left:8px;}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff;}
+.btn.danger-outline{background:none;border-color:var(--danger);color:var(--danger);}
+.area-confirm{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:0.9rem;display:flex;flex-direction:column;gap:10px;}
+.area-confirm label{display:flex;align-items:center;gap:8px;}
+.area-confirm select{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 8px;}
+.area-del-head{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:1rem;padding:4px 6px;}
 .sheet-close{background:none;border:1px solid var(--line);border-radius:50%;width:36px;height:36px;font-size:1.1rem;cursor:pointer;color:var(--ink);}
 .share-opts{display:flex;flex-direction:column;gap:10px;margin:12px 0 14px;}
 .share-opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;}
@@ -205,7 +220,7 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .install b{display:block;font-size:0.95rem;}
 .install a.btn{text-decoration:none;white-space:nowrap;}
 .install .x{background:none;border:none;color:var(--ink-soft);font-size:1.1rem;cursor:pointer;padding:4px;}
-.toast{position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;padding:0 16px;z-index:5;pointer-events:none;}
+.toast{position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;padding:0 16px;z-index:40;pointer-events:none;}
 .toast div{display:flex;gap:14px;align-items:center;max-width:600px;width:100%;background:var(--ink);color:var(--surface);border-radius:6px;padding:10px 14px;font-size:0.9rem;pointer-events:auto;}
 .toast span{flex:1;}
 .toast button{background:none;border:none;color:var(--surface);font-weight:600;text-decoration:underline;cursor:pointer;padding:0;}
@@ -365,7 +380,7 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 
   <!-- Pantry -->
   <section class="view" id="view-pantry">
-    <div class="tools edit-only"><button class="btn secondary small" id="sortPantryBtn">Sort A–Z</button></div>
+    <div class="tools edit-only"><button class="btn secondary small areasBtn">Areas</button><button class="btn secondary small" id="sortPantryBtn">Sort A–Z</button></div>
     <div id="useSoon"></div>
     <div id="pantryCats"></div>
     <div class="add-form edit-only">
@@ -380,7 +395,7 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
   <!-- Shopping -->
   <section class="view" id="view-shopping">
     <div class="stat-box"><div class="stat-number" id="needCount">0</div><div class="stat-label">Items needed</div></div>
-    <div class="tools edit-only"><button class="btn secondary small" id="sortShopBtn">Sort A–Z</button></div>
+    <div class="tools edit-only"><button class="btn secondary small areasBtn">Areas</button><button class="btn secondary small" id="sortShopBtn">Sort A–Z</button></div>
     <div id="shopGroups"></div>
     <div class="add-form edit-only">
       <input class="grow" id="shopName" placeholder="Add an item">
@@ -397,6 +412,16 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
   </section>
 
   <button class="btn secondary" id="shareBtn" style="width:100%;margin-top:18px;">📤 Share</button>
+  <div class="backdrop" id="areasBackdrop" hidden></div>
+  <div class="sheet" id="areasSheet" hidden role="dialog" aria-modal="true" aria-label="Areas">
+    <div class="sheet-head"><h2>Areas</h2><button class="sheet-close" id="areasClose" aria-label="Close">✕</button></div>
+    <p class="hint" style="margin:8px 0 0;">Rename an area by tapping its name. Deleting asks what to do with its items.</p>
+    <div id="areasList"></div>
+    <div class="add-form" style="margin-top:18px;">
+      <input class="grow" id="areasNew" placeholder="New area (e.g. Freezer)" aria-label="New area name">
+      <button class="btn small" id="areasAdd">Add area</button>
+    </div>
+  </div>
   <div class="backdrop" id="shareBackdrop" hidden></div>
   <div class="sheet" id="shareSheet" hidden role="dialog" aria-modal="true" aria-label="Share">
     <div class="sheet-head"><h2>Share</h2><button class="sheet-close" id="shareClose" aria-label="Close">✕</button></div>
@@ -783,7 +808,7 @@ function renderPantry(){
     sec.className = 'cat';
     sec.dataset.id = cat.id;
     sec.innerHTML = `<div class="section-title"><span><button class="handle chandle edit-only" aria-label="Drag to reorder area">⠿</button> ${badge(cat.id)}${esc(cat.name)} · ${items.length}</span>
-      <span class="edit-only"><button class="icon-btn cdel" aria-label="Remove area">✕</button></span></div>
+      <span class="edit-only"><button class="area-del-head cdel" aria-label="Delete area ${esc(cat.name)}">🗑</button></span></div>
       <ul class="list drop-zone pantry-list" data-cat="${esc(cat.id)}"></ul>
       <div class="add-form edit-only">
         <input class="grow pname" placeholder="Add to ${esc(cat.name)}" aria-label="Item name">
@@ -823,12 +848,7 @@ function renderPantry(){
       const mv = li.querySelector('.pmove'); if (mv) mv.onchange = () => { const to = book.cats.find(c => c.id === mv.value); if (to) { p.cat = to.id; persist(); render(); toast('Moved ' + p.name + ' to ' + to.name + '.'); } };
       ul.appendChild(li);
     });
-    sec.querySelector('.cdel').onclick = () => {
-      const i = book.cats.indexOf(cat), removed = book.pantry.filter(p => p.cat === cat.id);
-      const ids = [cat.id, ...removed.map(p => p.id)];
-      book.cats.splice(i, 1); book.pantry = book.pantry.filter(p => p.cat !== cat.id); forget(ids); persist(); render();
-      toast('Removed ' + cat.name + (removed.length ? ' and its ' + removed.length + ' items' : '') + '.', () => { book.cats.splice(Math.min(i, book.cats.length), 0, cat); book.pantry = book.pantry.concat(removed); unforget(ids); persist(); render(); });
-    };
+    sec.querySelector('.cdel').onclick = () => openAreas(cat.name);
     const addP = () => {
       const name = sec.querySelector('.pname').value.trim(); if (!name) return;
       const qty = roundQty(Math.max(0, Number(sec.querySelector('.pqty').value) || 0));
@@ -889,7 +909,8 @@ function renderShopping(){
     return li;
   };
   for (const [area, items] of groups) {
-    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area || 'Other')}</span>`;
+    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area || 'Other')}</span>${area && !locked() ? `<button class="area-del-head" aria-label="Delete area ${esc(area)}">🗑</button>` : ''}`;
+    const tb = t.querySelector('.area-del-head'); if (tb) tb.onclick = () => openAreas(area);
     const ul = document.createElement('ul'); ul.className = 'list drop-zone shop-list'; ul.dataset.area = area; items.forEach(s => ul.appendChild(row(s)));
     wrap.appendChild(t); wrap.appendChild(ul);
   }
@@ -1489,6 +1510,108 @@ $('sharePartyBtn').onclick = () => {
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   if (m && canParty() && !installed) $('openInApp').hidden = false;
 })();
+
+// ===== Areas: rename, add and delete =====
+function allAreas(){
+  const names = book.cats.map(c => c.name);
+  book.shop.forEach(x => { if (x.area && !names.includes(x.area)) names.push(x.area); });
+  return names;
+}
+function areaCounts(name){
+  const cat = book.cats.find(c => c.name === name);
+  return { pantry: cat ? book.pantry.filter(p => p.cat === cat.id).length : 0, shop: book.shop.filter(x => x.area === name).length };
+}
+function catFor(name){
+  let cat = book.cats.find(c => c.name === name);
+  if (!cat) { cat = { id: uid(), name }; book.cats.push(cat); }
+  return cat;
+}
+function renameArea(from, to){
+  to = to.trim();
+  if (!to || to === from) return;
+  const before = snapshot();
+  const cat = book.cats.find(c => c.name === from), existing = book.cats.find(c => c.name === to);
+  if (cat && existing) {   // renaming onto another area merges them
+    book.pantry.forEach(p => { if (p.cat === cat.id) p.cat = existing.id; });
+    book.cats = book.cats.filter(c => c !== cat); forget([cat.id]);
+  } else if (cat) cat.name = to;
+  book.shop.forEach(x => { if (x.area === from) x.area = to; });
+  persist(); render(); renderAreas();
+  toast('Renamed ' + from + ' to ' + to + '.', () => { book = before; persist(); render(); renderAreas(); });
+}
+function deleteArea(name, moveTo){
+  const before = snapshot();
+  const cat = book.cats.find(c => c.name === name);
+  const gone = [];
+  if (moveTo) {
+    const target = catFor(moveTo);
+    if (cat) book.pantry.forEach(p => { if (p.cat === cat.id) p.cat = target.id; });
+    book.shop.forEach(x => { if (x.area === name) x.area = moveTo; });
+  } else {
+    if (cat) book.pantry.filter(p => p.cat === cat.id).forEach(p => gone.push(p.id));
+    book.shop.filter(x => x.area === name).forEach(x => gone.push(x.id));
+    book.pantry = book.pantry.filter(p => !gone.includes(p.id));
+    book.shop = book.shop.filter(x => !gone.includes(x.id));
+  }
+  if (cat) { book.cats = book.cats.filter(c => c !== cat); gone.push(cat.id); }
+  forget(gone);
+  persist(); render(); renderAreas();
+  toast('Deleted ' + name + (moveTo ? '. Items moved to ' + moveTo + '.' : gone.length > 1 ? ' and its items.' : '.'), () => { book = before; unforget(gone); persist(); render(); renderAreas(); });
+}
+let confirmingArea = null;
+function renderAreas(){
+  const list = $('areasList');
+  const names = allAreas();
+  list.innerHTML = names.length ? '' : '<p class="hint" style="margin-top:14px;">No areas yet. Add one below.</p>';
+  names.forEach(name => {
+    const c = areaCounts(name), total = c.pantry + c.shop;
+    const others = names.filter(n => n !== name);
+    const row = document.createElement('div');
+    row.className = 'area-row';
+    const countText = [c.pantry ? c.pantry + ' in pantry' : '', c.shop ? c.shop + ' to buy' : ''].filter(Boolean).join(' · ') || 'Empty';
+    row.innerHTML = `<div class="area-main"><input value="${esc(name)}" aria-label="Area name"><button class="btn danger-outline small adel">Delete</button></div>
+      <div class="area-count">${esc(countText)}</div>`;
+    if (confirmingArea === name) {
+      const box = document.createElement('div');
+      box.className = 'area-confirm';
+      box.innerHTML = total ? `<b>Delete ${esc(name)}? It has ${total} item${total === 1 ? '' : 's'}.</b>
+        <label><input type="radio" name="adMode" value="move" checked> Move them to
+          <select class="amove">${[...others, ...(others.includes('Other') ? [] : ['Other'])].map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
+        <label><input type="radio" name="adMode" value="delete"> Delete them too</label>
+        <div class="row" style="margin:0;"><button class="btn danger small ayes">Delete area</button><button class="btn secondary small ano">Cancel</button></div>`
+        : `<b>Delete ${esc(name)}?</b><div class="row" style="margin:0;"><button class="btn danger small ayes">Delete area</button><button class="btn secondary small ano">Cancel</button></div>`;
+      row.appendChild(box);
+      box.querySelector('.ano').onclick = () => { confirmingArea = null; renderAreas(); };
+      box.querySelector('.ayes').onclick = () => {
+        const mode = total ? box.querySelector('input[name=adMode]:checked').value : 'delete';
+        confirmingArea = null;
+        deleteArea(name, mode === 'move' ? box.querySelector('.amove').value : null);
+      };
+    }
+    const inp = row.querySelector('.area-main input');
+    inp.onchange = () => renameArea(name, inp.value);
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+    row.querySelector('.adel').onclick = () => { confirmingArea = confirmingArea === name ? null : name; renderAreas(); };
+    list.appendChild(row);
+  });
+}
+function openAreas(focusDelete){
+  confirmingArea = focusDelete || null;
+  renderAreas();
+  $('areasSheet').hidden = false; $('areasBackdrop').hidden = false; $('areasSheet').scrollTop = 0;
+}
+function closeAreas(){ $('areasSheet').hidden = true; $('areasBackdrop').hidden = true; confirmingArea = null; }
+document.querySelectorAll('.areasBtn').forEach(b => b.onclick = () => openAreas());
+$('areasClose').onclick = closeAreas;
+$('areasBackdrop').onclick = closeAreas;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('areasSheet').hidden) closeAreas(); });
+$('areasAdd').onclick = () => {
+  const name = $('areasNew').value.trim(); if (!name) return;
+  if (allAreas().includes(name)) { toast(name + ' is already an area.'); return; }
+  book.cats.push({ id: uid(), name }); $('areasNew').value = '';
+  persist(); render(); renderAreas();
+};
+$('areasNew').onkeydown = e => { if (e.key === 'Enter') $('areasAdd').click(); };
 
 // ===== Home screen =====
 // The Claude page can't carry its own home-screen icon, so point to the
