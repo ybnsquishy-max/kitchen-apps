@@ -832,7 +832,7 @@ if (IS_APP) {
     });
     // Ask the website which version is newest (never cached), so a phone that
     // resumed an old copy or had a slow connection still catches up.
-    const APP_VERSION = 'fac65cedc5';
+    const APP_VERSION = '29e3a5d076';
     let lastCheck = 0;
     const checkVersion = () => {
       if (Date.now() - lastCheck < 20000) return;
@@ -851,7 +851,7 @@ if (IS_APP) {
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
       window.addEventListener('pageshow', check);
       window.addEventListener('focus', check);
-      setInterval(check, 30 * 60 * 1000);
+      setInterval(check, 5 * 60 * 1000);
       check();
     }).catch(() => {});
   }

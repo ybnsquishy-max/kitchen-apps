@@ -782,19 +782,29 @@ renderCurrency();
   try { if (sessionStorage.getItem(KEY)) { sessionStorage.removeItem(KEY); setTimeout(function () { banner('GG Log updated to the latest version.'); }, 300); } } catch (e) {}
   if (!('serviceWorker' in navigator)) return;
   var hadController = !!navigator.serviceWorker.controller, reloading = false;
+  // Don't reload under someone mid-task: typing, or the app reports unsaved work.
+  function busy() {
+    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    var working = false; try { working = !!(window.__appBusy && window.__appBusy()); } catch (e) {}
+    return document.visibilityState === 'visible' && (typing || working);
+  }
   function reloadNow() { if (reloading) return; reloading = true; try { sessionStorage.setItem(KEY, '1'); } catch (e) {} location.reload(); }
   navigator.serviceWorker.addEventListener('controllerchange', function () {
     if (!hadController) return;
-    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
-    if (typing && document.visibilityState === 'visible') banner('A new version of GG Log is ready.', reloadNow, 'Update');
+    if (busy()) banner('A new version of GG Log is ready.', reloadNow, 'Update');
     else reloadNow();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'c2322fc180';
+  var VERSION = '7fc5fed314';
+  var offered = false;
   function hardRefresh() {
-    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
-    if (typing && document.visibilityState === 'visible') { banner('A new version of GG Log is ready.', hardRefresh2, 'Update'); return; }
+    if (busy()) {
+      // Offer it once, then update by itself as soon as the task is finished.
+      if (!offered) { offered = true; banner('A new version of GG Log is ready.', hardRefresh2, 'Update'); }
+      var wait = setInterval(function () { if (!busy()) { clearInterval(wait); hardRefresh2(); } }, 3000);
+      return;
+    }
     hardRefresh2();
   }
   function hardRefresh2() {
@@ -805,6 +815,7 @@ renderCurrency();
   function checkVersion(manual) {
     if (!manual && Date.now() - lastCheck < 20000) return;
     lastCheck = Date.now();
+    setStatus();
     return fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
       if (!v || !v.version || v.version === VERSION) { if (manual) banner('GG Log is up to date.'); return; }
       navigator.serviceWorker.getRegistration().then(function (reg) { if (reg) reg.update(); }).catch(function () {});
@@ -813,6 +824,7 @@ renderCurrency();
       var tried = null; try { tried = sessionStorage.getItem(KEY + '_tried'); } catch (e) {}
       if (tried === v.version) { banner('A new version of GG Log is available.', hardRefresh2, 'Update'); return; }
       try { sessionStorage.setItem(KEY + '_tried', v.version); } catch (e) {}
+      setStatus('Downloading the new version…');
       setTimeout(function () { if (!reloading) hardRefresh(); }, 4000);
     }).catch(function () { if (manual) banner("Couldn't check for updates. Are you online?"); });
   }
@@ -822,7 +834,7 @@ renderCurrency();
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
     window.addEventListener('pageshow', check);
     window.addEventListener('focus', check);
-    setInterval(check, 30 * 60 * 1000);
+    setInterval(check, 5 * 60 * 1000);   // every 5 minutes while open
     check();
   }).catch(function () {});
   // A "Check for updates" link in apps that have a Share panel.
@@ -830,9 +842,16 @@ renderCurrency();
   if (sheet) {
     var p = document.createElement('p');
     p.style.cssText = 'margin:18px 0 0;font-size:0.8rem;color:var(--ink-soft, #666)';
-    p.innerHTML = 'Version ' + VERSION.slice(0, 7) + ' · <button type="button" style="background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Check for updates</button>';
+    p.innerHTML = '<span data-update-status></span> · <button type="button" style="background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Check now</button>';
     p.querySelector('button').onclick = function () { checkVersion(true); };
     sheet.appendChild(p);
+    setStatus();
+  }
+  function setStatus(msg) {
+    var el = document.querySelector('[data-update-status]');
+    if (!el) return;
+    var when = lastCheck ? new Date(lastCheck).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    el.textContent = msg || ('Auto-updates on · version ' + VERSION.slice(0, 7) + (when ? ' · checked ' + when : ''));
   }
 })();
 </script>

@@ -1,6 +1,6 @@
-// Offline support for the installable GG Log app (version c2322fc180).
+// Offline support for the installable GG Log app (version 7fc5fed314).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'gglog-c2322fc180';
+const CACHE = 'gglog-7fc5fed314';
 const FONT_CACHE = 'gglog-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 

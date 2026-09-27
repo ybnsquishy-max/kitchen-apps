@@ -1,6 +1,6 @@
-// Offline support for the installable Bench Notes app (version ef4d9b2d03).
+// Offline support for the installable Bench Notes app (version b1b682cd3f).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'benchnotes-ef4d9b2d03';
+const CACHE = 'benchnotes-b1b682cd3f';
 const FONT_CACHE = 'benchnotes-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
