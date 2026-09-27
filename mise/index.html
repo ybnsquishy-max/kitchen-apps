@@ -375,6 +375,10 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
     <div id="shareResult" hidden>
       <p class="status" id="shareStatus"></p>
       <textarea class="copybox" id="shareText" readonly aria-label="Text to share"></textarea>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn accent" id="copyAgainBtn">Copy</button>
+        <a class="btn secondary" id="openAppLink" href="https://ybnsquishy-max.github.io/kitchen-apps/mise/" target="_blank" rel="noopener" hidden style="text-decoration:none;">Open the Mise app</a>
+      </div>
     </div>
     <div id="inviteHelp" hidden>
       <p><strong>One-time step:</strong> in Claude, tap <strong>Share</strong> at the top of the Mise page and invite them by email as <strong>Editor</strong> (can change the list) or <strong>Viewer</strong> (sees it and keeps their own copy). Keep "Anyone with the link" off.</p>
@@ -871,17 +875,49 @@ function openShare(){
 $('shareBtn').onclick = () => { if ($('shareSheet').hidden) openShare(); else $('shareSheet').hidden = true; };
 $('topShareBtn').onclick = openShare;
 
-// Send text: the phone's share sheet where it's allowed, otherwise copy it.
+// Copy text in a way that works everywhere, including inside Claude where the
+// clipboard API is often blocked: select a text box and use the copy command
+// (it must run straight from the tap), then fall back to the clipboard API.
+function copyNow(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('aria-hidden', 'true');
+  ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0';
+  document.body.appendChild(ta);
+  const active = document.activeElement;
+  ta.focus();
+  ta.setSelectionRange(0, text.length);   // iOS needs a range, not select()
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove();
+  if (active && active.focus) try { active.focus({ preventScroll: true }); } catch (e) {}
+  return ok;
+}
+async function copyText(text){
+  if (copyNow(text)) return true;
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+}
+// Send text: inside Claude, copy it (the share sheet is blocked there). In the
+// Mise app, open the phone's share sheet, falling back to copying.
 async function shareText(title, text){
   $('shareResult').hidden = false;
+  $('openAppLink').hidden = true;
   $('shareText').value = text;
-  if (!window.claude && navigator.share) {
-    try { await navigator.share({ title, text }); setStatus($('shareStatus'), 'Sent.'); return; }
-    catch (e) { if (e && e.name === 'AbortError') { $('shareResult').hidden = true; return; } }
+  if (window.claude || !navigator.share) {
+    const ok = await copyText(text);
+    setStatus($('shareStatus'), ok ? 'Copied! Paste it into Messages, WhatsApp or email.' : 'Tap Copy, or press and hold the text below and choose Copy.');
+    if (ok) toast('Copied. Paste it into a message.');
+    return;
   }
-  try { await navigator.clipboard.writeText(text); setStatus($('shareStatus'), 'Copied. Paste it into Messages, WhatsApp or email.'); toast('Copied. Paste it into a message.'); }
-  catch (e) { $('shareText').focus(); $('shareText').select(); setStatus($('shareStatus'), 'Select the text below and copy it.'); }
+  try { await navigator.share({ title, text }); setStatus($('shareStatus'), 'Sent.'); return; }
+  catch (e) { if (e && e.name === 'AbortError') { $('shareResult').hidden = true; return; } }
+  setStatus($('shareStatus'), 'Tap Copy, then paste it into a message.');
 }
+$('copyAgainBtn').onclick = async () => {
+  const ok = await copyText($('shareText').value);
+  setStatus($('shareStatus'), ok ? 'Copied! Paste it into Messages, WhatsApp or email.' : 'Press and hold the text above and choose Copy.');
+  if (ok) toast('Copied.');
+};
 function shoppingText(){
   const open = book.shop.filter(x => !x.done);
   if (!open.length) return '';
@@ -1331,8 +1367,8 @@ $('partyLeave').onclick = () => leaveParty(false);
 $('partyShareBtn').onclick = async () => {
   const link = partyLink(party.code);
   if (navigator.share) { try { await navigator.share({ title: 'Join my Mise party', text: 'Edit this list with me live:', url: link }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(link); toast('Party link copied. Paste it into a message.'); }
-  catch (e) { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Copy the link from the box.'); }
+  if (await copyText(link)) toast('Party link copied. Paste it into a message.');
+  else { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Press and hold the link to copy it.'); }
 };
 $('sharePartyBtn').onclick = () => {
   if (canParty()) {
@@ -1344,7 +1380,8 @@ $('sharePartyBtn').onclick = () => {
     // Parties need the Mise app: Claude pages can't connect phones directly.
     $('shareResult').hidden = false;
     $('shareText').value = WEB_APP_URL;
-    setStatus($('shareStatus'), 'Parties run in the Mise app. Open it at the link below (tap Open on the home-screen card), then tap Share → Start a party there.');
+    $('openAppLink').hidden = false;
+    setStatus($('shareStatus'), 'Parties run in the Mise app, not inside Claude. Tap "Open the Mise app", then tap Share → Start a party there.');
   }
 };
 // Joining from a link, or rejoining the party this phone was in.
