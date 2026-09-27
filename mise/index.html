@@ -81,6 +81,12 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .item .name{flex:1;min-width:0;font-weight:500;background:none;border:none;padding:0;overflow-wrap:anywhere;}
 .item .unit{color:var(--ink-soft);font-size:0.85rem;}
 .item.done .name{text-decoration:line-through;color:var(--ink-soft);}
+.sq{display:flex;align-items:center;gap:4px;flex:none;}
+.sq button{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;line-height:1;padding:0;}
+.sq input{width:48px;text-align:center;font-weight:600;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:5px 2px;font-size:0.95rem;-moz-appearance:textfield;}
+.sq input::-webkit-inner-spin-button,.sq input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+.sq .u{color:var(--ink-soft);font-size:0.85rem;min-width:22px;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+@media (max-width:400px){.sq button{width:26px;height:26px;}.sq input{width:42px;}}
 .item input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none;}
 .icon-btn{background:none;border:none;color:var(--ink-soft);cursor:pointer;padding:4px;font-size:0.95rem;}
 .new-badge{display:inline-block;background:var(--accent);color:var(--accent-ink);border-radius:3px;font-size:0.65rem;font-weight:600;padding:1px 5px;margin-right:6px;vertical-align:middle;}
@@ -145,6 +151,15 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 
 /* Share sheet */
 .sheet{border:1px solid var(--line);border-radius:12px;background:var(--raised);padding:18px;margin:18px 0;font-size:0.9rem;line-height:1.5;}
+#shareSheet{position:fixed;top:0;right:0;bottom:0;z-index:30;width:min(420px,92vw);margin:0;border-radius:18px 0 0 18px;overflow-y:auto;
+  padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(24px + env(safe-area-inset-bottom,0px));background:var(--surface);
+  box-shadow:-10px 0 40px rgba(0,0,0,0.25);transform:translateX(0);animation:slideIn .22s ease-out;}
+@keyframes slideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
+@media (prefers-reduced-motion: reduce){#shareSheet{animation:none;}}
+.backdrop{position:fixed;inset:0;z-index:29;background:rgba(0,0,0,0.35);}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.sheet-head h2{margin:0;}
+.sheet-close{background:none;border:1px solid var(--line);border-radius:50%;width:36px;height:36px;font-size:1.1rem;cursor:pointer;color:var(--ink);}
 .share-opts{display:flex;flex-direction:column;gap:10px;margin:12px 0 14px;}
 .share-opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;}
 .share-opt .ic{font-size:1.5rem;width:32px;text-align:center;flex:none;}
@@ -382,8 +397,9 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
   </section>
 
   <button class="btn secondary" id="shareBtn" style="width:100%;margin-top:18px;">📤 Share</button>
-  <div class="sheet" id="shareSheet" hidden>
-    <h2>Share</h2>
+  <div class="backdrop" id="shareBackdrop" hidden></div>
+  <div class="sheet" id="shareSheet" hidden role="dialog" aria-modal="true" aria-label="Share">
+    <div class="sheet-head"><h2>Share</h2><button class="sheet-close" id="shareClose" aria-label="Close">✕</button></div>
     <div class="share-opts">
       <button class="share-opt" id="shareShopText"><span class="ic">🛒</span><div><b>Send the shopping list</b><span>A tidy list by area, ready for Messages or WhatsApp</span></div></button>
       <button class="share-opt" id="shareMethodText"><span class="ic">📋</span><div><b>Send the method</b><span>The steps, temperatures and allergens as text</span></div></button>
@@ -848,7 +864,12 @@ function renderShopping(){
     li.className = 'item' + (s.done ? ' done' : '');
     li.dataset.id = s.id;
     li.innerHTML = `${s.done ? '' : '<button class="handle edit-only" aria-label="Drag to reorder">⠿</button>'}<input type="checkbox" ${s.done ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="Got it">
-      <span class="name">${badge(s.id)}${esc(s.name)}</span><span class="unit">${s.qty !== 1 ? fmtQty(s.qty) + ' ' : ''}${esc(s.unit)}</span>
+      <span class="name">${badge(s.id)}${esc(s.name)}</span>
+      ${s.done || locked() ? `<span class="unit">${s.qty !== 1 ? fmtQty(s.qty) + ' ' : ''}${esc(s.unit)}</span>` : `<span class="sq">
+        <button class="sminus" aria-label="One less ${esc(s.name)}">−</button>
+        <input class="sqty" type="number" inputmode="decimal" min="0" step="any" value="${fmtQty(s.qty)}" aria-label="Quantity of ${esc(s.name)}">
+        <button class="splus" aria-label="One more ${esc(s.name)}">+</button>
+        <span class="u">${esc(s.unit)}</span></span>`}
       <button class="icon-btn edit-only sdel" aria-label="Remove">✕</button>`;
     li.querySelector('input').onchange = e => {
       s.done = e.target.checked;
@@ -857,6 +878,14 @@ function renderShopping(){
       persist(); render();
     };
     li.querySelector('.sdel').onclick = () => removeWithUndo('shop', s, s.name);
+    const sq = li.querySelector('.sqty');
+    if (sq) {
+      li.querySelector('.sminus').onclick = () => { s.qty = roundQty(Math.max(0, s.qty - 1)); persist(); render(); };
+      li.querySelector('.splus').onclick = () => { s.qty = roundQty(s.qty + 1); persist(); render(); };
+      sq.onfocus = () => sq.select();
+      sq.onchange = () => { const v = Number(sq.value); if (Number.isFinite(v) && v >= 0) s.qty = roundQty(v); persist(); render(); };
+      sq.onkeydown = e => { if (e.key === 'Enter') sq.blur(); };
+    }
     return li;
   };
   for (const [area, items] of groups) {
@@ -905,10 +934,16 @@ async function saveFile(filename, data, statusEl, okText){
 }
 const MISE_LINK = 'https://claude.ai/artifact/Gru9LRv3eEyMcA1L3jHa23';
 function openShare(){
-  $('shareSheet').hidden = false; $('shareResult').hidden = true; $('inviteHelp').hidden = true;
-  $('shareSheet').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  $('shareSheet').hidden = false; $('shareBackdrop').hidden = false; $('shareResult').hidden = true; $('inviteHelp').hidden = true;
+  $('shareSheet').scrollTop = 0; $('shareClose').focus();
 }
-$('shareBtn').onclick = () => { if ($('shareSheet').hidden) openShare(); else $('shareSheet').hidden = true; };
+function closeShare(){ $('shareSheet').hidden = true; $('shareBackdrop').hidden = true; }
+$('shareBtn').onclick = openShare;
+$('shareClose').onclick = closeShare;
+$('shareBackdrop').onclick = closeShare;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('shareSheet').hidden) closeShare(); });
+// Places that closed the old inline panel close the drawer too.
+new MutationObserver(() => { if ($('shareSheet').hidden) $('shareBackdrop').hidden = true; }).observe($('shareSheet'), { attributes: true, attributeFilter: ['hidden'] });
 $('topShareBtn').onclick = openShare;
 
 // Copy text in a way that works everywhere, including inside Claude where the
