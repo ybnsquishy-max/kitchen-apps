@@ -315,6 +315,7 @@ const LS_SEEN = 'mise_seen_shared';
 const LS_FOLLOW = 'mise_follow';
 const LS_FOLLOW_BASE = 'mise_follow_base';
 const PENDING = 'mise_pending';
+const LS_REMOVED = 'mise_removed';   // ids this person deleted, so a copy someone sends can't bring them back
 const MAX_PHOTO_SIDE = 1600;
 const LISTS = {
   notes: ['title'],
@@ -410,10 +411,12 @@ function toast(msg, undo){
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, undo ? 7000 : 3000);
 }
 $('toastUndo').onclick = () => { const f = undoFn; $('toast').hidden = true; undoFn = null; if (f) f(); };
+function forget(ids){ const r = new Set(load(LS_REMOVED, [])); ids.forEach(id => r.add(id)); store(LS_REMOVED, [...r].slice(-5000)); }
+function unforget(ids){ const r = new Set(load(LS_REMOVED, [])); ids.forEach(id => r.delete(id)); store(LS_REMOVED, [...r]); }
 function removeWithUndo(key, item, label){
   const i = book[key].indexOf(item);
-  book[key].splice(i, 1); persist(); render();
-  toast('Removed ' + (label || 'item') + '.', () => { book[key].splice(Math.min(i, book[key].length), 0, item); persist(); render(); });
+  book[key].splice(i, 1); forget([item.id]); persist(); render();
+  toast('Removed ' + (label || 'item') + '.', () => { book[key].splice(Math.min(i, book[key].length), 0, item); unforget([item.id]); persist(); render(); });
 }
 
 // ===== Tabs =====
@@ -665,8 +668,9 @@ function renderPantry(){
     sec.querySelector('.cup').onclick = () => { if (ci > 0) { [book.cats[ci - 1], book.cats[ci]] = [book.cats[ci], book.cats[ci - 1]]; persist(); render(); } };
     sec.querySelector('.cdel').onclick = () => {
       const i = book.cats.indexOf(cat), removed = book.pantry.filter(p => p.cat === cat.id);
-      book.cats.splice(i, 1); book.pantry = book.pantry.filter(p => p.cat !== cat.id); persist(); render();
-      toast('Removed ' + cat.name + (removed.length ? ' and its ' + removed.length + ' items' : '') + '.', () => { book.cats.splice(Math.min(i, book.cats.length), 0, cat); book.pantry = book.pantry.concat(removed); persist(); render(); });
+      const ids = [cat.id, ...removed.map(p => p.id)];
+      book.cats.splice(i, 1); book.pantry = book.pantry.filter(p => p.cat !== cat.id); forget(ids); persist(); render();
+      toast('Removed ' + cat.name + (removed.length ? ' and its ' + removed.length + ' items' : '') + '.', () => { book.cats.splice(Math.min(i, book.cats.length), 0, cat); book.pantry = book.pantry.concat(removed); unforget(ids); persist(); render(); });
     };
     const addP = () => {
       const name = sec.querySelector('.pname').value.trim(); if (!name) return;
@@ -724,9 +728,9 @@ $('shopAddBtn').onclick = () => {
 };
 $('shopName').onkeydown = e => { if (e.key === 'Enter') $('shopAddBtn').click(); };
 $('clearDoneBtn').onclick = () => {
-  const before = book.shop.slice();
-  book.shop = book.shop.filter(s => !s.done); persist(); render();
-  toast('Cleared ticked items.', () => { book.shop = before; persist(); render(); });
+  const before = book.shop.slice(), ids = book.shop.filter(s => s.done).map(s => s.id);
+  book.shop = book.shop.filter(s => !s.done); forget(ids); persist(); render();
+  toast('Cleared ticked items.', () => { book.shop = before; unforget(ids); persist(); render(); });
 };
 
 // ===== Files: backup, print =====
@@ -772,12 +776,20 @@ $('restoreInput').onchange = async () => {
   }
   if (!incoming) { toast("That file isn't a Mise or Pantry backup."); return; }
   const before = JSON.parse(JSON.stringify(book));
-  let added = 0;
-  for (const key of Object.keys(LISTS)) for (const x of incoming[key]) if (!book[key].some(y => y.id === x.id)) { book[key].push(x); added++; }
+  // Only add what's new: things already here keep this person's edits, and
+  // things they deleted stay deleted.
+  const removed = new Set(load(LS_REMOVED, []));
+  let added = 0, skipped = 0;
+  for (const key of Object.keys(LISTS)) for (const x of incoming[key]) {
+    if (book[key].some(y => y.id === x.id)) continue;
+    if (removed.has(x.id)) { skipped++; continue; }
+    book[key].push(x); added++;
+  }
   if (!book.methodTitle && incoming.methodTitle) book.methodTitle = incoming.methodTitle;
-  if (!added) { toast('Everything in that file is already here.'); return; }
+  const note = skipped ? ' Left out ' + skipped + ' you deleted.' : '';
+  if (!added) { toast('Nothing new in that copy.' + note); return; }
   persist(); render();
-  toast('Added ' + added + ' thing' + (added === 1 ? '' : 's') + ' from the backup.', () => { book = before; persist(); render(); });
+  toast('Added ' + added + ' new thing' + (added === 1 ? '' : 's') + '. Your changes are kept.' + note, () => { book = before; persist(); render(); });
 };
 
 // ===== Sharing =====
