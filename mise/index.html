@@ -869,7 +869,22 @@ function renderPantry(){
       li.querySelector('.unit-in').onchange = e => { p.unit = e.target.value.trim(); persist(); render(); };
       li.querySelector('.pdel').onclick = () => removeWithUndo('pantry', p, p.name);
       const pe = li.querySelector('.pexp');
-      if (pe) { wireDateChip(pe); pe.onchange = e => { p.expires = e.target.value || ''; persist(); render(); if (p.expires) toast(p.name + ': use by ' + niceDate(p.expires) + '.'); }; }
+      if (pe) {
+        wireDateChip(pe);
+        // iPhone reports every turn of the date wheel as a change. Save each one
+        // quietly and update just this button; redraw once the calendar closes.
+        let changed = false;
+        const chip = pe.closest('.dchip');
+        const live = () => {
+          p.expires = pe.value || ''; changed = true;
+          chip.querySelector('span').textContent = p.expires ? niceDate(p.expires) : 'Add use-by date';
+          chip.classList.toggle('empty', !p.expires);
+          persist();
+        };
+        pe.addEventListener('input', live);
+        pe.addEventListener('change', live);
+        pe.addEventListener('blur', () => { if (!changed) return; changed = false; render(); if (p.expires) toast(p.name + ': use by ' + niceDate(p.expires) + '.'); });
+      }
       const pc = li.querySelector('.dclear'); if (pc) pc.onclick = () => { p.expires = ''; persist(); render(); };
       const tb = li.querySelector('.tobuy'); if (tb) tb.onclick = () => { if (addToShopping(p)) { persist(); render(); toast(p.name + ' added to Shopping.'); } else toast(p.name + ' is already on the list.'); };
       const mv = li.querySelector('.pmove'); if (mv) mv.onchange = () => { const to = book.cats.find(c => c.id === mv.value); if (to) { p.cat = to.id; persist(); render(); toast('Moved ' + p.name + ' to ' + to.name + '.'); } };
@@ -1718,7 +1733,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '926a87d391';
+  var VERSION = 'd6b7f76d77';
   function hardRefresh() {
     var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
     if (typing && document.visibilityState === 'visible') { banner('A new version of Mise is ready.', hardRefresh2, 'Update'); return; }

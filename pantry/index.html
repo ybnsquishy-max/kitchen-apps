@@ -620,10 +620,20 @@ function renderItem(cat, item){
 
   const exp = row.querySelector('.exp');
   wireDateChip(exp);
-  exp.onchange = () => {
+  // iPhone reports every turn of the date wheel as a change. Save each one
+  // quietly and update just this button; redraw once the calendar closes.
+  let dateChanged = false;
+  const live = () => {
     if (isIsoDate(exp.value)) item.expires = exp.value; else delete item.expires;
-    save(); render();
+    dateChanged = true;
+    const chip = exp.closest('.dchip');
+    chip.querySelector('span').textContent = item.expires ? niceDate(item.expires) : 'Add use-by date';
+    chip.classList.toggle('empty', !item.expires);
+    save();
   };
+  exp.addEventListener('input', live);
+  exp.addEventListener('change', live);
+  exp.addEventListener('blur', () => { if (dateChanged) { dateChanged = false; render(); } });
   const clearDate = row.querySelector('.clear-date');
   if (clearDate) clearDate.onclick = (e) => {
     e.preventDefault();
@@ -822,7 +832,7 @@ if (IS_APP) {
     });
     // Ask the website which version is newest (never cached), so a phone that
     // resumed an old copy or had a slow connection still catches up.
-    const APP_VERSION = '5fbe50bc46';
+    const APP_VERSION = 'fac65cedc5';
     let lastCheck = 0;
     const checkVersion = () => {
       if (Date.now() - lastCheck < 20000) return;

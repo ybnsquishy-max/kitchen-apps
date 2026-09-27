@@ -1,7 +1,7 @@
 // Offline support for the installable Pantry app. The build script replaces
-// 5fbe50bc46 with a hash of the app files, so each release gets a fresh cache.
+// fac65cedc5 with a hash of the app files, so each release gets a fresh cache.
 // Your pantry list lives in localStorage, which updates never touch.
-const CACHE = 'pantry-5fbe50bc46';
+const CACHE = 'pantry-fac65cedc5';
 const FONT_CACHE = 'pantry-fonts';
 const SHELL = [
   './',
