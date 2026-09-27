@@ -173,6 +173,9 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .area-confirm{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:0.9rem;display:flex;flex-direction:column;gap:10px;}
 .area-confirm label{display:flex;align-items:center;gap:8px;}
 .area-confirm select{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 8px;}
+.area-name-edit{font:inherit;font-size:0.95rem;font-weight:600;text-transform:none;letter-spacing:0;border:1px solid var(--accent);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);width:min(220px,55vw);}
+.head-actions{display:inline-flex;gap:2px;align-items:center;}
+.area-main .pencil{color:var(--ink-soft);font-size:0.9rem;flex:none;}
 .area-del-head{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:1rem;padding:4px 6px;}
 .sheet-close{background:none;border:1px solid var(--line);border-radius:50%;width:36px;height:36px;font-size:1.1rem;cursor:pointer;color:var(--ink);}
 .share-opts{display:flex;flex-direction:column;gap:10px;margin:12px 0 14px;}
@@ -415,7 +418,7 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
   <div class="backdrop" id="areasBackdrop" hidden></div>
   <div class="sheet" id="areasSheet" hidden role="dialog" aria-modal="true" aria-label="Areas">
     <div class="sheet-head"><h2>Areas</h2><button class="sheet-close" id="areasClose" aria-label="Close">✕</button></div>
-    <p class="hint" style="margin:8px 0 0;">Rename an area by tapping its name. Deleting asks what to do with its items.</p>
+    <p class="hint" style="margin:8px 0 0;">Tap a name to rename it. Deleting asks what to do with its items.</p>
     <div id="areasList"></div>
     <div class="add-form" style="margin-top:18px;">
       <input class="grow" id="areasNew" placeholder="New area (e.g. Freezer)" aria-label="New area name">
@@ -808,7 +811,7 @@ function renderPantry(){
     sec.className = 'cat';
     sec.dataset.id = cat.id;
     sec.innerHTML = `<div class="section-title"><span><button class="handle chandle edit-only" aria-label="Drag to reorder area">⠿</button> ${badge(cat.id)}${esc(cat.name)} · ${items.length}</span>
-      <span class="edit-only"><button class="area-del-head cdel" aria-label="Delete area ${esc(cat.name)}">🗑</button></span></div>
+      <span class="edit-only head-actions"><button class="area-del-head cren" aria-label="Rename area ${esc(cat.name)}">✏️</button><button class="area-del-head cdel" aria-label="Delete area ${esc(cat.name)}">🗑</button></span></div>
       <ul class="list drop-zone pantry-list" data-cat="${esc(cat.id)}"></ul>
       <div class="add-form edit-only">
         <input class="grow pname" placeholder="Add to ${esc(cat.name)}" aria-label="Item name">
@@ -849,6 +852,7 @@ function renderPantry(){
       ul.appendChild(li);
     });
     sec.querySelector('.cdel').onclick = () => openAreas(cat.name);
+    sec.querySelector('.cren').onclick = () => startRename(sec.querySelector('.section-title'), cat.name);
     const addP = () => {
       const name = sec.querySelector('.pname').value.trim(); if (!name) return;
       const qty = roundQty(Math.max(0, Number(sec.querySelector('.pqty').value) || 0));
@@ -909,8 +913,9 @@ function renderShopping(){
     return li;
   };
   for (const [area, items] of groups) {
-    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area || 'Other')}</span>${area && !locked() ? `<button class="area-del-head" aria-label="Delete area ${esc(area)}">🗑</button>` : ''}`;
-    const tb = t.querySelector('.area-del-head'); if (tb) tb.onclick = () => openAreas(area);
+    const t = document.createElement('div'); t.className = 'section-title'; t.innerHTML = `<span>📍 ${esc(area || 'Other')}</span>${area && !locked() ? `<span class="head-actions"><button class="area-del-head sren" aria-label="Rename area ${esc(area)}">✏️</button><button class="area-del-head sdelh" aria-label="Delete area ${esc(area)}">🗑</button></span>` : ''}`;
+    const tb = t.querySelector('.sdelh'); if (tb) tb.onclick = () => openAreas(area);
+    const tr = t.querySelector('.sren'); if (tr) tr.onclick = () => startRename(t, area);
     const ul = document.createElement('ul'); ul.className = 'list drop-zone shop-list'; ul.dataset.area = area; items.forEach(s => ul.appendChild(row(s)));
     wrap.appendChild(t); wrap.appendChild(ul);
   }
@@ -1558,6 +1563,20 @@ function deleteArea(name, moveTo){
   persist(); render(); renderAreas();
   toast('Deleted ' + name + (moveTo ? '. Items moved to ' + moveTo + '.' : gone.length > 1 ? ' and its items.' : '.'), () => { book = before; unforget(gone); persist(); render(); renderAreas(); });
 }
+// Rename right in the list: the heading turns into a text box.
+function startRename(heading, name){
+  const input = document.createElement('input');
+  input.className = 'area-name-edit';
+  input.value = name;
+  input.setAttribute('aria-label', 'New name for ' + name);
+  heading.innerHTML = '';
+  heading.appendChild(input);
+  input.focus(); input.select();
+  let done = false;
+  const finish = (save) => { if (done) return; done = true; if (save && input.value.trim() && input.value.trim() !== name) renameArea(name, input.value); else render(); };
+  input.onkeydown = e => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+}
 let confirmingArea = null;
 function renderAreas(){
   const list = $('areasList');
@@ -1569,7 +1588,7 @@ function renderAreas(){
     const row = document.createElement('div');
     row.className = 'area-row';
     const countText = [c.pantry ? c.pantry + ' in pantry' : '', c.shop ? c.shop + ' to buy' : ''].filter(Boolean).join(' · ') || 'Empty';
-    row.innerHTML = `<div class="area-main"><input value="${esc(name)}" aria-label="Area name"><button class="btn danger-outline small adel">Delete</button></div>
+    row.innerHTML = `<div class="area-main"><span class="pencil" aria-hidden="true">✏️</span><input value="${esc(name)}" aria-label="Rename ${esc(name)}"><button class="btn danger-outline small adel">Delete</button></div>
       <div class="area-count">${esc(countText)}</div>`;
     if (confirmingArea === name) {
       const box = document.createElement('div');
