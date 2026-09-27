@@ -220,6 +220,10 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .ptab.new{border-style:dashed;color:var(--ink-soft);}
 .party-name{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;}
 .party-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.party-emo{flex:none;font-size:1.35rem;line-height:1;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer;}
+.emo-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;margin:10px 0 4px;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface);}
+.emo-pick button{font-size:1.4rem;height:44px;border:1px solid transparent;border-radius:10px;background:none;cursor:pointer;}
+.emo-pick button[aria-pressed="true"]{border-color:var(--accent);background:var(--bg);}
 .party-name input{flex:1;min-width:0;font:inherit;font-weight:700;border:1px solid var(--accent);border-radius:8px;padding:6px 8px;background:var(--surface);}
 .start-box{border:1px solid var(--line);border-radius:10px;background:var(--raised);padding:14px;display:flex;flex-direction:column;gap:10px;}
 .start-box input[type=text]{border:1px solid var(--line);border-radius:8px;padding:11px 12px;background:var(--surface);font-size:1rem;}
@@ -312,10 +316,12 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
   <div class="ptabs" id="partyTabs" hidden role="tablist" aria-label="Lists"></div>
   <div class="party" id="partyBar" hidden>
     <div class="party-top">
-      <span class="party-name" id="partyNameWrap"><b id="partyNameText">🎉 Party</b><button class="area-del-head" id="partyRename" aria-label="Rename this party">✏️</button></span>
+      <button class="party-emo" id="partyEmoBtn" aria-label="Change the party emoji" aria-expanded="false">🎉</button>
+      <span class="party-name" id="partyNameWrap"><b id="partyNameText">Party</b><button class="area-del-head" id="partyRename" aria-label="Rename this party">✏️</button></span>
       <span class="people"><i class="live off" id="partyDot"></i><span id="partyPeople">Connecting…</span></span>
       <button class="btn secondary small" id="partyLeave">Leave</button>
     </div>
+    <div class="emo-pick" id="emoPick" hidden role="group" aria-label="Pick an emoji for this party"></div>
     <div class="party-code">Code: <span id="partyCodeText"></span></div>
     <div class="party-link">
       <input id="partyLinkBox" readonly aria-label="Party link">
@@ -1452,8 +1458,10 @@ function mergeFromPeer(inc){
   cleaned._o = out._o; cleaned._mt = out._mt;
   cleaned._name = book._name; cleaned._nt = book._nt || 0;
   if ((other._nt || 0) > (book._nt || 0) && other._name) { cleaned._name = String(other._name).slice(0, 40); cleaned._nt = other._nt; }
+  cleaned._emo = book._emo; cleaned._et = book._et || 0;
+  if ((other._et || 0) > (book._et || 0) && other._emo) { cleaned._emo = String(other._emo).slice(0, 8); cleaned._et = other._et; }
   book = cleaned;
-  rememberParty(party.code, book._name);
+  rememberParty(party.code, book._name, book._emo);
   updatePartyBar();
   party.shadow = snapshotParty();
   savePartyLocal();
@@ -1481,7 +1489,8 @@ function updatePartyBar(){
   renderPartyTabs();
   if (!party) { $('partyBar').hidden = true; return; }
   $('partyBar').hidden = false;
-  if (!$('partyNameWrap').querySelector('input')) $('partyNameText').textContent = '🎉 ' + (book._name || 'Party');
+  if (!$('partyNameWrap').querySelector('input')) $('partyNameText').textContent = book._name || 'Party';
+  $('partyEmoBtn').textContent = partyEmo(book._emo);
   $('partyLinkBox').value = partyLink(party.code);
   $('partyCodeText').textContent = prettyCode(party.code);
   const n = party.peers.size;
@@ -1493,7 +1502,7 @@ async function joinParty(code, seedFromCurrent, name){
   leaveParty(true);
   const saved = load(partyKey(code), null);
   const start = saved ? clean(saved, true) : (seedFromCurrent ? clean(load(LS_MINE, null) || book, true) : emptyBook());
-  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; start._name = saved._name; start._nt = saved._nt || 0; }
+  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; start._name = saved._name; start._nt = saved._nt || 0; start._emo = saved._emo; start._et = saved._et || 0; }
   else if (name) { start._name = name; start._nt = Date.now(); }
   book = start;
   party = { code, room: null, sendState: null, peers: new Set(), shadow: saved ? snapshotParty() : emptyBook(), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
@@ -1501,7 +1510,7 @@ async function joinParty(code, seedFromCurrent, name){
   party.shadow = snapshotParty();
   savePartyLocal();
   store('mise_party_current', code);
-  rememberParty(code, book._name);
+  rememberParty(code, book._name, book._emo);
   if (location.hash !== '#party-' + code) history.replaceState(null, '', '#party-' + code);
   updatePartyBar(); render();
   let lib;
@@ -1540,9 +1549,10 @@ $('partyLeave').onclick = () => {
 
 // ----- Party tabs: switch between your list and each party you're in -----
 function partyList(){ const l = load('mise_parties', []); return Array.isArray(l) ? l.filter(x => x && x.code) : []; }
-function rememberParty(code, name){
+function rememberParty(code, name, emo){
   const l = partyList(), i = l.findIndex(x => x.code === code);
-  if (i < 0) l.push({ code, name: name || '' }); else if (name) l[i].name = name;
+  if (i < 0) l.push({ code, name: name || '', emo: emo || '' });
+  else { if (name) l[i].name = name; if (emo) l[i].emo = emo; }
   store('mise_parties', l); renderPartyTabs();
 }
 function forgetParty(code){ store('mise_parties', partyList().filter(x => x.code !== code)); renderPartyTabs(); }
@@ -1552,11 +1562,12 @@ function renderPartyTabs(){
   bar.hidden = false;
   const current = party ? party.code : null;
   bar.innerHTML = `<button class="ptab" data-code="" aria-pressed="${!current}">🏠 My list</button>` +
-    list.map(x => `<button class="ptab" data-code="${esc(x.code)}" aria-pressed="${x.code === current}">🎉 ${esc(x.name || prettyCode(x.code))}</button>`).join('') +
+    list.map(x => `<button class="ptab" data-code="${esc(x.code)}" aria-pressed="${x.code === current}">${esc(partyEmo(x.emo))} ${esc(x.name || prettyCode(x.code))}</button>`).join('') +
     `<button class="ptab new" id="ptabNew" aria-label="Start or join a party">＋</button>`;
   bar.querySelectorAll('.ptab[data-code]').forEach(b => b.onclick = () => {
     const code = b.dataset.code;
     if ((code || null) === current) return;
+    toggleEmoPick(false);
     if (!code) { leaveParty(true); render(); }
     else joinParty(code, false);
     window.scrollTo(0, 0);
@@ -1572,7 +1583,7 @@ function renamePartyUI(){
   const finish = (saveIt) => {
     if (done) return; done = true;
     const v = input.value.trim();
-    if (saveIt && v && party) { book._name = v; book._nt = Date.now(); party.shadow = snapshotParty(); savePartyLocal(); rememberParty(party.code, v); if (party.sendState) party.sendState(stateForPeers()); }
+    if (saveIt && v && party) { book._name = v; book._nt = Date.now(); party.shadow = snapshotParty(); savePartyLocal(); rememberParty(party.code, v, book._emo); if (party.sendState) party.sendState(stateForPeers()); }
     wrap.innerHTML = '<b id="partyNameText"></b><button class="area-del-head" id="partyRename" aria-label="Rename this party">✏️</button>';
     $('partyRename').onclick = renamePartyUI;
     updatePartyBar();
@@ -1581,6 +1592,29 @@ function renamePartyUI(){
   input.onblur = () => finish(true);
 }
 $('partyRename').onclick = renamePartyUI;
+// ----- Party emoji: tap it to pick another; everyone in the party sees the change -----
+const PARTY_EMOS = ['🎉','🏠','👨‍👩‍👧‍👦','❤️','🛒','🍕','🍔','🌮','🥗','🍰','☕','🍻','🎂','🎄','🎃','🏖️','⛺','🏕️','⚽','🏀','🏈','🎮','🎵','📚','💼','🏫','🐶','🐱','🌟','🔥','🌈','🚗'];
+function partyEmo(e){ return e && typeof e === 'string' ? e : '🎉'; }
+function renderEmoPick(){
+  const cur = partyEmo(book._emo);
+  $('emoPick').innerHTML = PARTY_EMOS.map(e => `<button type="button" data-emo="${e}" aria-pressed="${e === cur}" aria-label="Use ${e}">${e}</button>`).join('');
+  $('emoPick').querySelectorAll('button').forEach(b => b.onclick = () => setPartyEmo(b.dataset.emo));
+}
+function toggleEmoPick(open){
+  const show = open === undefined ? $('emoPick').hidden : open;
+  if (show) renderEmoPick();
+  $('emoPick').hidden = !show;
+  $('partyEmoBtn').setAttribute('aria-expanded', String(show));
+}
+function setPartyEmo(e){
+  if (!party) return;
+  book._emo = e; book._et = Date.now();
+  party.shadow = snapshotParty(); savePartyLocal();
+  rememberParty(party.code, book._name, e);
+  if (party.sendState) party.sendState(stateForPeers());
+  toggleEmoPick(false); updatePartyBar();
+}
+$('partyEmoBtn').onclick = () => toggleEmoPick();
 function prettyCode(c){ return (c || '').toUpperCase().replace(/^(.{4})(.+)$/, '$1 $2'); }
 function codeFrom(input){
   const t = String(input || '').trim().toLowerCase();
@@ -1823,7 +1857,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'fbcff1e21b';
+  var VERSION = 'cd53e0d3e1';
   function hardRefresh() {
     var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
     if (typing && document.visibilityState === 'visible') { banner('A new version of Mise is ready.', hardRefresh2, 'Update'); return; }
