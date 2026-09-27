@@ -145,6 +145,13 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .pitem .sub{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;width:100%;padding-left:2px;margin-top:6px;font-size:0.8rem;color:var(--ink-soft);}
 .pitem .sub input[type=date]{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:2px 4px;font-size:0.8rem;}
 .pitem .sub select{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:2px 4px;font-size:0.8rem;margin-left:auto;max-width:150px;}
+.dchip{position:relative;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-height:40px;background:var(--surface);color:var(--ink);font-size:0.88rem;font-weight:500;cursor:pointer;overflow:hidden;}
+.dchip.empty{border-style:dashed;color:var(--ink-soft);}
+.dchip input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0;font-size:16px;}
+.dchip input[type=date]::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0;}
+.dchip:focus-within{outline:2px solid var(--accent);outline-offset:2px;}
+.dclear{background:none;border:1px solid var(--line);border-radius:50%;width:32px;height:32px;cursor:pointer;color:var(--ink-soft);flex:none;}
+.dchip.soon{border-color:#9A6A00;} .dchip.expired{border-color:var(--danger);}
 .soon{color:#9A6A00;} .expired{color:var(--danger);font-weight:600;}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .soon{color:#E0A83A;} }
 :root[data-theme="dark"] .soon{color:#E0A83A;}
@@ -774,6 +781,18 @@ $('printWfBtn').onclick = async () => {
 };
 
 // ===== Pantry =====
+// Tapping anywhere on a date chip opens the calendar: the real date box
+// covers the chip invisibly, and showPicker() helps where the browser allows it.
+function wireDateChip(input){
+  input.addEventListener('click', () => { try { input.showPicker(); } catch (e) {} });
+}
+function niceDate(iso){
+  const [y, m, d] = iso.split('-').map(Number), dt = new Date(y, m - 1, d);
+  const o = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (y !== new Date().getFullYear()) o.year = 'numeric';
+  return dt.toLocaleDateString(undefined, o);
+}
+function dateClass(iso){ const n = daysLeft(iso); return n < 0 ? 'expired' : n <= 3 ? 'soon' : ''; }
 function roundQty(n){ return Math.round(n * 1000) / 1000; }
 function fmtQty(n){ return String(roundQty(Number(n) || 0)); }
 function isoToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -817,6 +836,7 @@ function renderPantry(){
         <input class="grow pname" placeholder="Add to ${esc(cat.name)}" aria-label="Item name">
         <input class="qty pqty" type="number" inputmode="decimal" min="0" step="any" value="1" aria-label="Quantity">
         <input class="unitin punit" placeholder="unit" aria-label="Unit">
+        <span class="dchip empty pdate-chip">📅 <span class="pdate-text">Use by</span><input type="date" class="pdate" aria-label="Use-by date (optional)"></span>
         <button class="btn small padd">Add</button>
       </div>`;
     const ul = sec.querySelector('ul');
@@ -833,7 +853,9 @@ function renderPantry(){
           <button class="icon-btn edit-only pdel" aria-label="Remove item">✕</button>
         </div>
         <div class="sub">${badge(p.id)}
-          <label>use by <input type="date" class="pexp" value="${esc(p.expires)}" ${locked() ? 'disabled' : ''}></label>${dateNote(p.expires)}
+          ${locked() ? (p.expires ? `<span>📅 ${esc(niceDate(p.expires))}</span>${dateNote(p.expires)}` : '') : `<span class="dchip ${p.expires ? dateClass(p.expires) : 'empty'}">📅 <span>${p.expires ? esc(niceDate(p.expires)) : 'Add use-by date'}</span>
+            <input type="date" class="pexp" value="${esc(p.expires)}" aria-label="Use-by date for ${esc(p.name)}"></span>
+          ${p.expires ? dateNote(p.expires) + `<button class="dclear" aria-label="Clear use-by date">✕</button>` : ''}`}
           ${p.qty <= 0 ? '<button class="linkish edit-only tobuy">Add to Shopping</button>' : ''}
           ${others.length ? `<select class="edit-only pmove" aria-label="Move to another area"><option value="">Move to…</option>${others.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : ''}
         </div>`;
@@ -846,7 +868,9 @@ function renderPantry(){
       qIn.onkeydown = e => { if (e.key === 'Enter') qIn.blur(); };
       li.querySelector('.unit-in').onchange = e => { p.unit = e.target.value.trim(); persist(); render(); };
       li.querySelector('.pdel').onclick = () => removeWithUndo('pantry', p, p.name);
-      li.querySelector('.pexp').onchange = e => { p.expires = e.target.value || ''; persist(); render(); };
+      const pe = li.querySelector('.pexp');
+      if (pe) { wireDateChip(pe); pe.onchange = e => { p.expires = e.target.value || ''; persist(); render(); if (p.expires) toast(p.name + ': use by ' + niceDate(p.expires) + '.'); }; }
+      const pc = li.querySelector('.dclear'); if (pc) pc.onclick = () => { p.expires = ''; persist(); render(); };
       const tb = li.querySelector('.tobuy'); if (tb) tb.onclick = () => { if (addToShopping(p)) { persist(); render(); toast(p.name + ' added to Shopping.'); } else toast(p.name + ' is already on the list.'); };
       const mv = li.querySelector('.pmove'); if (mv) mv.onchange = () => { const to = book.cats.find(c => c.id === mv.value); if (to) { p.cat = to.id; persist(); render(); toast('Moved ' + p.name + ' to ' + to.name + '.'); } };
       ul.appendChild(li);
@@ -860,10 +884,15 @@ function renderPantry(){
       // Already have it in this area? Top up the quantity instead of adding a duplicate.
       const have = book.pantry.find(x => x.cat === cat.id && x.name.trim().toLowerCase() === name.toLowerCase());
       if (have) { have.qty = roundQty(have.qty + qty); if (unit && !have.unit) have.unit = unit; toast('Added ' + fmtQty(qty) + (have.unit ? ' ' + have.unit : '') + ' to ' + have.name + '. Now ' + fmtQty(have.qty) + '.'); }
-      else book.pantry.push({ id: uid(), cat: cat.id, name, qty, unit, expires: '' });
+      const pdate = sec.querySelector('.pdate').value || '';
+      if (have && pdate) have.expires = pdate;
+      if (!have) book.pantry.push({ id: uid(), cat: cat.id, name, qty, unit, expires: pdate });
       persist(); render();
       const again = [...document.querySelectorAll('.cat')][ci]; if (again) again.querySelector('.pname').focus();
     };
+    const pd = sec.querySelector('.pdate');
+    wireDateChip(pd);
+    pd.onchange = () => { sec.querySelector('.pdate-text').textContent = pd.value ? niceDate(pd.value) : 'Use by'; sec.querySelector('.pdate-chip').classList.toggle('empty', !pd.value); };
     sec.querySelector('.padd').onclick = addP;
     sec.querySelector('.pname').onkeydown = e => { if (e.key === 'Enter') addP(); };
     wrap.appendChild(sec);

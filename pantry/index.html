@@ -210,6 +210,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .date-chip.expired{border-color:var(--low);}
 .date-chip.soon,.rel.soon{color:var(--soon);}
 .date-chip.soon{border-color:var(--soon);}
+.dchip{position:relative;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-height:40px;background:var(--card);color:var(--ink);font-size:0.88rem;font-weight:500;cursor:pointer;overflow:hidden;}
+.dchip.empty{border-style:dashed;color:var(--ink-soft);}
+.dchip input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0;font-size:16px;}
+.dchip input[type=date]::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0;}
+.dchip:focus-within{outline:2px solid var(--accent);outline-offset:2px;}
+.dclear{background:none;border:1px solid var(--line);border-radius:50%;width:32px;height:32px;cursor:pointer;color:var(--ink-soft);flex:none;}
+.dchip.soon{border-color:var(--soon);color:var(--soon);} .dchip.expired{border-color:var(--low);color:var(--low);}
 .add-date{
   background:none;border:1px dashed var(--line);border-radius:3px;color:var(--ink-soft);
   font:inherit;cursor:pointer;padding:2px 6px;
@@ -519,7 +526,7 @@ function renderCategory(cat){
         <input class="iname-in" placeholder="Item name" aria-label="New item name">
         <input class="qty-in" type="number" inputmode="decimal" min="0" step="any" placeholder="qty" value="1" aria-label="Quantity">
         <input class="unit-in" placeholder="unit" aria-label="Unit">
-        <label class="exp-wrap">use by <input class="exp-in" type="date" aria-label="Use-by date (optional)"></label>
+        <span class="dchip empty exp-chip">📅 <span class="exp-text">Use by</span><input class="exp-in" type="date" aria-label="Use-by date (optional)"></span>
         <button class="btn small add-item-btn">Add</button>
       </div>
     </div>
@@ -534,6 +541,8 @@ function renderCategory(cat){
   const qtyIn = catEl.querySelector('.qty-in');
   const unitIn = catEl.querySelector('.unit-in');
   const expIn = catEl.querySelector('.exp-in');
+  wireDateChip(expIn);
+  expIn.onchange = () => { catEl.querySelector('.exp-text').textContent = expIn.value ? niceDate(expIn.value) : 'Use by'; catEl.querySelector('.exp-chip').classList.toggle('empty', !expIn.value); };
   const doAdd = () => {
     const name = nameIn.value.trim();
     if (!name) return;
@@ -568,17 +577,14 @@ function renderItem(cat, item){
     const n = daysLeft(item.expires);
     const st = dateState(n);
     dateHtml = `
-      <label class="date-chip ${st}">use by
-        <input type="date" class="exp" value="${item.expires}" aria-label="Use-by date for ${escapeHtml(item.name)}">
-        <button class="clear-date" aria-label="Clear use-by date" title="Clear date">×</button>
-      </label>
-      <span class="rel ${st}">${relLabel(n)}</span>`;
+      <span class="dchip ${st}">📅 <span>${escapeHtml(niceDate(item.expires))}</span>
+        <input type="date" class="exp" value="${item.expires}" aria-label="Use-by date for ${escapeHtml(item.name)}"></span>
+      <span class="rel ${st}">${relLabel(n)}</span>
+      <button class="dclear clear-date" aria-label="Clear use-by date" title="Clear date">✕</button>`;
   } else {
     dateHtml = `
-      <button class="add-date">+ use-by date</button>
-      <label class="date-chip" hidden>use by
-        <input type="date" class="exp" aria-label="Use-by date for ${escapeHtml(item.name)}">
-      </label>`;
+      <span class="dchip empty">📅 <span>Add use-by date</span>
+        <input type="date" class="exp" aria-label="Use-by date for ${escapeHtml(item.name)}"></span>`;
   }
   const others = data.filter(c => c !== cat);
   const moveHtml = others.length ? `
@@ -613,15 +619,10 @@ function renderItem(cat, item){
   row.querySelector('.del-item').onclick = () => removeItem(cat, item);
 
   const exp = row.querySelector('.exp');
+  wireDateChip(exp);
   exp.onchange = () => {
     if (isIsoDate(exp.value)) item.expires = exp.value; else delete item.expires;
     save(); render();
-  };
-  const addDate = row.querySelector('.add-date');
-  if (addDate) addDate.onclick = () => {
-    addDate.hidden = true;
-    exp.parentElement.hidden = false;
-    exp.focus();
   };
   const clearDate = row.querySelector('.clear-date');
   if (clearDate) clearDate.onclick = (e) => {
@@ -829,6 +830,17 @@ if (IS_APP) {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 }
 
+// Tapping anywhere on a date chip opens the calendar: the real date box
+// covers the chip invisibly, and showPicker() helps where the browser allows it.
+function wireDateChip(input){
+  input.addEventListener('click', () => { try { input.showPicker(); } catch (e) {} });
+}
+function niceDate(iso){
+  const [y, m, d] = iso.split('-').map(Number), dt = new Date(y, m - 1, d);
+  const o = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (y !== new Date().getFullYear()) o.year = 'numeric';
+  return dt.toLocaleDateString(undefined, o);
+}
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
