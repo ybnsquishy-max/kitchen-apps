@@ -1,6 +1,6 @@
-// Offline support for the installable Mise app (version 419d58f4d1).
+// Offline support for the installable Mise app (version 1687890a4c).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-419d58f4d1';
+const CACHE = 'mise-1687890a4c';
 const FONT_CACHE = 'mise-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/Sortable.min.js'];
 

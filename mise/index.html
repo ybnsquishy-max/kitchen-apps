@@ -140,7 +140,18 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 :root[data-theme="dark"] .soon{color:#E0A83A;}
 
 /* Share sheet */
-.sheet{border:1px solid var(--line);border-radius:8px;background:var(--raised);padding:14px;margin:14px 0;font-size:0.9rem;line-height:1.5;}
+.sheet{border:1px solid var(--line);border-radius:12px;background:var(--raised);padding:18px;margin:18px 0;font-size:0.9rem;line-height:1.5;}
+.share-opts{display:flex;flex-direction:column;gap:10px;margin:12px 0 14px;}
+.share-opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;}
+.share-opt .ic{font-size:1.5rem;width:32px;text-align:center;flex:none;}
+.share-opt b{display:block;font-size:1rem;}
+.share-opt span{color:var(--ink-soft);font-size:0.85rem;}
+.share-opt:hover{border-color:var(--accent);}
+.top-share{position:absolute;right:14px;top:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:6px;}
+@media (max-width:400px){.top-share .lbl{display:none}.top-share{padding:9px}}
+.top-share svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;}
+.copybox{width:100%;min-height:120px;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface);font-size:0.85rem;margin-top:8px;}
+details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .sheet h2{margin:0 0 6px;font-family:'Barlow Condensed',system-ui,sans-serif;font-size:1.2rem;}
 .sheet ol{margin:6px 0 10px;padding-left:20px;}
 
@@ -170,6 +181,7 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 <body>
 
 <header class="topbar">
+  <button class="top-share" id="topShareBtn" aria-label="Share"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span class="lbl">Share</span></button>
   <div class="brand"><svg viewBox="0 0 512 512" aria-hidden="true" class="logo">
   <defs>
     <radialGradient id="hdrBg" cx="50%" cy="35%" r="75%">
@@ -331,19 +343,28 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 
   <button class="btn secondary" id="shareBtn" style="width:100%;margin-top:18px;">📤 Share</button>
   <div class="sheet" id="shareSheet" hidden>
-    <h2>Share Mise</h2>
-    <p>Everyone you share with sees the shared list. They also get <strong>My copy</strong>, their own version that updates when you add or remove things and keeps their own changes.</p>
-    <ol>
-      <li>Tap <strong>Share</strong> at the top of this page in Claude.</li>
-      <li>Invite people by email. <strong>Editor</strong> lets them change the shared list. <strong>Viewer</strong> lets them see it and keep their own copy.</li>
-      <li>Turn off "Anyone with the link". Changes can't be saved while it's on.</li>
-    </ol>
-    <p class="hint">You can also send someone a file copy of everything, or bring in a backup from the Pantry app.</p>
-    <div class="row">
-      <button class="btn secondary small" id="backupBtn">Send or save a copy</button>
-      <button class="btn secondary small edit-only" id="restoreBtn">Open a copy someone sent</button>
-      <input type="file" id="restoreInput" accept=".json,application/json">
+    <h2>Share</h2>
+    <div class="share-opts">
+      <button class="share-opt" id="shareShopText"><span class="ic">🛒</span><div><b>Send the shopping list</b><span>A tidy list by area, ready for Messages or WhatsApp</span></div></button>
+      <button class="share-opt" id="shareMethodText"><span class="ic">📋</span><div><b>Send the method</b><span>The steps, temperatures and allergens as text</span></div></button>
+      <button class="share-opt" id="backupBtn"><span class="ic">📦</span><div><b>Send a copy of everything</b><span>A file they open in their Mise. Their changes are kept when you send another.</span></div></button>
+      <button class="share-opt" id="shareInvite"><span class="ic">👥</span><div><b>Invite to the shared list</b><span>They see your list live and get their own copy</span></div></button>
     </div>
+    <div id="shareResult" hidden>
+      <p class="status" id="shareStatus"></p>
+      <textarea class="copybox" id="shareText" readonly aria-label="Text to share"></textarea>
+    </div>
+    <div id="inviteHelp" hidden>
+      <p><strong>One-time step:</strong> in Claude, tap <strong>Share</strong> at the top of the Mise page and invite them by email as <strong>Editor</strong> (can change the list) or <strong>Viewer</strong> (sees it and keeps their own copy). Keep "Anyone with the link" off.</p>
+    </div>
+    <details class="more">
+      <summary>Someone sent you a copy?</summary>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn secondary small edit-only" id="restoreBtn">Open a copy someone sent</button>
+        <input type="file" id="restoreInput" accept=".json,application/json">
+      </div>
+      <p class="hint">You can also bring in a backup from the Pantry app.</p>
+    </details>
   </div>
 </main>
 
@@ -819,7 +840,55 @@ async function saveFile(filename, data, statusEl, okText){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data])); a.download = filename;
   document.body.appendChild(a); a.click(); a.remove(); setStatus(statusEl, okText);
 }
-$('shareBtn').onclick = () => { $('shareSheet').hidden = !$('shareSheet').hidden; };
+const MISE_LINK = 'https://claude.ai/artifact/Gru9LRv3eEyMcA1L3jHa23';
+function openShare(){
+  $('shareSheet').hidden = false; $('shareResult').hidden = true; $('inviteHelp').hidden = true;
+  $('shareSheet').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+$('shareBtn').onclick = () => { if ($('shareSheet').hidden) openShare(); else $('shareSheet').hidden = true; };
+$('topShareBtn').onclick = openShare;
+
+// Send text: the phone's share sheet where it's allowed, otherwise copy it.
+async function shareText(title, text){
+  $('shareResult').hidden = false;
+  $('shareText').value = text;
+  if (!window.claude && navigator.share) {
+    try { await navigator.share({ title, text }); setStatus($('shareStatus'), 'Sent.'); return; }
+    catch (e) { if (e && e.name === 'AbortError') { $('shareResult').hidden = true; return; } }
+  }
+  try { await navigator.clipboard.writeText(text); setStatus($('shareStatus'), 'Copied. Paste it into Messages, WhatsApp or email.'); toast('Copied. Paste it into a message.'); }
+  catch (e) { $('shareText').focus(); $('shareText').select(); setStatus($('shareStatus'), 'Select the text below and copy it.'); }
+}
+function shoppingText(){
+  const open = book.shop.filter(x => !x.done);
+  if (!open.length) return '';
+  const order = book.cats.map(c => c.name);
+  const areas = [...new Set(open.map(x => x.area || ''))].sort((a, b) => (order.indexOf(a) + 1 || 1e3) - (order.indexOf(b) + 1 || 1e3) || a.localeCompare(b));
+  const lines = ['🛒 Shopping list (' + open.length + ')'];
+  for (const a of areas) {
+    lines.push('', (a || 'Other').toUpperCase());
+    open.filter(x => (x.area || '') === a).forEach(x => lines.push('☐ ' + x.name + (x.qty > 1 || x.unit ? ' — ' + (x.qty > 1 ? x.qty + ' ' : '') + x.unit : '')));
+  }
+  return lines.join('\n').trim();
+}
+function methodText(){
+  if (!book.steps.length) return '';
+  const lines = ['📋 ' + (book.methodTitle || 'Method'), ''];
+  book.steps.forEach((st, i) => {
+    lines.push((i + 1) + '. ' + (st.title || 'Step'));
+    if (st.detail) lines.push('   ' + st.detail);
+    const meta = [st.temp, st.allergens ? 'Allergens: ' + st.allergens : ''].filter(Boolean).join(' · ');
+    if (meta) lines.push('   ' + meta);
+  });
+  return lines.join('\n');
+}
+$('shareShopText').onclick = () => { const t = shoppingText(); if (!t) { toast('The shopping list is empty.'); return; } $('inviteHelp').hidden = true; shareText('Shopping list', t); };
+$('shareMethodText').onclick = () => { const t = methodText(); if (!t) { toast('No method steps yet.'); return; } $('inviteHelp').hidden = true; shareText(book.methodTitle || 'Method', t); };
+$('shareInvite').onclick = () => {
+  $('inviteHelp').hidden = !window.claude ? true : false;
+  shareText('Mise', 'Join my Mise list: ' + MISE_LINK + (window.claude ? '' : '\n(Open it in Claude to see the shared list.)'));
+  $('inviteHelp').hidden = false;
+};
 $('backupBtn').onclick = async () => {
   const withPhotos = clean(book, true);
   for (const n of withPhotos.notes) if (!n.img || !n.img.startsWith('data:')) { try { n.img = await readAsDataUrl(await photoBlob(n)); } catch (e) {} }
