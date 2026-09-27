@@ -132,6 +132,12 @@ input:focus{border-color:var(--blue);outline:none;}
 .tally{display:flex;flex-wrap:wrap;gap:6px;min-height:30px;align-items:center;}
 .tchip{border:0;border-radius:8px;padding:4px 8px;font-weight:800;font-size:.82rem;color:#fff;background:var(--kc);}
 .rules{font-size:.8rem;color:var(--ink-soft);margin:0;}
+.hand-row{display:flex;align-items:center;}
+.hand-row .hand-head{flex:1;min-width:0;}
+.camchip{flex:none;margin-right:10px;border:1px solid var(--line);background:var(--surface);border-radius:12px;min-width:48px;height:44px;font-size:1.25rem;}
+.camchip:disabled{cursor:progress;}
+.picks{display:flex;flex-wrap:wrap;gap:6px;}
+.picks button{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:7px 12px;font-weight:800;font-variant-numeric:tabular-nums;}
 .scanbtn{border:2px dashed var(--line);background:var(--surface);border-radius:12px;padding:11px 12px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;width:100%;}
 .scanbtn:disabled{opacity:.7;cursor:progress;}
 .scannote{font-size:.84rem;margin:0;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);}
@@ -574,7 +580,8 @@ function gameHtml(g){
   return `<section class="panel" aria-labelledby="gameH">
     <div class="gamehead"><h2 id="gameH">Round ${g.rounds.length + 1}</h2><span class="small muted">${modeName(g)} · to ${g.target}</span></div>
     <div class="board">${board}</div>
-    ${draft ? '' : `<div class="row" style="margin-top:14px"><button class="btn accent" id="scoreRound" style="flex:1">Score this round</button>${g.rounds.length ? '<button class="btn ghost" id="undoRound">Undo last</button>' : ''}</div>`}
+    ${draft ? '' : `<div class="row" style="margin-top:14px"><button class="btn accent" id="scoreRound" style="flex:1">Score this round</button>${g.rounds.length ? '<button class="btn ghost" id="undoRound">Undo last</button>' : ''}</div>
+      ${photoMode() ? '<button class="btn ghost wide" id="scorePhotos" style="margin-top:8px">📷 Score from photos</button>' : ''}`}
   </section>
   ${draft ? draftHtml(g) : ''}
   ${g.rounds.length ? coasterPanel('game:' + g.id, 'Score coaster') : ''}
@@ -604,27 +611,32 @@ function draftHtml(g){
   const pot = others.reduce((s, p) => s + draftValue(p), 0);
   return `<section class="panel stack" style="margin-top:14px" aria-labelledby="draftH">
     <div class="gamehead" style="margin:0"><h2 id="draftH">Score round ${g.rounds.length + 1}</h2><button class="linkbtn" id="cancelDraft">Cancel</button></div>
+    ${draft.photos && !draft.winner ? '<p class="scannote" role="status">Tap who went out. Then tap 📷 next to each other player to score them from a photo.</p>' : ''}
     <div class="field"><label>Who went out?</label>
       <div class="chips">${g.playerIds.map(id => { const p = player(id); return `<button class="chip" data-winner="${esc(id)}" aria-pressed="${draft.winner === id}">${av(p)}${pname(p)}</button>`; }).join('')}</div>
     </div>
     ${winner ? `<div class="field"><label>Cards left in everyone else's hand</label>
       ${others.map(id => handHtml(id)).join('')}
-      ${!sampleImages && winner ? `<p class="rules">${window.claude ? '' : 'Reading card photos uses Claude, so the 📷 button is in the Claude version of Last Card. Here, tap the cards.'}</p>` : ''}
+      ${photoMode() === 'phone' && winner ? '<p class="rules">📷 reads a written or printed score, right on your phone. Reading the cards themselves needs the Claude version of Last Card.</p>' : ''}
       <p class="rules">Number cards count their number. Skip, Reverse and Draw Two are 20. Wild and Wild Draw Four are 50.</p>
     </div>
     <button class="btn accent wide" id="saveRound">${g.mode === 'official' ? esc(winner.name) + ' scores ' + pot : 'Save round · ' + pot + ' points handed out'}</button>` : ''}
   </section>`;
 }
+function photoMode(){ return sampleImages ? 'claude' : (!window.claude && IS_APP) ? 'phone' : null; }
 function scanHtml(pid, h){
-  if (!sampleImages) return '';
-  return `<button class="scanbtn" data-scan="${esc(pid)}" ${h.reading ? 'disabled' : ''}>${h.reading ? '<span class="spin" aria-hidden="true"></span> Reading the photo…' : '📷 Photo of their cards'}</button>
-    ${h.note ? `<p class="scannote${h.warn ? ' warn' : ''}" role="status">${esc(h.note)}</p>` : ''}`;
+  const mode = photoMode();
+  if (!mode) return '';
+  return `<button class="scanbtn" data-scan="${esc(pid)}" ${h.reading ? 'disabled' : ''}>${h.reading ? '<span class="spin" aria-hidden="true"></span> Reading the photo…' : mode === 'claude' ? '📷 Photo of their cards or score' : '📷 Photo of their written score'}</button>
+    ${h.note ? `<p class="scannote${h.warn ? ' warn' : ''}" role="status">${esc(h.note)}</p>` : ''}
+    ${h.choices && h.choices.length ? `<div class="picks" role="group" aria-label="Numbers found in the photo">${h.choices.map(n => `<button data-pick="${esc(pid)}" data-val="${n}">${n}</button>`).join('')}<button data-pickall="${esc(pid)}">Add them up = ${h.choices.reduce((a, b) => a + b, 0)}</button></div>` : ''}`;
 }
 function handHtml(pid){
   const p = player(pid), h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
   const open = draft.open === pid;
   return `<div class="hand">
-    <button class="hand-head" data-openhand="${esc(pid)}" aria-expanded="${open}">${av(p)}<b>${pname(p)}</b><span class="small muted">${h.typed !== '' ? 'typed' : h.cards.length + ' card' + (h.cards.length === 1 ? '' : 's')}</span><span class="t">${draftValue(pid)}</span></button>
+    <div class="hand-row"><button class="hand-head" data-openhand="${esc(pid)}" aria-expanded="${open}">${av(p)}<b>${pname(p)}</b><span class="small muted">${h.reading ? 'reading…' : h.typed !== '' ? 'typed' : h.cards.length + ' card' + (h.cards.length === 1 ? '' : 's')}</span><span class="t">${draftValue(pid)}</span></button>
+    ${photoMode() ? `<button class="camchip" data-scan="${esc(pid)}" aria-label="Score ${esc(p.name)} from a photo" ${h.reading ? 'disabled' : ''}>${h.reading ? '<span class="spin" style="display:inline-block" aria-hidden="true"></span>' : '📷'}</button>` : ''}</div>
     ${open ? `<div class="hand-body">
       ${scanHtml(pid, h)}
       <div class="keys">${KEYS.map((k, i) => `<button class="card${k.wild ? ' wild' : ''}${k.word ? ' word' : ''}" data-key="${i}" style="--kc:${keyColor(k)}" aria-label="${k.l} card, ${k.v} points"><span>${k.l}</span>${k.v >= 20 ? `<small>${k.v}</small>` : ''}</button>`).join('')}</div>
@@ -784,7 +796,10 @@ function wire(){
   on('[data-openhand]', el => { draft.open = draft.open === el.dataset.openhand ? null : el.dataset.openhand; render(); });
   on('[data-key]', el => { const h = draft.hands[draft.open]; h.typed = ''; h.cards.push(+el.dataset.key); render(); });
   on('[data-rmcard]', el => { draft.hands[draft.open].cards.splice(+el.dataset.rmcard, 1); render(); });
-  on('[data-scan]', el => { scanFor = el.dataset.scan; $('handPhoto').value = ''; $('handPhoto').click(); });
+  on('[data-scan]', el => { scanFor = el.dataset.scan; $('handPhoto').value = ''; $('handPhoto').click(); if (draft.open !== scanFor) { draft.open = scanFor; render(); } });
+  on('[data-pick]', el => { const h = draft.hands[el.dataset.pick]; h.cards = []; h.typed = el.dataset.val; h.choices = null; h.note = 'Using ' + el.dataset.val + '.'; h.warn = false; render(); });
+  on('[data-pickall]', el => { const h = draft.hands[el.dataset.pickall]; const sum = h.choices.reduce((a, b) => a + b, 0); h.cards = []; h.typed = String(sum); h.note = 'Added them up: ' + h.choices.join(' + ') + ' = ' + sum + '.'; h.choices = null; h.warn = false; render(); });
+  if ($('scorePhotos')) $('scorePhotos').onclick = () => { draft = { winner: null, hands: {}, open: null, photos: true }; render(); $('draftH').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   on('[data-clearhand]', el => { draft.hands[el.dataset.clearhand] = { cards: [], typed: '' }; render(); });
   document.querySelectorAll('[data-typed]').forEach(inp => {
     inp.oninput = () => {
@@ -1074,9 +1089,11 @@ Put a short note in "unsure" if some cards were hard to read or might be missing
 $('handPhoto').onchange = async () => {
   const file = $('handPhoto').files[0], pid = scanFor;
   $('handPhoto').value = '';
-  if (!file || !draft || !pid || !sampler) return;
+  if (!file || !draft || !pid) return;
+  if (photoMode() === 'phone') { readOnPhone(file, pid); return; }
+  if (!sampler) return;
   const h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
-  h.reading = true; h.note = ''; h.warn = false; render();
+  h.reading = true; h.note = ''; h.warn = false; h.choices = null; render();
   const name = player(pid).name;
   try {
     const blob = await shrinkPhoto(file);
@@ -1123,6 +1140,75 @@ $('handPhoto').onchange = async () => {
 // The home-screen app's auto-updater waits while someone is scoring a round
 // or editing a player, so an update never wipes what they were entering.
 window.__appBusy = () => !!(draft || newPlayer || openPlayer);
+
+// ----- Reading a written score on the phone (home-screen app, no Claude) -----
+// Tesseract runs on the phone itself: free, no account, works offline once
+// downloaded. It reads written or printed numbers, not the cards.
+let ocrWorker = null, ocrIdle = null;
+function loadScript(src){ return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); }
+async function getOcr(){
+  clearTimeout(ocrIdle);
+  if (!ocrWorker) {
+    if (!window.Tesseract) await loadScript('ocr/tesseract.min.js');
+    const base = new URL('ocr/', location.href).href;
+    ocrWorker = window.Tesseract.createWorker('eng', 1, { workerPath: base + 'worker.min.js', corePath: base, langPath: base, gzip: true, workerBlobURL: false })
+      .then(async w => { await w.setParameters({ tessedit_char_whitelist: '0123456789', tessedit_pageseg_mode: '6' }); return w; });
+    ocrWorker.catch(() => { ocrWorker = null; });
+  }
+  return ocrWorker;
+}
+function releaseOcrSoon(){
+  clearTimeout(ocrIdle);
+  ocrIdle = setTimeout(() => { const w = ocrWorker; ocrWorker = null; if (w) w.then(x => x.terminate()).catch(() => {}); }, 90000);
+}
+// Grey, high-contrast copy of the photo: helps with pen on paper and screens.
+function ocrCanvas(blob){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1800 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const ctx = c.getContext('2d'); ctx.filter = 'grayscale(1) contrast(1.6)'; ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); resolve(c);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+async function readOnPhone(file, pid){
+  const h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
+  const first = !ocrWorker;
+  h.reading = true; h.choices = null; h.warn = false;
+  h.note = first ? 'Getting the photo reader ready. The first time takes a little longer.' : '';
+  render();
+  try {
+    const [w, canvas] = await Promise.all([getOcr(), ocrCanvas(file)]);
+    // Read it as a block of text first (keeps single digits), then as scattered text.
+    const numbersIn = text => (String(text || '').match(/\d{1,4}/g) || []).map(n => parseInt(n, 10)).filter(n => n <= 2000);
+    let nums = numbersIn((await w.recognize(canvas)).data.text);
+    if (!nums.length) {
+      await w.setParameters({ tessedit_pageseg_mode: '11' });
+      nums = numbersIn((await w.recognize(canvas)).data.text);
+      await w.setParameters({ tessedit_pageseg_mode: '6' });
+    }
+    releaseOcrSoon();
+    if (!draft || draft.hands[pid] !== h) return;
+    if (!nums.length) {
+      h.note = "Couldn't find a number in that photo. Write the total clearly on paper and try again, or tap the cards in. (Reading the cards themselves needs the Claude version.)"; h.warn = true;
+    } else if (nums.length === 1) {
+      h.cards = []; h.typed = String(nums[0]);
+      h.note = 'Read ' + nums[0] + ' for ' + player(pid).name + '. Change it below if that\'s wrong.'; h.warn = false;
+    } else {
+      h.choices = nums.slice(0, 12);
+      h.note = 'Found ' + nums.length + ' numbers. Tap the right one, or add them all up.'; h.warn = false;
+    }
+  } catch (e) {
+    h.note = e && e.message === 'decode' ? "That photo couldn't be opened. Try taking it again." : "The photo reader couldn't start. Check your internet the first time you use it, then try again.";
+    h.warn = true;
+  } finally {
+    if (draft && draft.hands[pid] === h) { h.reading = false; render(); }
+  }
+}
 
 // ===== Backup =====
 let downloads = null;
@@ -1457,7 +1543,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '5f8dfb9e21';
+  var VERSION = '276d96e27b';
   var offered = false;
   function hardRefresh() {
     if (busy()) {

@@ -1,7 +1,8 @@
-// Offline support for the installable Last Card app (version 5f8dfb9e21).
+// Offline support for the installable Last Card app (version 276d96e27b).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'uno-5f8dfb9e21';
+const CACHE = 'uno-276d96e27b';
 const FONT_CACHE = 'uno-fonts';
+const OCR_CACHE = 'uno-ocr-1';   // photo reader files: large, kept across updates
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/party.js'];
 
 self.addEventListener('install', (event) => {
@@ -9,7 +10,7 @@ self.addEventListener('install', (event) => {
 });
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== FONT_CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== FONT_CACHE && k !== OCR_CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 function withTimeout(p, ms) {
@@ -32,6 +33,13 @@ self.addEventListener('fetch', (event) => {
     });
     event.waitUntil(net.catch(() => {}));
     event.respondWith(withTimeout(net, 6000).catch(() => caches.match('index.html').then((hit) => hit || net)));
+    return;
+  }
+  if (url.origin === self.location.origin && url.pathname.includes('/ocr/')) {
+    event.respondWith(caches.open(OCR_CACHE).then((c) => c.match(req).then((hit) => hit || fetch(req).then((res) => {
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    }))));
     return;
   }
   if (url.origin === self.location.origin) {
