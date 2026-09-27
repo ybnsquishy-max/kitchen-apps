@@ -1,5 +1,5 @@
 // Offline support for the installable Mise app. The build script replaces
-// f4cd00031e with a hash of the app files, so each release gets a fresh cache.
+// ba029da47c with a hash of the app files, so each release gets a fresh cache.
 // Your lists live in localStorage, which updates never touch.
 const CACHE = 'mise-__VERSION__';
 const FONT_CACHE = 'mise-fonts';

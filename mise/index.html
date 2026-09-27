@@ -284,8 +284,8 @@ main{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px calc(9
     </ol>
     <p class="hint">You can also send someone a file copy of everything, or bring in a backup from the Pantry app.</p>
     <div class="row">
-      <button class="btn secondary small" id="backupBtn">Save backup file</button>
-      <button class="btn secondary small edit-only" id="restoreBtn">Restore or import backup</button>
+      <button class="btn secondary small" id="backupBtn">Send or save a copy</button>
+      <button class="btn secondary small edit-only" id="restoreBtn">Open a copy someone sent</button>
       <input type="file" id="restoreInput" accept=".json,application/json">
     </div>
   </div>
@@ -736,6 +736,14 @@ async function saveFile(filename, data, statusEl, okText){
     try { await downloads.save({ filename, data }); setStatus(statusEl, okText); }
     catch (e) { if (!e || e.code !== 'declined') setStatus(statusEl, "Couldn't save the file here.", true); }
     return;
+  }
+  // On phones, the share sheet lets people send the file by Messages, AirDrop or email.
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare) {
+    const file = new File([data], filename, { type: filename.endsWith('.json') ? 'application/json' : 'text/html' });
+    if (navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: filename }); setStatus(statusEl, okText); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data])); a.download = filename;
   document.body.appendChild(a); a.click(); a.remove(); setStatus(statusEl, okText);
