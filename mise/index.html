@@ -169,6 +169,11 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .party-link{display:flex;gap:8px;margin-top:12px;}
 .party-link input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface);font-size:0.85rem;}
 .party .hint{margin:10px 0 0;}
+.party-code{font-family:'Barlow Condensed',system-ui,sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:0.12em;margin-top:10px;}
+.joinbox{display:flex;gap:8px;margin-top:10px;}
+.joinbox input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:11px 12px;background:var(--surface);font-size:1rem;letter-spacing:0.06em;}
+.open-in-app{border:2px dashed var(--accent);border-radius:12px;background:var(--raised);padding:14px;margin-bottom:22px;font-size:0.9rem;line-height:1.5;}
+.open-in-app ol{margin:6px 0 10px;padding-left:20px;}
 .handle{background:none;border:none;color:var(--ink-soft);cursor:grab;touch-action:none;font-size:1.1rem;line-height:1;padding:4px 2px;flex:none;}
 .drag-ghost{opacity:0.35;}
 .sortable-chosen{box-shadow:0 4px 14px rgba(0,0,0,0.15);}
@@ -240,17 +245,27 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
     <button class="btn secondary small edit-only" id="migrateBtn" hidden></button>
   </div>
   <div class="changes" id="changesBox" hidden></div>
+  <div class="open-in-app" id="openInApp" hidden>
+    <b>Got Mise on your home screen?</b> This link opened in your browser, so to join from your app:
+    <ol>
+      <li>Tap <b>Copy code</b>.</li>
+      <li>Open <b>Mise</b> from your home screen.</li>
+      <li>Tap <b>Share → Join a party</b> and paste.</li>
+    </ol>
+    <div class="row" style="margin:0;"><button class="btn accent small" id="copyCodeBtn">Copy code</button><button class="btn secondary small" id="stayHereBtn">Stay in the browser</button></div>
+  </div>
   <div class="party" id="partyBar" hidden>
     <div class="party-top">
       <b>🎉 Party list</b>
       <span class="people"><i class="live off" id="partyDot"></i><span id="partyPeople">Connecting…</span></span>
       <button class="btn secondary small" id="partyLeave">Leave</button>
     </div>
+    <div class="party-code">Code: <span id="partyCodeText"></span></div>
     <div class="party-link">
       <input id="partyLinkBox" readonly aria-label="Party link">
       <button class="btn accent small" id="partyShareBtn">Send link</button>
     </div>
-    <p class="hint" id="partyHint">Anyone with this link can join and edit this list with you, live. No account needed.</p>
+    <p class="hint" id="partyHint">Send the link, or tell people the code. Anyone who already has Mise can open their app, tap <b>Share → Join a party</b> and enter the code.</p>
   </div>
   <div class="install" id="installCard" hidden>
     <svg viewBox="0 0 512 512" aria-hidden="true">
@@ -369,6 +384,11 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
       <button class="share-opt" id="shareShopText"><span class="ic">🛒</span><div><b>Send the shopping list</b><span>A tidy list by area, ready for Messages or WhatsApp</span></div></button>
       <button class="share-opt" id="shareMethodText"><span class="ic">📋</span><div><b>Send the method</b><span>The steps, temperatures and allergens as text</span></div></button>
       <button class="share-opt" id="backupBtn"><span class="ic">📦</span><div><b>Send a copy of everything</b><span>A file they open in their Mise. Their changes are kept when you send another.</span></div></button>
+      <button class="share-opt" id="joinPartyOpt"><span class="ic">🔑</span><div><b>Join a party</b><span>Enter the code or paste the link someone sent you</span></div></button>
+      <div id="joinPartyBox" hidden>
+        <div class="joinbox"><input id="joinCodeInput" placeholder="Party code or link" autocapitalize="off" autocomplete="off" aria-label="Party code or link"><button class="btn accent" id="joinCodeBtn">Join</button></div>
+        <p class="hint" id="joinHint"></p>
+      </div>
       <button class="share-opt" id="sharePartyBtn"><span class="ic">🎉</span><div><b>Start a party</b><span>Send a link. Everyone who opens it edits the same list with you, live. No account needed.</span></div></button>
       <button class="share-opt" id="shareInvite"><span class="ic">👥</span><div><b>Invite to the shared list</b><span>They see your list live and get their own copy</span></div></button>
     </div>
@@ -1318,6 +1338,7 @@ function updatePartyBar(){
   if (!party) { $('partyBar').hidden = true; return; }
   $('partyBar').hidden = false;
   $('partyLinkBox').value = partyLink(party.code);
+  $('partyCodeText').textContent = prettyCode(party.code);
   const n = party.peers.size;
   $('partyDot').classList.toggle('off', !n);
   $('partyPeople').textContent = n ? (n + 1) + ' people here' : (party.connected ? 'Waiting for others to join…' : 'Connecting…');
@@ -1364,10 +1385,34 @@ function leaveParty(quiet){
   if (!quiet) { render(); toast('Left the party. You\'re back on your own list. The party list stays on this phone if you rejoin.'); }
 }
 $('partyLeave').onclick = () => leaveParty(false);
+function prettyCode(c){ return (c || '').toUpperCase().replace(/^(.{4})(.+)$/, '$1 $2'); }
+function codeFrom(input){
+  const t = String(input || '').trim().toLowerCase();
+  const m = t.match(/party-([a-z0-9]{6,16})/) || t.replace(/[\s-]/g, '').match(/^([a-z0-9]{6,16})$/);
+  return m ? m[1] : null;
+}
+$('joinPartyOpt').onclick = async () => {
+  $('joinPartyBox').hidden = !$('joinPartyBox').hidden;
+  if ($('joinPartyBox').hidden) return;
+  if (!canParty()) { $('joinHint').textContent = 'Parties run in the Mise app, not inside Claude. Open Mise from your home screen first.'; return; }
+  $('joinHint').textContent = '';
+  $('joinCodeInput').focus();
+};
+$('joinCodeBtn').onclick = () => {
+  const code = codeFrom($('joinCodeInput').value);
+  if (!canParty()) { $('joinHint').textContent = 'Open Mise from your home screen to join parties.'; return; }
+  if (!code) { $('joinHint').textContent = "That doesn't look like a party code. It's 8 letters and numbers, like 99KP 2HYT."; return; }
+  $('joinCodeInput').value = ''; $('joinPartyBox').hidden = true; $('shareSheet').hidden = true;
+  joinParty(code, false); window.scrollTo(0, 0);
+  toast('Joined the party. It stays open every time you open Mise until you tap Leave.');
+};
+$('joinCodeInput').onkeydown = e => { if (e.key === 'Enter') $('joinCodeBtn').click(); };
+$('copyCodeBtn').onclick = async () => { if (party && await copyText(prettyCode(party.code))) toast('Code copied. Now open Mise from your home screen.'); };
+$('stayHereBtn').onclick = () => { $('openInApp').hidden = true; };
 $('partyShareBtn').onclick = async () => {
   const link = partyLink(party.code);
-  if (navigator.share) { try { await navigator.share({ title: 'Join my Mise party', text: 'Edit this list with me live:', url: link }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-  if (await copyText(link)) toast('Party link copied. Paste it into a message.');
+  if (navigator.share) { try { await navigator.share({ title: 'Join my Mise party', text: 'Edit this list with me live. Tap the link, or in the Mise app tap Share → Join a party and enter code ' + prettyCode(party.code) + '.', url: link }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  if (await copyText('Join my Mise party: ' + link + '\nAlready have Mise? Open it, tap Share → Join a party, code ' + prettyCode(party.code))) toast('Party link and code copied. Paste them into a message.');
   else { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Press and hold the link to copy it.'); }
 };
 $('sharePartyBtn').onclick = () => {
@@ -1389,6 +1434,9 @@ $('sharePartyBtn').onclick = () => {
   const m = location.hash.match(/^#party-([a-z0-9]{6,16})$/);
   const code = m ? m[1] : load('mise_party_current', null);
   if (code && canParty()) setTimeout(() => joinParty(code, false), 0);
+  // Links open in the browser, not the home-screen app (iPhone keeps them apart).
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (m && canParty() && !installed) $('openInApp').hidden = false;
 })();
 
 // ===== Home screen =====
