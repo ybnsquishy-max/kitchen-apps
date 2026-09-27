@@ -424,6 +424,7 @@ document.getElementById('whatsNewClose').onclick = () => {
 let undoFn = null, toastTimer = null;
 function showToast(msg, undo){
   toastMsg.textContent = msg;
+  toastUndo.textContent = 'Undo';
   undoFn = undo || null;
   toastUndo.hidden = !undo;
   toast.hidden = false;
@@ -786,7 +787,25 @@ if (IS_APP) {
   };
   window.addEventListener('appinstalled', () => { installCard.hidden = true; });
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Auto-update: check whenever the app comes back to the screen; reload into
+  // a new version when it's installed (or offer a tap if someone is typing).
+  try { if (sessionStorage.getItem('pantry_just_updated')) { sessionStorage.removeItem('pantry_just_updated'); setTimeout(() => showToast('Pantry updated to the latest version.'), 300); } } catch (e) {}
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    const reloadNow = () => { if (reloading) return; reloading = true; try { sessionStorage.setItem('pantry_just_updated', '1'); } catch (e) {} location.reload(); };
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) return;
+      const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+      if (typing && document.visibilityState === 'visible') { showToast('A new version of Pantry is ready.', reloadNow); toastUndo.textContent = 'Update'; }
+      else reloadNow();
+    });
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      const check = () => reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      setInterval(check, 30 * 60 * 1000);
+    }).catch(() => {});
+  }
   // Ask the browser not to clear this app's storage when space runs low.
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 }

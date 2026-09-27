@@ -407,7 +407,7 @@ function setStatus(el, text, warn){ el.textContent = text || ''; el.hidden = !te
 // ===== Toast =====
 let undoFn = null, toastTimer = null;
 function toast(msg, undo){
-  $('toastMsg').textContent = msg; undoFn = undo || null; $('toastUndo').hidden = !undo; $('toast').hidden = false;
+  $('toastMsg').textContent = msg; $('toastUndo').textContent = 'Undo'; undoFn = undo || null; $('toastUndo').hidden = !undo; $('toast').hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, undo ? 7000 : 3000);
 }
 $('toastUndo').onclick = () => { const f = undoFn; $('toast').hidden = true; undoFn = null; if (f) f(); };
@@ -986,8 +986,25 @@ render();
 })();
 </script>
 <script>
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+(function () {
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  try { if (sessionStorage.getItem('mise_just_updated')) { sessionStorage.removeItem('mise_just_updated'); setTimeout(() => toast('Mise updated to the latest version.'), 300); } } catch (e) {}
+  if (!('serviceWorker' in navigator)) return;
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  function reloadNow(){ if (reloading) return; reloading = true; try { sessionStorage.setItem('mise_just_updated', '1'); } catch (e) {} location.reload(); }
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
+    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (typing && document.visibilityState === 'visible') toast('A new version of Mise is ready.', reloadNow), document.getElementById('toastUndo').textContent = 'Update';
+    else reloadNow();
+  });
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(() => {});
+})();
 </script>
 </body>
 </html>
