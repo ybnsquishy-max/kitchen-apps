@@ -190,6 +190,29 @@ input:focus{border-color:var(--blue);outline:none;}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:40;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:.92rem;font-weight:600;display:flex;gap:12px;align-items:center;box-shadow:var(--shadow);max-width:calc(100% - 32px);}
 .toast button{background:none;border:0;color:inherit;text-decoration:underline;font-weight:800;padding:0;}
 #restoreInput{display:none;}
+/* Parties */
+.partybtn{margin-left:auto;}
+.ptabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin:0 -2px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.ptabs::-webkit-scrollbar{display:none;}
+.ptab{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 14px;font-weight:700;font-size:.9rem;white-space:nowrap;}
+.ptab[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);}
+.ptab.new{border-style:dashed;color:var(--ink-soft);}
+.partybar{background:var(--surface);border:2px solid var(--yellow);border-radius:18px;padding:12px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px;}
+.pb-top{display:flex;align-items:center;gap:10px;}
+.party-emo{flex:none;font-size:1.35rem;line-height:1;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);}
+.party-name{display:flex;align-items:center;gap:4px;flex:1;min-width:0;}
+.party-name b{font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.party-name input{min-height:38px;padding:6px 10px;font-weight:700;}
+.iconbtn{background:none;border:0;font-size:1rem;padding:6px;border-radius:8px;flex:none;}
+.pb-status{display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--ink-soft);flex-wrap:wrap;}
+.live{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent);flex:none;}
+.live.off{background:var(--ink-soft);box-shadow:none;}
+.pb-code{font-family:var(--display);font-size:1.5rem;letter-spacing:.1em;}
+.emo-pick{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;}
+.emo-pick button{border:1px solid transparent;background:none;border-radius:10px;font-size:1.3rem;aspect-ratio:1;padding:0;}
+.emo-pick button[aria-pressed="true"]{border-color:var(--ink);background:var(--surface2);}
+.openapp{background:var(--surface);border:2px solid var(--blue);border-radius:16px;padding:12px 14px;margin-bottom:14px;font-size:.92rem;}
+.openapp ol{margin:6px 0 10px;padding-left:20px;}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;}}
 @media (max-width:380px){.keys{gap:5px;}.tiles{grid-template-columns:repeat(2,1fr);}}
 </style>
@@ -200,7 +223,51 @@ input:focus{border-color:var(--blue);outline:none;}
   <header class="top">
     <svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" fill="#1C1E2B"/><g transform="translate(256 300)"><g transform="rotate(-30)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#1E63C8" stroke="#fff" stroke-width="12"/></g><g transform="rotate(-12)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#178F52" stroke="#fff" stroke-width="12"/></g><g transform="rotate(6)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#F2B705" stroke="#fff" stroke-width="12"/></g><g transform="rotate(24)"><rect x="-78" y="-200" width="156" height="226" rx="22" fill="#D7263D" stroke="#fff" stroke-width="12"/><ellipse cx="0" cy="-87" rx="50" ry="84" transform="rotate(28 0 -87)" fill="#fff"/><text x="0" y="-52" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="104" fill="#D7263D">1</text></g></g></svg>
     <div class="brand"><b>LAST CARD</b><span>Uno scores &amp; Elo</span></div>
+    <button class="btn ghost small partybtn" id="partyBtn" aria-expanded="false">🎉 Party</button>
   </header>
+
+  <div class="openapp" id="openInApp" hidden>
+    <b>Got Last Card on your home screen?</b> This link opened in your browser. To join from your app:
+    <ol><li>Tap <b>Copy code</b>.</li><li>Open <b>Last Card</b> from your home screen.</li><li>Tap <b>🎉 Party</b>, paste the code and tap <b>Join</b>.</li></ol>
+    <div class="row"><button class="btn accent small" id="copyCodeBtn">Copy code</button><button class="btn ghost small" id="stayHereBtn">Stay in the browser</button></div>
+  </div>
+
+  <section class="panel stack" id="partyPanel" hidden style="margin-bottom:14px" aria-labelledby="partyPanelH">
+    <div class="gamehead" style="margin:0"><h2 id="partyPanelH">Party</h2><button class="linkbtn" id="closeParty">Close</button></div>
+    <div id="partyNeedsApp" class="stack" hidden>
+      <p class="hint">Parties connect phones to each other directly, so they run in the Last Card app, not inside Claude. Open the app, add it to your home screen, then tap 🎉 Party there.</p>
+      <a class="btn accent" id="openAppLink" href="#" target="_blank" rel="noopener">Open the Last Card app</a>
+    </div>
+    <div id="partyControls" class="stack">
+      <p class="hint">A party is a shared scorebook. Everyone in it sees the same players, games and Elo, live, and anyone can score a round.</p>
+      <div class="field"><label for="partyNameInput">Start a party</label><input id="partyNameInput" type="text" maxlength="40" autocomplete="off" placeholder="Name it, e.g. Family game night"></div>
+      <div class="seg" role="group" aria-label="What the party starts with">
+        <button data-pstart="blank" aria-pressed="true">Blank<small>Add players fresh</small></button>
+        <button data-pstart="copy" aria-pressed="false">Copy my scores<small>Bring your players and games</small></button>
+      </div>
+      <button class="btn accent wide" id="startPartyGo">Start party</button>
+      <div class="field" style="margin-top:6px"><label for="joinCodeInput">Join a party</label>
+        <div class="row"><input id="joinCodeInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="Code, like 99KP 2HYT" style="flex:1"><button class="btn ghost" id="joinCodeBtn">Join</button></div>
+        <p class="hint" id="joinHint"></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="ptabs" id="partyTabs" hidden aria-label="Scorebooks"></div>
+  <section class="partybar" id="partyBar" hidden aria-label="Party">
+    <div class="pb-top">
+      <button class="party-emo" id="partyEmoBtn" aria-label="Change the party emoji" aria-expanded="false">🎉</button>
+      <span class="party-name" id="partyNameWrap"><b id="partyNameText">Party</b><button class="iconbtn" id="partyRename" aria-label="Rename this party">✏️</button></span>
+      <button class="btn ghost small" id="partyLeave">Leave</button>
+    </div>
+    <div class="emo-pick" id="partyEmoPick" hidden role="group" aria-label="Pick an emoji for this party"></div>
+    <div class="pb-status"><i class="live off" id="partyDot"></i><span id="partyPeople">Connecting…</span><button class="linkbtn" id="inviteToggle" aria-expanded="false" style="margin-left:auto">Invite people</button></div>
+    <div id="partyInvite" class="stack" hidden>
+      <div class="pb-code">Code: <span id="partyCodeText"></span></div>
+      <div class="row"><input id="partyLinkBox" readonly aria-label="Party link" style="flex:1;min-width:0"><button class="btn accent small" id="partyShareBtn">Send link</button></div>
+      <p class="hint">Send the link, or tell people the code. Anyone with Last Card on their home screen can tap 🎉 Party, type the code and tap Join.</p>
+    </div>
+  </section>
 
   <div class="example" id="exampleBar" hidden>
     <span>These are example players and games so you can see how it works.</span>
@@ -229,7 +296,10 @@ input:focus{border-color:var(--blue);outline:none;}
 const KEY = 'lastcard_v1';
 const IS_APP = !!document.querySelector('link[rel="manifest"]');
 function readStore(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function save(){ if (party) { partyPersist(); return; } try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function load(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+function store(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+let party = null;   // the party this phone is in: { code, room, sendState, peers, shadow, tomb, connected }
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -243,16 +313,19 @@ function normalize(d){
   d = d && typeof d === 'object' ? d : {};
   const players = (Array.isArray(d.players) ? d.players : []).filter(p => p && p.id).map(p => ({
     id: String(p.id), name: String(p.name || 'Player').slice(0, 24), emoji: typeof p.emoji === 'string' ? p.emoji.slice(0, 8) : '',
-    color: COLORS.includes(p.color) ? p.color : COLORS[0], archived: !!p.archived, example: !!p.example, created: p.created || Date.now(),
+    color: COLORS.includes(p.color) ? p.color : COLORS[0], archived: !!p.archived, example: !!p.example, created: p.created || Date.now(), _t: +p._t || 0,
   }));
   const ids = new Set(players.map(p => p.id));
   const games = (Array.isArray(d.games) ? d.games : []).filter(g => g && g.id && Array.isArray(g.playerIds)).map(g => ({
     id: String(g.id), mode: g.mode === 'penalty' ? 'penalty' : 'official', target: Math.max(50, Number(g.target) || 500),
     playerIds: g.playerIds.filter(p => ids.has(p)), status: g.status === 'done' ? 'done' : 'live',
-    rounds: (Array.isArray(g.rounds) ? g.rounds : []).filter(r => r && r.winner).map(r => ({ id: r.id || uid(), winner: r.winner, hands: r.hands || {}, cards: r.cards || {}, t: r.t || 0 })),
-    started: g.started || Date.now(), ended: g.ended || null, example: !!g.example,
+    rounds: (Array.isArray(g.rounds) ? g.rounds : []).filter(r => r && r.winner).map(r => ({ id: r.id || uid(), winner: r.winner, hands: r.hands || {}, cards: r.cards || {}, t: r.t || 0, _t: +r._t || 0 })),
+    started: g.started || Date.now(), ended: g.ended || null, example: !!g.example, _t: +g._t || 0,
   })).filter(g => g.playerIds.length >= 2);
-  return { players, games, lastPlayers: Array.isArray(d.lastPlayers) ? d.lastPlayers : [] };
+  const out = { players, games, lastPlayers: Array.isArray(d.lastPlayers) ? d.lastPlayers : [] };
+  if (d._name) { out._name = String(d._name).slice(0, 40); out._nt = +d._nt || 0; }
+  if (d._emo) { out._emo = String(d._emo).slice(0, 8); out._et = +d._et || 0; }
+  return out;
 }
 
 function exampleState(){
@@ -280,7 +353,7 @@ save();
 
 // ===== Scoring =====
 const player = id => S.players.find(p => p.id === id) || { id, name: 'Removed player', emoji: '', color: '#888' };
-const liveGame = () => S.games.find(g => g.status === 'live') || null;
+const liveGame = () => S.games.filter(g => g.status === 'live').sort((a, b) => b.started - a.started)[0] || null;
 function handValue(r, pid){ return Math.max(0, Number(r.hands[pid]) || 0); }
 function roundPoints(r){ return Object.keys(r.hands).filter(p => p !== r.winner).reduce((s, p) => s + handValue(r, p), 0); }
 function totals(g){
@@ -451,7 +524,7 @@ function lastOverHtml(){
   return `<section class="panel over" aria-live="polite" style="margin-bottom:14px">
     <div class="av lg" style="--pc:${esc(w.color)};margin:0 auto">${esc(w.emoji || w.name[0])}</div>
     <div class="big">${esc(w.name)} wins!</div>
-    <p class="hint">${modeName(g)} · to ${g.target} · ${g.rounds.length} rounds</p>
+    <p class="hint">${modeName(g)} · to ${g.target} · ${g.rounds.length} round${g.rounds.length === 1 ? '' : 's'}</p>
     <div class="stand">${ids.map(id => { const p = player(id); return `<div class="prow"><span class="num" style="font-weight:800;width:18px">${place[id]}</span>
       <div class="name">${av(p)}<span>${pname(p)}</span></div>
       <div style="text-align:right"><div class="num" style="font-weight:800">${t[id]} pts</div><div class="small">Elo ${rt.R[id]} ${deltaHtml(rt.byGame[g.id][id])}</div></div></div>`; }).join('')}</div>
@@ -643,7 +716,7 @@ function historyHtml(){
   return `<div class="gamehead"><h2>History</h2><span class="small muted">${games.length} finished</span></div>
   <div class="stack">${games.map(g => {
     const { ids, t, place } = standings(g);
-    return `<div class="hgame"><div class="row" style="justify-content:space-between"><span class="when">${when(g.ended)} · ${modeName(g)} to ${g.target} · ${g.rounds.length} rounds</span>
+    return `<div class="hgame"><div class="row" style="justify-content:space-between"><span class="when">${when(g.ended)} · ${modeName(g)} to ${g.target} · ${g.rounds.length} round${g.rounds.length === 1 ? '' : 's'}</span>
       <button class="btn danger small" data-delgame="${esc(g.id)}">Delete</button></div>
       ${ids.map(id => { const p = player(id); return `<div class="hline"><span class="num muted" style="width:14px;font-weight:800">${place[id]}</span>${av(p)}<span>${pname(p)}${place[id] === 1 ? ' 🏆' : ''}</span><span class="sc">${t[id]}</span>${deltaHtml(rt.byGame[g.id][id])}</div>`; }).join('')}
     </div>`; }).join('') || '<div class="empty">Finished games show up here.</div>'}</div>`;
@@ -808,11 +881,269 @@ async function restoreBackup(){
   toast('Added ' + np + ' player' + (np === 1 ? '' : 's') + ' and ' + ng + ' game' + (ng === 1 ? '' : 's') + '.', () => restore(before));
 }
 
+// ===== Parties: a shared scorebook, live between phones =====
+// Each party keeps its own players and games on every phone that joins. Phones
+// merge changes piece by piece: the newest edit wins, deletions stick, and
+// rounds scored at the same time on two phones are both kept.
+const PARTY_APP = 'lastcard-kitchen-apps-ybnsquishy';
+const WEB_APP_URL = 'https://ybnsquishy-max.github.io/kitchen-apps/uno/';
+const PARTY_EMOS = ['🎉','🏠','👨‍👩‍👧‍👦','🃏','🏆','🔥','👑','⚡','🍕','🍿','🎂','🎄','⚽','🎮','😎','🦊'];
+let partyTimer = null, partyRenderPending = false, partyStart = 'blank';
+function partyKey(code, part){ return 'lastcard_party_' + code + (part ? '_' + part : ''); }
+function newPartyCode(){ const a = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; for (let i = 0; i < 8; i++) c += a[Math.floor(Math.random() * a.length)]; return c; }
+function partyLink(code){ return WEB_APP_URL + '#party-' + code; }
+function canParty(){ return !window.claude && IS_APP; }
+function prettyCode(c){ return (c || '').toUpperCase().replace(/^(.{4})(.+)$/, '$1 $2'); }
+function codeFrom(input){
+  const t = String(input || '').trim().toLowerCase();
+  const m = t.match(/party-([a-z0-9]{6,16})/) || t.replace(/[\s-]/g, '').match(/^([a-z0-9]{6,16})$/);
+  return m ? m[1] : null;
+}
+function loadPartyLib(){
+  if (window.MiseParty) return Promise.resolve(window.MiseParty);
+  return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/party.js'; sc.onload = () => res(window.MiseParty); sc.onerror = rej; document.head.appendChild(sc); });
+}
+const partyEmo = e => e && typeof e === 'string' ? e : '🎉';
+const snap = () => JSON.parse(JSON.stringify(S));
+const pSig = p => JSON.stringify([p.name, p.emoji, p.color, p.archived, p.example]);
+const gSig = g => JSON.stringify([g.mode, g.target, g.playerIds, g.status, g.ended, g.example]);
+// Stamp what changed since the last sync; removed things get a tombstone.
+function stampChanges(){
+  const now = Date.now(), prev = party.shadow;
+  const bp = new Map(prev.players.map(x => [x.id, x]));
+  S.players.forEach(p => { const b = bp.get(p.id); if (!b || pSig(b) !== pSig(p)) p._t = now; else p._t = b._t || p._t || 0; });
+  const liveP = new Set(S.players.map(p => p.id));
+  for (const id of bp.keys()) if (!liveP.has(id)) party.tomb[id] = now;
+  const bg = new Map(prev.games.map(x => [x.id, x]));
+  S.games.forEach(g => {
+    const b = bg.get(g.id);
+    if (!b || gSig(b) !== gSig(g)) g._t = now; else g._t = b._t || g._t || 0;
+    const br = new Map((b ? b.rounds : []).map(r => [r.id, r]));
+    g.rounds.forEach(r => { const o = br.get(r.id); if (!o) r._t = now; else r._t = o._t || r._t || 0; });
+    const liveR = new Set(g.rounds.map(r => r.id));
+    for (const id of br.keys()) if (!liveR.has(id)) party.tomb[id] = now;
+  });
+  const liveG = new Set(S.games.map(g => g.id));
+  for (const id of bg.keys()) if (!liveG.has(id)) party.tomb[id] = now;
+}
+function savePartyLocal(){ store(partyKey(party.code), S); store(partyKey(party.code, 'tomb'), party.tomb); }
+function sendSoon(){ clearTimeout(partyTimer); partyTimer = setTimeout(() => { if (party && party.sendState) party.sendState({ book: S, tomb: party.tomb }); }, 250); }
+function partyPersist(){ stampChanges(); party.shadow = snap(); savePartyLocal(); sendSoon(); }
+function mergeFromPeer(inc){
+  if (!party || !inc || !inc.book) return;
+  const other = normalize(inc.book), tomb = inc.tomb && typeof inc.tomb === 'object' ? inc.tomb : {};
+  for (const [id, t] of Object.entries(tomb)) if (!(party.tomb[id] >= t)) party.tomb[id] = +t || 0;
+  const alive = x => !(party.tomb[x.id] >= (x._t || 0));
+  const newer = (a, b) => (b._t || 0) > (a._t || 0) ? b : a;
+  const byId = (mine, theirs, join) => {
+    const M = new Map(mine.map(x => [x.id, x]));
+    theirs.forEach(y => { const x = M.get(y.id); M.set(y.id, x ? join(x, y) : y); });
+    return [...M.values()].filter(alive);
+  };
+  const wasLive = new Set(S.games.filter(g => g.status === 'live').map(g => g.id));
+  const players = byId(S.players, other.players, newer);
+  const games = byId(S.games, other.games, (a, b) => ({ ...newer(a, b), rounds: byId(a.rounds, b.rounds, newer).sort((x, y) => (x.t || 0) - (y.t || 0)) }));
+  games.forEach(g => { g.rounds = g.rounds.filter(alive); });
+  const merged = { ...S, players, games };
+  if ((other._nt || 0) > (S._nt || 0) && other._name) { merged._name = other._name; merged._nt = other._nt; }
+  if ((other._et || 0) > (S._et || 0) && other._emo) { merged._emo = other._emo; merged._et = other._et; }
+  S = normalize(merged);
+  party.shadow = snap(); savePartyLocal();
+  const ended = S.games.find(g => g.status === 'done' && wasLive.has(g.id));
+  if (ended) { justEnded = ended.id; draft = null; }
+  if (draft && !liveGame()) draft = null;
+  rememberParty(party.code, S._name, S._emo);
+  updatePartyBar();
+  renderSoon();
+}
+function renderSoon(){
+  const el = document.activeElement;
+  if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName) && el.closest('#view')) {
+    if (!partyRenderPending) { partyRenderPending = true; el.addEventListener('blur', () => { partyRenderPending = false; render(); }, { once: true }); }
+    return;
+  }
+  render();
+}
+function resetUI(){ setup = null; draft = null; detail = null; justEnded = null; openPlayer = null; newPlayer = null; }
+async function joinParty(code, seedFromCurrent, name){
+  if (!canParty()) return;
+  leaveParty(true);
+  const saved = load(partyKey(code), null);
+  S = saved ? normalize(saved) : seedFromCurrent ? normalize(readStore()) : normalize({});
+  if (!saved && name) { S._name = name; S._nt = Date.now(); }
+  party = { code, room: null, sendState: null, peers: new Set(), shadow: saved ? snap() : normalize({}), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
+  if (!saved) stampChanges();   // a new party stamps everything it starts with
+  party.shadow = snap(); savePartyLocal();
+  store('lastcard_party_current', code);
+  rememberParty(code, S._name, S._emo);
+  if (location.hash !== '#party-' + code) history.replaceState(null, '', '#party-' + code);
+  resetUI(); updatePartyBar(); render();
+  let lib;
+  try { lib = await loadPartyLib(); } catch (e) { $('partyPeople').textContent = "Couldn't connect. Check your internet."; return; }
+  if (!party || party.code !== code) return;
+  const relay = load('lastcard_party_relay', null);   // for testing with a private relay
+  const room = relay ? lib.joinRoomRelay({ appId: PARTY_APP, relayConfig: { urls: [relay] } }, code) : lib.joinRoom({ appId: PARTY_APP }, code);
+  party.room = room;
+  const state = room.makeAction('state');
+  party.sendState = (data, target) => state.send(data, target ? { target } : undefined);
+  state.onMessage = data => mergeFromPeer(data);
+  room.onPeerJoin = peerId => { party.peers.add(peerId); updatePartyBar(); party.sendState({ book: S, tomb: party.tomb }, peerId); toast('Someone joined the party.'); };
+  room.onPeerLeave = peerId => { party.peers.delete(peerId); updatePartyBar(); };
+  party.connected = true; updatePartyBar();
+}
+function leaveParty(quiet){
+  if (!party) return;
+  try { party.room && party.room.leave(); } catch (e) {}
+  clearTimeout(partyTimer);
+  party = null;
+  store('lastcard_party_current', null);
+  if (location.hash.startsWith('#party-')) history.replaceState(null, '', location.pathname);
+  const mine = readStore();
+  S = mine ? normalize(mine) : exampleState();
+  resetUI(); updatePartyBar();
+  if (!quiet) render();
+}
+function partyList(){ const l = load('lastcard_parties', []); return Array.isArray(l) ? l.filter(x => x && x.code) : []; }
+function rememberParty(code, name, emo){
+  const l = partyList(), i = l.findIndex(x => x.code === code);
+  if (i < 0) l.push({ code, name: name || '', emo: emo || '' });
+  else { if (name) l[i].name = name; if (emo) l[i].emo = emo; }
+  store('lastcard_parties', l); renderPartyTabs();
+}
+function forgetParty(code){ store('lastcard_parties', partyList().filter(x => x.code !== code)); renderPartyTabs(); }
+function renderPartyTabs(){
+  const bar = $('partyTabs'), list = partyList();
+  if (!canParty() || !list.length) { bar.hidden = true; return; }
+  bar.hidden = false;
+  const current = party ? party.code : null;
+  bar.innerHTML = `<button class="ptab" data-code="" aria-pressed="${!current}">🏠 My scores</button>` +
+    list.map(x => `<button class="ptab" data-code="${esc(x.code)}" aria-pressed="${x.code === current}">${esc(partyEmo(x.emo))} ${esc(x.name || prettyCode(x.code))}</button>`).join('') +
+    `<button class="ptab new" id="ptabNew" aria-label="Start or join a party">＋</button>`;
+  bar.querySelectorAll('.ptab[data-code]').forEach(b => b.onclick = () => {
+    const code = b.dataset.code;
+    if ((code || null) === current) return;
+    if (!code) leaveParty(false); else joinParty(code, false);
+    window.scrollTo(0, 0);
+  });
+  $('ptabNew').onclick = () => openPartyPanel(true);
+}
+function updatePartyBar(){
+  renderPartyTabs();
+  $('partyBtn').hidden = !!party;
+  if (!party) { $('partyBar').hidden = true; return; }
+  $('partyBar').hidden = false;
+  if (!$('partyNameWrap').querySelector('input')) $('partyNameText').textContent = S._name || 'Party';
+  $('partyEmoBtn').textContent = partyEmo(S._emo);
+  $('partyLinkBox').value = partyLink(party.code);
+  $('partyCodeText').textContent = prettyCode(party.code);
+  const n = party.peers.size;
+  $('partyDot').classList.toggle('off', !n);
+  $('partyPeople').textContent = n ? (n + 1) + ' people here' : (party.connected ? 'Waiting for others to join…' : 'Connecting…');
+}
+function openPartyPanel(open){
+  const show = open === undefined ? $('partyPanel').hidden : open;
+  $('partyPanel').hidden = !show;
+  $('partyBtn').setAttribute('aria-expanded', String(show));
+  if (!show) return;
+  $('partyNeedsApp').hidden = canParty();
+  $('partyControls').hidden = !canParty();
+  $('openAppLink').href = WEB_APP_URL;
+  $('joinHint').textContent = '';
+  window.scrollTo(0, 0);
+  if (canParty()) $('partyNameInput').focus();
+}
+$('partyBtn').onclick = () => openPartyPanel();
+$('closeParty').onclick = () => openPartyPanel(false);
+document.querySelectorAll('[data-pstart]').forEach(b => b.onclick = () => {
+  partyStart = b.dataset.pstart;
+  document.querySelectorAll('[data-pstart]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+});
+$('startPartyGo').onclick = () => {
+  const name = $('partyNameInput').value.trim() || 'Game night';
+  const copy = partyStart === 'copy';
+  $('partyNameInput').value = ''; openPartyPanel(false);
+  joinParty(newPartyCode(), copy, name);
+  toast(name + ' started' + (copy ? ' with a copy of your scores' : ', blank') + '. Tap Invite people to send the link.');
+};
+$('partyNameInput').onkeydown = e => { if (e.key === 'Enter') $('startPartyGo').click(); };
+$('joinCodeBtn').onclick = () => {
+  const code = codeFrom($('joinCodeInput').value);
+  if (!code) { $('joinHint').textContent = "That doesn't look like a party code. It's 8 letters and numbers, like 99KP 2HYT."; return; }
+  $('joinCodeInput').value = ''; openPartyPanel(false);
+  joinParty(code, false);
+  toast('Joined the party. It stays open every time you open Last Card until you tap Leave.');
+};
+$('joinCodeInput').onkeydown = e => { if (e.key === 'Enter') $('joinCodeBtn').click(); };
+$('inviteToggle').onclick = () => {
+  const show = $('partyInvite').hidden;
+  $('partyInvite').hidden = !show; $('inviteToggle').setAttribute('aria-expanded', String(show));
+  $('inviteToggle').textContent = show ? 'Hide invite' : 'Invite people';
+};
+function copyNow(text){
+  const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); return ok;
+}
+async function copyText(text){ if (copyNow(text)) return true; try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; } }
+$('partyShareBtn').onclick = async () => {
+  const link = partyLink(party.code), msg = 'Join my Last Card party to keep Uno scores together. Tap the link, or in the Last Card app tap 🎉 Party and enter code ' + prettyCode(party.code) + '.';
+  if (navigator.share) { try { await navigator.share({ title: 'Join my Last Card party', text: msg, url: link }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  if (await copyText(msg + '\n' + link)) toast('Party link and code copied. Paste them into a message.');
+  else { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Press and hold the link to copy it.'); }
+};
+$('partyLeave').onclick = () => {
+  if (!party) return;
+  const code = party.code, name = S._name || 'the party';
+  forgetParty(code); leaveParty(false);
+  toast('Left ' + name + '. Rejoin any time with its code.', () => joinParty(code, false));
+};
+function renamePartyUI(){
+  const wrap = $('partyNameWrap'), input = document.createElement('input');
+  input.type = 'text'; input.value = S._name || ''; input.maxLength = 40; input.setAttribute('aria-label', 'Party name');
+  wrap.innerHTML = ''; wrap.appendChild(input); input.focus(); input.select();
+  let done = false;
+  const finish = keep => {
+    if (done) return; done = true;
+    const v = input.value.trim();
+    if (keep && v && party) { S._name = v; S._nt = Date.now(); party.shadow = snap(); savePartyLocal(); rememberParty(party.code, v, S._emo); sendSoon(); }
+    wrap.innerHTML = '<b id="partyNameText"></b><button class="iconbtn" id="partyRename" aria-label="Rename this party">✏️</button>';
+    $('partyRename').onclick = renamePartyUI;
+    updatePartyBar();
+  };
+  input.onkeydown = e => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+}
+$('partyRename').onclick = renamePartyUI;
+$('partyEmoBtn').onclick = () => {
+  const pick = $('partyEmoPick'), show = pick.hidden;
+  if (show) {
+    const cur = partyEmo(S._emo);
+    pick.innerHTML = PARTY_EMOS.map(e => `<button type="button" data-pemo="${e}" aria-pressed="${e === cur}" aria-label="Use ${e}">${e}</button>`).join('');
+    pick.querySelectorAll('button').forEach(b => b.onclick = () => {
+      S._emo = b.dataset.pemo; S._et = Date.now(); party.shadow = snap(); savePartyLocal();
+      rememberParty(party.code, S._name, S._emo); sendSoon();
+      pick.hidden = true; $('partyEmoBtn').setAttribute('aria-expanded', 'false'); updatePartyBar();
+    });
+  }
+  pick.hidden = !show; $('partyEmoBtn').setAttribute('aria-expanded', String(show));
+};
+$('copyCodeBtn').onclick = async () => { if (party && await copyText(prettyCode(party.code))) toast('Code copied. Now open Last Card from your home screen.'); };
+$('stayHereBtn').onclick = () => { $('openInApp').hidden = true; };
+
 $('backupBtn').onclick = () => backup();
 $('restoreBtn').onclick = () => $('restoreInput').click();
 $('restoreInput').onchange = restoreBackup;
 document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
 render();
+// Joining from a link, or rejoining the party this phone was in.
+(function(){
+  const m = location.hash.match(/^#party-([a-z0-9]{6,16})$/);
+  const code = m ? m[1] : load('lastcard_party_current', null);
+  if (code && canParty()) setTimeout(() => joinParty(code, false), 0);
+  renderPartyTabs();
+  // On iPhone, links open in Safari rather than the home-screen app.
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (m && canParty() && !installed) $('openInApp').hidden = false;
+})();
 </script>
 <script>
 (function () {
@@ -839,7 +1170,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'a4ff102264';
+  var VERSION = '8a64a479a1';
   function hardRefresh() {
     var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
     if (typing && document.visibilityState === 'visible') { banner('A new version of Last Card is ready.', hardRefresh2, 'Update'); return; }

@@ -1,8 +1,8 @@
-// Offline support for the installable Last Card app (version a4ff102264).
+// Offline support for the installable Last Card app (version 8a64a479a1).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'uno-a4ff102264';
+const CACHE = 'uno-8a64a479a1';
 const FONT_CACHE = 'uno-fonts';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/party.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
