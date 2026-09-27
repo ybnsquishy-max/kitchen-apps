@@ -213,6 +213,17 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .party-link{display:flex;gap:8px;margin-top:12px;}
 .party-link input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface);font-size:0.85rem;}
 .party .hint{margin:10px 0 0;}
+.ptabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin:0 -2px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.ptabs::-webkit-scrollbar{display:none;}
+.ptab{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:9px 14px;font-weight:600;font-size:0.9rem;cursor:pointer;white-space:nowrap;}
+.ptab[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink);}
+.ptab.new{border-style:dashed;color:var(--ink-soft);}
+.party-name{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;}
+.party-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.party-name input{flex:1;min-width:0;font:inherit;font-weight:700;border:1px solid var(--accent);border-radius:8px;padding:6px 8px;background:var(--surface);}
+.start-box{border:1px solid var(--line);border-radius:10px;background:var(--raised);padding:14px;display:flex;flex-direction:column;gap:10px;}
+.start-box input[type=text]{border:1px solid var(--line);border-radius:8px;padding:11px 12px;background:var(--surface);font-size:1rem;}
+.start-box label{display:flex;align-items:center;gap:8px;font-size:0.95rem;}
 .party-code{font-family:'Barlow Condensed',system-ui,sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:0.12em;margin-top:10px;}
 .joinbox{display:flex;gap:8px;margin-top:10px;}
 .joinbox input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:11px 12px;background:var(--surface);font-size:1rem;letter-spacing:0.06em;}
@@ -298,9 +309,10 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
     </ol>
     <div class="row" style="margin:0;"><button class="btn accent small" id="copyCodeBtn">Copy code</button><button class="btn secondary small" id="stayHereBtn">Stay in the browser</button></div>
   </div>
+  <div class="ptabs" id="partyTabs" hidden role="tablist" aria-label="Lists"></div>
   <div class="party" id="partyBar" hidden>
     <div class="party-top">
-      <b>🎉 Party list</b>
+      <span class="party-name" id="partyNameWrap"><b id="partyNameText">🎉 Party</b><button class="area-del-head" id="partyRename" aria-label="Rename this party">✏️</button></span>
       <span class="people"><i class="live off" id="partyDot"></i><span id="partyPeople">Connecting…</span></span>
       <button class="btn secondary small" id="partyLeave">Leave</button>
     </div>
@@ -445,6 +457,12 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
         <p class="hint" id="joinHint"></p>
       </div>
       <button class="share-opt" id="sharePartyBtn"><span class="ic">🎉</span><div><b>Start a party</b><span>Send a link. Everyone who opens it edits the same list with you, live. No account needed.</span></div></button>
+      <div class="start-box" id="startPartyBox" hidden>
+        <input type="text" id="partyNameInput" placeholder="Name it: Family, Footy team, Camping trip…" maxlength="40" aria-label="Party name">
+        <label><input type="radio" name="partyStart" value="blank" checked> Start blank</label>
+        <label><input type="radio" name="partyStart" value="copy"> Copy my list</label>
+        <button class="btn accent" id="startPartyGo">Start the party</button>
+      </div>
       <button class="share-opt" id="shareInvite"><span class="ic">👥</span><div><b>Invite to the shared list</b><span>They see your list live and get their own copy</span></div></button>
     </div>
     <div id="shareResult" hidden>
@@ -1432,7 +1450,11 @@ function mergeFromPeer(inc){
   const cleaned = clean(out, true);
   for (const key of Object.keys(LISTS)) cleaned[key].forEach((x, i) => { x._t = out[key][i]._t; });
   cleaned._o = out._o; cleaned._mt = out._mt;
+  cleaned._name = book._name; cleaned._nt = book._nt || 0;
+  if ((other._nt || 0) > (book._nt || 0) && other._name) { cleaned._name = String(other._name).slice(0, 40); cleaned._nt = other._nt; }
   book = cleaned;
+  rememberParty(party.code, book._name);
+  updatePartyBar();
   party.shadow = snapshotParty();
   savePartyLocal();
   // Ask for photos we don't have yet.
@@ -1456,26 +1478,30 @@ function partyPersist(){
   partyTimer = setTimeout(() => { if (party && party.sendState) party.sendState(stateForPeers()); }, 300);
 }
 function updatePartyBar(){
+  renderPartyTabs();
   if (!party) { $('partyBar').hidden = true; return; }
   $('partyBar').hidden = false;
+  if (!$('partyNameWrap').querySelector('input')) $('partyNameText').textContent = '🎉 ' + (book._name || 'Party');
   $('partyLinkBox').value = partyLink(party.code);
   $('partyCodeText').textContent = prettyCode(party.code);
   const n = party.peers.size;
   $('partyDot').classList.toggle('off', !n);
   $('partyPeople').textContent = n ? (n + 1) + ' people here' : (party.connected ? 'Waiting for others to join…' : 'Connecting…');
 }
-async function joinParty(code, seedFromCurrent){
+async function joinParty(code, seedFromCurrent, name){
   if (!canParty()) return;
   leaveParty(true);
   const saved = load(partyKey(code), null);
-  const start = saved ? clean(saved, true) : (seedFromCurrent ? clean(book, true) : emptyBook());
-  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; }
+  const start = saved ? clean(saved, true) : (seedFromCurrent ? clean(load(LS_MINE, null) || book, true) : emptyBook());
+  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; start._name = saved._name; start._nt = saved._nt || 0; }
+  else if (name) { start._name = name; start._nt = Date.now(); }
   book = start;
   party = { code, room: null, sendState: null, peers: new Set(), shadow: saved ? snapshotParty() : emptyBook(), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
   if (!saved) stampChanges();   // a new party stamps everything it starts with
   party.shadow = snapshotParty();
   savePartyLocal();
   store('mise_party_current', code);
+  rememberParty(code, book._name);
   if (location.hash !== '#party-' + code) history.replaceState(null, '', '#party-' + code);
   updatePartyBar(); render();
   let lib;
@@ -1505,7 +1531,56 @@ function leaveParty(quiet){
   updatePartyBar();
   if (!quiet) { render(); toast('Left the party. You\'re back on your own list. The party list stays on this phone if you rejoin.'); }
 }
-$('partyLeave').onclick = () => leaveParty(false);
+$('partyLeave').onclick = () => {
+  if (!party) return;
+  const code = party.code, name = book._name || 'the party';
+  forgetParty(code); leaveParty(true); render();
+  toast('Left ' + name + '. Rejoin any time with its code.', () => joinParty(code, false));
+};
+
+// ----- Party tabs: switch between your list and each party you're in -----
+function partyList(){ const l = load('mise_parties', []); return Array.isArray(l) ? l.filter(x => x && x.code) : []; }
+function rememberParty(code, name){
+  const l = partyList(), i = l.findIndex(x => x.code === code);
+  if (i < 0) l.push({ code, name: name || '' }); else if (name) l[i].name = name;
+  store('mise_parties', l); renderPartyTabs();
+}
+function forgetParty(code){ store('mise_parties', partyList().filter(x => x.code !== code)); renderPartyTabs(); }
+function renderPartyTabs(){
+  const bar = $('partyTabs'), list = partyList();
+  if (!canParty() || !list.length) { bar.hidden = true; return; }
+  bar.hidden = false;
+  const current = party ? party.code : null;
+  bar.innerHTML = `<button class="ptab" data-code="" aria-pressed="${!current}">🏠 My list</button>` +
+    list.map(x => `<button class="ptab" data-code="${esc(x.code)}" aria-pressed="${x.code === current}">🎉 ${esc(x.name || prettyCode(x.code))}</button>`).join('') +
+    `<button class="ptab new" id="ptabNew" aria-label="Start or join a party">＋</button>`;
+  bar.querySelectorAll('.ptab[data-code]').forEach(b => b.onclick = () => {
+    const code = b.dataset.code;
+    if ((code || null) === current) return;
+    if (!code) { leaveParty(true); render(); }
+    else joinParty(code, false);
+    window.scrollTo(0, 0);
+  });
+  $('ptabNew').onclick = () => { openShare(); showStartBox(); };
+}
+function renamePartyUI(){
+  const wrap = $('partyNameWrap');
+  const input = document.createElement('input');
+  input.value = book._name || ''; input.maxLength = 40; input.setAttribute('aria-label', 'Party name');
+  wrap.innerHTML = ''; wrap.appendChild(input); input.focus(); input.select();
+  let done = false;
+  const finish = (saveIt) => {
+    if (done) return; done = true;
+    const v = input.value.trim();
+    if (saveIt && v && party) { book._name = v; book._nt = Date.now(); party.shadow = snapshotParty(); savePartyLocal(); rememberParty(party.code, v); if (party.sendState) party.sendState(stateForPeers()); }
+    wrap.innerHTML = '<b id="partyNameText"></b><button class="area-del-head" id="partyRename" aria-label="Rename this party">✏️</button>';
+    $('partyRename').onclick = renamePartyUI;
+    updatePartyBar();
+  };
+  input.onkeydown = e => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+}
+$('partyRename').onclick = renamePartyUI;
 function prettyCode(c){ return (c || '').toUpperCase().replace(/^(.{4})(.+)$/, '$1 $2'); }
 function codeFrom(input){
   const t = String(input || '').trim().toLowerCase();
@@ -1523,7 +1598,7 @@ $('joinCodeBtn').onclick = () => {
   const code = codeFrom($('joinCodeInput').value);
   if (!canParty()) { $('joinHint').textContent = 'Open Mise from your home screen to join parties.'; return; }
   if (!code) { $('joinHint').textContent = "That doesn't look like a party code. It's 8 letters and numbers, like 99KP 2HYT."; return; }
-  $('joinCodeInput').value = ''; $('joinPartyBox').hidden = true; $('shareSheet').hidden = true;
+  $('joinCodeInput').value = ''; $('joinPartyBox').hidden = true; closeShare();
   joinParty(code, false); window.scrollTo(0, 0);
   toast('Joined the party. It stays open every time you open Mise until you tap Leave.');
 };
@@ -1536,12 +1611,26 @@ $('partyShareBtn').onclick = async () => {
   if (await copyText('Join my Mise party: ' + link + '\nAlready have Mise? Open it, tap Share → Join a party, code ' + prettyCode(party.code))) toast('Party link and code copied. Paste them into a message.');
   else { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Press and hold the link to copy it.'); }
 };
+function showStartBox(){
+  if (!canParty()) { $('sharePartyBtn').click(); return; }
+  $('startPartyBox').hidden = false;
+  $('partyNameInput').value = '';
+  $('partyNameInput').focus();
+}
+$('startPartyGo').onclick = () => {
+  const name = $('partyNameInput').value.trim() || 'Party';
+  const copy = document.querySelector('input[name=partyStart]:checked').value === 'copy';
+  $('startPartyBox').hidden = true;
+  closeShare();
+  joinParty(newPartyCode(), copy, name);
+  window.scrollTo(0, 0);
+  toast(name + ' started' + (copy ? ' with a copy of your list' : ' with a blank list') + '. Tap Send link to invite people.');
+};
+$('partyNameInput').onkeydown = e => { if (e.key === 'Enter') $('startPartyGo').click(); };
 $('sharePartyBtn').onclick = () => {
   if (canParty()) {
-    if (party) { toast('You\'re already in a party. Send the link at the top.'); $('shareSheet').hidden = true; window.scrollTo(0, 0); return; }
-    joinParty(newPartyCode(), true);
-    $('shareSheet').hidden = true; window.scrollTo(0, 0);
-    toast('Party started with a copy of your list. Send the link to invite people.');
+    $('startPartyBox').hidden = !$('startPartyBox').hidden;
+    if (!$('startPartyBox').hidden) showStartBox();
   } else {
     // Parties need the Mise app: Claude pages can't connect phones directly.
     $('shareResult').hidden = false;
@@ -1555,6 +1644,7 @@ $('sharePartyBtn').onclick = () => {
   const m = location.hash.match(/^#party-([a-z0-9]{6,16})$/);
   const code = m ? m[1] : load('mise_party_current', null);
   if (code && canParty()) setTimeout(() => joinParty(code, false), 0);
+  renderPartyTabs();
   // Links open in the browser, not the home-screen app (iPhone keeps them apart).
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   if (m && canParty() && !installed) $('openInApp').hidden = false;
@@ -1733,7 +1823,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'd6b7f76d77';
+  var VERSION = 'fbcff1e21b';
   function hardRefresh() {
     var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
     if (typing && document.visibilityState === 'visible') { banner('A new version of Mise is ready.', hardRefresh2, 'Update'); return; }
