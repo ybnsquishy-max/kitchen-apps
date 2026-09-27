@@ -130,7 +130,11 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .pitem .main{display:flex;align-items:center;gap:8px;width:100%;}
 .qty-ctrl{display:flex;align-items:center;gap:4px;}
 .qty-ctrl button{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;line-height:1;}
-.qty-ctrl .q{min-width:28px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;}
+.qty-ctrl .q{width:58px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 4px;font-size:1rem;}
+.qty-ctrl .q::-webkit-inner-spin-button,.qty-ctrl .q::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+.qty-ctrl .q{-moz-appearance:textfield;}
+.pitem .unit-in{width:64px;border:1px solid transparent;border-radius:8px;background:none;color:var(--ink-soft);padding:6px 4px;font-size:0.9rem;}
+.pitem .unit-in:focus{border-color:var(--line);background:var(--surface);}
 .pitem.out .q{color:var(--danger);}
 .pitem .sub{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;width:100%;padding-left:2px;margin-top:6px;font-size:0.8rem;color:var(--ink-soft);}
 .pitem .sub input[type=date]{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:2px 4px;font-size:0.8rem;}
@@ -365,7 +369,7 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
     <div id="shopGroups"></div>
     <div class="add-form edit-only">
       <input class="grow" id="shopName" placeholder="Add an item">
-      <input class="qty" id="shopQty" type="number" min="1" value="1" aria-label="Quantity">
+      <input class="qty" id="shopQty" type="number" inputmode="decimal" min="0" step="any" value="1" aria-label="Quantity">
       <input class="unitin" id="shopUnit" placeholder="unit" aria-label="Unit">
       <input class="grow" id="shopArea" placeholder="Area (e.g. Dry Store)" list="areaList" aria-label="Area">
       <datalist id="areaList"></datalist>
@@ -726,6 +730,8 @@ $('printWfBtn').onclick = async () => {
 };
 
 // ===== Pantry =====
+function roundQty(n){ return Math.round(n * 1000) / 1000; }
+function fmtQty(n){ return String(roundQty(Number(n) || 0)); }
 function isoToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function daysLeft(iso){ const [y, m, d] = iso.split('-').map(Number); const t = new Date(); return Math.round((new Date(y, m - 1, d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000); }
 function dateNote(iso){
@@ -765,7 +771,7 @@ function renderPantry(){
       <ul class="list drop-zone pantry-list" data-cat="${esc(cat.id)}"></ul>
       <div class="add-form edit-only">
         <input class="grow pname" placeholder="Add to ${esc(cat.name)}" aria-label="Item name">
-        <input class="qty pqty" type="number" min="0" value="1" aria-label="Quantity">
+        <input class="qty pqty" type="number" inputmode="decimal" min="0" step="any" value="1" aria-label="Quantity">
         <input class="unitin punit" placeholder="unit" aria-label="Unit">
         <button class="btn small padd">Add</button>
       </div>`;
@@ -778,8 +784,8 @@ function renderPantry(){
       li.innerHTML = `<div class="main">
           <button class="handle edit-only" aria-label="Drag to move item">⠿</button>
           <input class="name" value="${esc(p.name)}" ${locked() ? 'readonly' : ''} aria-label="Item name">
-          <div class="qty-ctrl"><button class="edit-only minus" aria-label="One less">−</button><span class="q">${p.qty}</span><button class="edit-only plus" aria-label="One more">+</button></div>
-          <span class="unit">${esc(p.unit)}</span>
+          <div class="qty-ctrl"><button class="edit-only minus" aria-label="One less">−</button><input class="q" type="number" inputmode="decimal" min="0" step="any" value="${fmtQty(p.qty)}" ${locked() ? 'readonly' : ''} aria-label="Quantity of ${esc(p.name)}"><button class="edit-only plus" aria-label="One more">+</button></div>
+          <input class="unit-in" value="${esc(p.unit)}" placeholder="unit" ${locked() ? 'readonly' : ''} aria-label="Unit for ${esc(p.name)}">
           <button class="icon-btn edit-only pdel" aria-label="Remove item">✕</button>
         </div>
         <div class="sub">${badge(p.id)}
@@ -788,8 +794,13 @@ function renderPantry(){
           ${others.length ? `<select class="edit-only pmove" aria-label="Move to another area"><option value="">Move to…</option>${others.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : ''}
         </div>`;
       li.querySelector('.name').oninput = e => { p.name = e.target.value; persist(); };
-      li.querySelector('.minus').onclick = () => { p.qty = Math.max(0, p.qty - 1); persist(); render(); };
-      li.querySelector('.plus').onclick = () => { p.qty = p.qty + 1; persist(); render(); };
+      li.querySelector('.minus').onclick = () => { p.qty = roundQty(Math.max(0, p.qty - 1)); persist(); render(); };
+      li.querySelector('.plus').onclick = () => { p.qty = roundQty(p.qty + 1); persist(); render(); };
+      const qIn = li.querySelector('.q');
+      qIn.onfocus = () => qIn.select();
+      qIn.onchange = () => { const v = Number(qIn.value); p.qty = Number.isFinite(v) && v >= 0 ? roundQty(v) : p.qty; persist(); render(); };
+      qIn.onkeydown = e => { if (e.key === 'Enter') qIn.blur(); };
+      li.querySelector('.unit-in').onchange = e => { p.unit = e.target.value.trim(); persist(); render(); };
       li.querySelector('.pdel').onclick = () => removeWithUndo('pantry', p, p.name);
       li.querySelector('.pexp').onchange = e => { p.expires = e.target.value || ''; persist(); render(); };
       const tb = li.querySelector('.tobuy'); if (tb) tb.onclick = () => { if (addToShopping(p)) { persist(); render(); toast(p.name + ' added to Shopping.'); } else toast(p.name + ' is already on the list.'); };
@@ -804,7 +815,12 @@ function renderPantry(){
     };
     const addP = () => {
       const name = sec.querySelector('.pname').value.trim(); if (!name) return;
-      book.pantry.push({ id: uid(), cat: cat.id, name, qty: Math.max(0, Math.round(Number(sec.querySelector('.pqty').value) || 0)), unit: sec.querySelector('.punit').value.trim(), expires: '' });
+      const qty = roundQty(Math.max(0, Number(sec.querySelector('.pqty').value) || 0));
+      const unit = sec.querySelector('.punit').value.trim();
+      // Already have it in this area? Top up the quantity instead of adding a duplicate.
+      const have = book.pantry.find(x => x.cat === cat.id && x.name.trim().toLowerCase() === name.toLowerCase());
+      if (have) { have.qty = roundQty(have.qty + qty); if (unit && !have.unit) have.unit = unit; toast('Added ' + fmtQty(qty) + (have.unit ? ' ' + have.unit : '') + ' to ' + have.name + '. Now ' + fmtQty(have.qty) + '.'); }
+      else book.pantry.push({ id: uid(), cat: cat.id, name, qty, unit, expires: '' });
       persist(); render();
       const again = [...document.querySelectorAll('.cat')][ci]; if (again) again.querySelector('.pname').focus();
     };
@@ -832,12 +848,12 @@ function renderShopping(){
     li.className = 'item' + (s.done ? ' done' : '');
     li.dataset.id = s.id;
     li.innerHTML = `${s.done ? '' : '<button class="handle edit-only" aria-label="Drag to reorder">⠿</button>'}<input type="checkbox" ${s.done ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="Got it">
-      <span class="name">${badge(s.id)}${esc(s.name)}</span><span class="unit">${s.qty > 1 ? s.qty + ' ' : ''}${esc(s.unit)}</span>
+      <span class="name">${badge(s.id)}${esc(s.name)}</span><span class="unit">${s.qty !== 1 ? fmtQty(s.qty) + ' ' : ''}${esc(s.unit)}</span>
       <button class="icon-btn edit-only sdel" aria-label="Remove">✕</button>`;
     li.querySelector('input').onchange = e => {
       s.done = e.target.checked;
       const p = s.pantryId && book.pantry.find(x => x.id === s.pantryId);
-      if (p) p.qty = Math.max(0, p.qty + (s.done ? (s.qty || 1) : -(s.qty || 1)));   // restock the pantry
+      if (p) p.qty = roundQty(Math.max(0, p.qty + (s.done ? (s.qty || 1) : -(s.qty || 1))));   // restock the pantry
       persist(); render();
     };
     li.querySelector('.sdel').onclick = () => removeWithUndo('shop', s, s.name);
@@ -857,7 +873,7 @@ function renderShopping(){
 }
 $('shopAddBtn').onclick = () => {
   const name = $('shopName').value.trim(); if (!name) return;
-  book.shop.push({ id: uid(), name, qty: Math.max(1, Math.round(Number($('shopQty').value) || 1)), unit: $('shopUnit').value.trim(), area: $('shopArea').value.trim(), done: false, pantryId: '' });
+  book.shop.push({ id: uid(), name, qty: roundQty(Math.max(0, Number($('shopQty').value) || 1)), unit: $('shopUnit').value.trim(), area: $('shopArea').value.trim(), done: false, pantryId: '' });
   $('shopName').value = ''; $('shopQty').value = 1; $('shopUnit').value = '';
   persist(); render(); $('shopName').focus();
 };

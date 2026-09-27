@@ -184,7 +184,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .qty-ctrl .qty{
   min-width:34px;text-align:center;font-weight:500;font-size:0.85rem;font-variant-numeric:tabular-nums;
 }
-.qty-ctrl .unit{color:var(--ink-soft);font-size:0.72rem;min-width:32px;}
+.qty-ctrl .unit{color:var(--ink-soft);font-size:0.72rem;width:48px;border:1px solid transparent;border-radius:4px;background:none;padding:3px 2px;font-family:inherit;}
+.qty-ctrl .unit:focus{border-color:var(--line);background:var(--card);}
+.qty-ctrl input.qty{width:52px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink);font-family:inherit;padding:3px 2px;-moz-appearance:textfield;}
+.qty-ctrl input.qty::-webkit-inner-spin-button,.qty-ctrl input.qty::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
 .item-row.low .qty{color:var(--low);}
 .item-row .del-item{
   background:none;border:none;color:var(--ink-soft);font-size:0.9rem;cursor:pointer;padding:0 2px;
@@ -514,7 +517,7 @@ function renderCategory(cat){
       <div class="item-list" data-cat="${escapeHtml(cat.id)}"></div>
       <div class="add-item">
         <input class="iname-in" placeholder="Item name" aria-label="New item name">
-        <input class="qty-in" type="number" placeholder="qty" value="1" aria-label="Quantity">
+        <input class="qty-in" type="number" inputmode="decimal" min="0" step="any" placeholder="qty" value="1" aria-label="Quantity">
         <input class="unit-in" placeholder="unit" aria-label="Unit">
         <label class="exp-wrap">use by <input class="exp-in" type="date" aria-label="Use-by date (optional)"></label>
         <button class="btn small add-item-btn">Add</button>
@@ -534,9 +537,19 @@ function renderCategory(cat){
   const doAdd = () => {
     const name = nameIn.value.trim();
     if (!name) return;
-    const item = { id: uid(), name, qty: Number(qtyIn.value) || 0, unit: unitIn.value.trim() };
-    if (isIsoDate(expIn.value)) item.expires = expIn.value;
-    cat.items.push(item);
+    const qty = Math.round(Math.max(0, Number(qtyIn.value) || 0) * 1000) / 1000;
+    // Already have it here? Top up the quantity instead of adding a duplicate.
+    const have = cat.items.find(i => i.name.trim().toLowerCase() === name.toLowerCase());
+    if (have) {
+      have.qty = Math.round((have.qty + qty) * 1000) / 1000;
+      if (unitIn.value.trim() && !have.unit) have.unit = unitIn.value.trim();
+      if (isIsoDate(expIn.value)) have.expires = expIn.value;
+      showToast('Added ' + qty + (have.unit ? ' ' + have.unit : '') + ' to ' + have.name + '. Now ' + have.qty + '.');
+    } else {
+      const item = { id: uid(), name, qty, unit: unitIn.value.trim() };
+      if (isIsoDate(expIn.value)) item.expires = expIn.value;
+      cat.items.push(item);
+    }
     focusAddFor = cat.id;
     save(); render();
   };
@@ -580,17 +593,23 @@ function renderItem(cat, item){
       <input class="iname" value="${escapeHtml(item.name)}" aria-label="Item name">
       <div class="qty-ctrl">
         <button class="minus" aria-label="One less">−</button>
-        <span class="qty">${item.qty}</span>
+        <input class="qty" type="number" inputmode="decimal" min="0" step="any" value="${String(Math.round(item.qty * 1000) / 1000)}" aria-label="Quantity of ${escapeHtml(item.name)}">
         <button class="plus" aria-label="One more">+</button>
-        <span class="unit">${escapeHtml(item.unit || '')}</span>
+        <input class="unit" value="${escapeHtml(item.unit || '')}" placeholder="unit" aria-label="Unit for ${escapeHtml(item.name)}">
       </div>
       <button class="del-item" aria-label="Remove ${escapeHtml(item.name)}">✕</button>
     </div>
     <div class="item-sub">${dateHtml}${moveHtml}</div>
   `;
   row.querySelector('.iname').oninput = (e) => { item.name = e.target.value; save(); };
-  row.querySelector('.minus').onclick = () => { item.qty = Math.max(0, item.qty - 1); save(); render(); };
-  row.querySelector('.plus').onclick = () => { item.qty = item.qty + 1; save(); render(); };
+  const r3 = n => Math.round(n * 1000) / 1000;
+  row.querySelector('.minus').onclick = () => { item.qty = r3(Math.max(0, item.qty - 1)); save(); render(); };
+  row.querySelector('.plus').onclick = () => { item.qty = r3(item.qty + 1); save(); render(); };
+  const qIn = row.querySelector('input.qty');
+  qIn.onfocus = () => qIn.select();
+  qIn.onchange = () => { const v = Number(qIn.value); if (Number.isFinite(v) && v >= 0) item.qty = r3(v); save(); render(); };
+  qIn.onkeydown = (e) => { if (e.key === 'Enter') qIn.blur(); };
+  row.querySelector('input.unit').onchange = (e) => { item.unit = e.target.value.trim(); save(); render(); };
   row.querySelector('.del-item').onclick = () => removeItem(cat, item);
 
   const exp = row.querySelector('.exp');
