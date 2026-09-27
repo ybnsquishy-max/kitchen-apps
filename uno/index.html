@@ -132,6 +132,13 @@ input:focus{border-color:var(--blue);outline:none;}
 .tally{display:flex;flex-wrap:wrap;gap:6px;min-height:30px;align-items:center;}
 .tchip{border:0;border-radius:8px;padding:4px 8px;font-weight:800;font-size:.82rem;color:#fff;background:var(--kc);}
 .rules{font-size:.8rem;color:var(--ink-soft);margin:0;}
+.scanbtn{border:2px dashed var(--line);background:var(--surface);border-radius:12px;padding:11px 12px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;width:100%;}
+.scanbtn:disabled{opacity:.7;cursor:progress;}
+.scannote{font-size:.84rem;margin:0;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);}
+.scannote.warn{border-color:var(--yellow);}
+@keyframes spin{to{transform:rotate(360deg);}}
+.spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;}
+#handPhoto{display:none;}
 
 /* Rounds list */
 .rounds{display:flex;flex-direction:column;gap:6px;}
@@ -278,7 +285,7 @@ input:focus{border-color:var(--blue);outline:none;}
   <section class="panel stack" id="shareSheet" hidden style="margin-top:22px">
     <h2>Backup</h2>
     <p class="hint">Scores are saved on this device. Save a backup file to keep them safe or move them to another phone.</p>
-    <div class="row"><button class="btn ghost" id="backupBtn">Save backup</button><button class="btn ghost" id="restoreBtn">Restore backup</button><input type="file" id="restoreInput" accept=".json,application/json"></div>
+    <div class="row"><button class="btn ghost" id="backupBtn">Save backup</button><button class="btn ghost" id="restoreBtn">Restore backup</button><input type="file" id="restoreInput" accept=".json,application/json"><input type="file" id="handPhoto" accept="image/*"></div>
   </section>
 </div>
 
@@ -588,10 +595,16 @@ function draftHtml(g){
     </div>
     ${winner ? `<div class="field"><label>Cards left in everyone else's hand</label>
       ${others.map(id => handHtml(id)).join('')}
+      ${!sampleImages && winner ? `<p class="rules">${window.claude ? '' : 'Reading card photos uses Claude, so the 📷 button is in the Claude version of Last Card. Here, tap the cards.'}</p>` : ''}
       <p class="rules">Number cards count their number. Skip, Reverse and Draw Two are 20. Wild and Wild Draw Four are 50.</p>
     </div>
     <button class="btn accent wide" id="saveRound">${g.mode === 'official' ? esc(winner.name) + ' scores ' + pot : 'Save round · ' + pot + ' points handed out'}</button>` : ''}
   </section>`;
+}
+function scanHtml(pid, h){
+  if (!sampleImages) return '';
+  return `<button class="scanbtn" data-scan="${esc(pid)}" ${h.reading ? 'disabled' : ''}>${h.reading ? '<span class="spin" aria-hidden="true"></span> Reading the photo…' : '📷 Photo of their cards'}</button>
+    ${h.note ? `<p class="scannote${h.warn ? ' warn' : ''}" role="status">${esc(h.note)}</p>` : ''}`;
 }
 function handHtml(pid){
   const p = player(pid), h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
@@ -599,6 +612,7 @@ function handHtml(pid){
   return `<div class="hand">
     <button class="hand-head" data-openhand="${esc(pid)}" aria-expanded="${open}">${av(p)}<b>${pname(p)}</b><span class="small muted">${h.typed !== '' ? 'typed' : h.cards.length + ' card' + (h.cards.length === 1 ? '' : 's')}</span><span class="t">${draftValue(pid)}</span></button>
     ${open ? `<div class="hand-body">
+      ${scanHtml(pid, h)}
       <div class="keys">${KEYS.map((k, i) => `<button class="card${k.wild ? ' wild' : ''}${k.word ? ' word' : ''}" data-key="${i}" style="--kc:${keyColor(k)}" aria-label="${k.l} card, ${k.v} points"><span>${k.l}</span>${k.v >= 20 ? `<small>${k.v}</small>` : ''}</button>`).join('')}</div>
       <div class="tally" aria-label="Cards added">${h.cards.length ? h.cards.map((i, n) => `<button class="tchip" data-rmcard="${n}" style="--kc:${keyColor(KEYS[i])}" aria-label="Remove ${KEYS[i].l}">${KEYS[i].l} ✕</button>`).join('') : '<span class="small muted">Tap the cards they were holding, or type the total.</span>'}</div>
       <div class="row"><input id="typed-${esc(pid)}" data-typed="${esc(pid)}" type="number" inputmode="numeric" min="0" placeholder="Or type total" value="${esc(h.typed)}" style="flex:1"><button class="btn ghost small" data-clearhand="${esc(pid)}">Clear</button></div>
@@ -754,6 +768,7 @@ function wire(){
   on('[data-openhand]', el => { draft.open = draft.open === el.dataset.openhand ? null : el.dataset.openhand; render(); });
   on('[data-key]', el => { const h = draft.hands[draft.open]; h.typed = ''; h.cards.push(+el.dataset.key); render(); });
   on('[data-rmcard]', el => { draft.hands[draft.open].cards.splice(+el.dataset.rmcard, 1); render(); });
+  on('[data-scan]', el => { scanFor = el.dataset.scan; $('handPhoto').value = ''; $('handPhoto').click(); });
   on('[data-clearhand]', el => { draft.hands[el.dataset.clearhand] = { cards: [], typed: '' }; render(); });
   document.querySelectorAll('[data-typed]').forEach(inp => {
     inp.oninput = () => {
@@ -840,6 +855,91 @@ $('clearExamples').onclick = () => {
   S.lastPlayers = []; setup = null; draft = null; detail = null; justEnded = null;
   save(); render();
   toast('Examples cleared. Add your players to start.', () => restore(before));
+};
+
+// ===== Reading card photos (Claude version) =====
+// Claude looks at a photo of one player's leftover cards (or a written score)
+// and the cards are added to that hand, where they can be checked and fixed.
+let sampler = null, sampleImages = false, scanFor = null;
+if (window.claude && window.claude.use) {
+  window.claude.use('sample').then(async sm => {
+    if (!sm) return;
+    sampler = sm;
+    const caps = await sm.limits().catch(() => null);
+    sampleImages = !!(caps && caps.images);
+    if (caps && caps.images && caps.images.mediaTypes) $('handPhoto').accept = caps.images.mediaTypes.join(',');
+    if (draft) render();
+  }, () => {});
+}
+const CARD_KEY = { skip: 10, reverse: 11, draw2: 12, wild: 13, wild4: 14 };
+function shrinkPhoto(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const max = 1600, k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? resolve(b) : reject(new Error('encode')), 'image/jpeg', 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+const SCAN_PROMPT = `The photo is from a game of Uno. It shows the cards one player still had in their hand when someone else went out, so they can be scored.
+List every Uno card in the photo, one entry per card. Count cards that overlap or are fanned out; use the corner symbols when the middle is hidden. Count each physical card once. Do not include a face-down draw pile.
+Card kinds: a number card 0-9 (give its value and colour: red, yellow, green or blue), "skip", "reverse", "draw2" (Draw Two, +2), "wild", "wild4" (Wild Draw Four, +4). Treat any other action card (for example Wild Shuffle Hands or a customizable wild) as "wild".
+If the photo instead shows a written or typed points total for this player rather than cards, return that number as "total" and an empty "cards" list.
+Reply with JSON only, no other text, in this shape:
+{"cards":[{"kind":"number","value":7,"color":"red"},{"kind":"skip"}],"total":null,"unsure":""}
+Put a short note in "unsure" if some cards were hard to read or might be missing; otherwise leave it empty. If there are no Uno cards and no score, return {"cards":[],"total":null,"unsure":"I couldn't see any Uno cards in this photo."}`;
+$('handPhoto').onchange = async () => {
+  const file = $('handPhoto').files[0], pid = scanFor;
+  $('handPhoto').value = '';
+  if (!file || !draft || !pid || !sampler) return;
+  const h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
+  h.reading = true; h.note = ''; h.warn = false; render();
+  const name = player(pid).name;
+  try {
+    const blob = await shrinkPhoto(file);
+    const res = await sampler.json(SCAN_PROMPT, { images: [blob], modelTier: 'default' });
+    const cards = Array.isArray(res && res.cards) ? res.cards : [];
+    const keys = [];
+    cards.forEach(c => {
+      const kind = String(c && c.kind || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (kind === 'number') { const v = parseInt(c.value, 10); if (v >= 0 && v <= 9) keys.push(v); }
+      else if (kind in CARD_KEY) keys.push(CARD_KEY[kind]);
+      else if (/draw4|wilddraw4|plus4/.test(kind)) keys.push(14);
+      else if (/draw2|drawtwo|plus2/.test(kind)) keys.push(12);
+      else if (/wild/.test(kind)) keys.push(13);
+      else if (/rev/.test(kind)) keys.push(11);
+      else if (/skip/.test(kind)) keys.push(10);
+    });
+    const unsure = res && typeof res.unsure === 'string' ? res.unsure.trim().slice(0, 200) : '';
+    const total = res && res.total != null ? parseInt(res.total, 10) : NaN;
+    if (!draft || !draft.hands[pid]) return;
+    if (keys.length) {
+      h.typed = ''; h.cards.push(...keys);
+      const pts = keys.reduce((sum, i) => sum + KEYS[i].v, 0);
+      h.note = `Found ${keys.length} card${keys.length === 1 ? '' : 's'} (${keys.map(i => KEYS[i].l).join(', ')}) = ${pts} points. Tap a card below to remove it if it's wrong, or tap a card button to add one Claude missed.` + (unsure ? ' Note: ' + unsure : '');
+      h.warn = !!unsure;
+    } else if (total >= 0) {
+      h.cards = []; h.typed = String(total);
+      h.note = `Read a score of ${total} for ${name}. Change it below if that's wrong.` + (unsure ? ' Note: ' + unsure : '');
+      h.warn = !!unsure;
+    } else {
+      h.note = unsure || "I couldn't see any Uno cards in this photo. Try again with the cards spread out, or tap them in."; h.warn = true;
+    }
+  } catch (e) {
+    const code = e && e.code;
+    h.warn = true;
+    h.note = code === 'not_granted' || code === 'images_unavailable' ? "Claude can't read photos in this view. Tap the cards in instead."
+      : code === 'rate_limited' ? 'Too many photos in a row. Wait a minute and try again.'
+      : code === 'image_rejected' || (e && /decode|encode/.test(e.message)) ? "That photo couldn't be opened. Try taking it again."
+      : "Couldn't read that photo. Try again, or tap the cards in.";
+  } finally {
+    if (draft && draft.hands[pid]) { h.reading = false; render(); }
+  }
 };
 
 // ===== Backup =====
@@ -1170,7 +1270,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '8a64a479a1';
+  var VERSION = '7adf69e27a';
   function hardRefresh() {
     var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
     if (typing && document.visibilityState === 'visible') { banner('A new version of Last Card is ready.', hardRefresh2, 'Update'); return; }
