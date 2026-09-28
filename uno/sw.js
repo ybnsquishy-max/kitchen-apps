@@ -1,6 +1,6 @@
-// Offline support for the installable Last Card app (version ed4591bc14).
+// Offline support for the installable Last Card app (version 15b428a80c).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'uno-ed4591bc14';
+const CACHE = 'uno-15b428a80c';
 const FONT_CACHE = 'uno-fonts';
 const OCR_CACHE = 'uno-ocr-1';   // photo reader files: large, kept across updates
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/party.js', 'ocr/hwread.js', 'ocr/hwdigits.json'];

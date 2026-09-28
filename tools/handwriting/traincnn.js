@@ -39,6 +39,13 @@ function render(px, aug) {
   let x0 = S, y0 = S, x1 = -1, y1 = -1;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (bin[y * S + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   if (x1 < 0) return new Float32Array(784);
+  // Sometimes leave a bit of grid line across the digit, as happens on grid paper
+  // where the line crosses the pen: a thin, slightly tilted stroke inside the digit's width.
+  if (aug && rnd() < 0.35) {
+    const horiz = rnd() < 0.75, t = 1 + Math.floor(rnd() * 3), tilt = (rnd() - 0.5) * 0.12;
+    if (horiz) { const yy = y0 + (y1 - y0) * (0.15 + rnd() * 0.7); for (let x = x0; x <= x1; x++) for (let k = 0; k < t; k++) { const y = Math.round(yy + tilt * (x - x0)) + k; if (y >= 0 && y < S) bin[y * S + x] = 1; } }
+    else { const xx = x0 + (x1 - x0) * (0.15 + rnd() * 0.7); for (let y = y0; y <= y1; y++) for (let k = 0; k < t; k++) { const x = Math.round(xx + tilt * (y - y0)) + k; if (x >= 0 && x < S) bin[y * S + x] = 1; } }
+  }
   return HW._digitImage(bin, S, { ids: [1], x0, x1, y0, y1 });
 }
 

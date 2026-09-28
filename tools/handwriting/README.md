@@ -15,12 +15,14 @@ npm install
 - `node trainmlp.js 25` trains the older, simpler network (for comparison).
 - `node make-model.js hwdigits-cnn.json other.json` combines one or more trained
   models into `uno/ocr/hwdigits.json`; the app averages their answers. The model
-  shipped now is two CNN checkpoints (round 9 and round 24) combined.
+  shipped now is one CNN, 24 rounds, trained with leftover grid lines drawn
+  through some digits (97.5% on held-back digits).
 
 Training uses 10,000 digits from the MNIST set (via the `mnist` npm package,
 LeCun, Cortes and Burges, CC BY-SA 3.0). Each training digit is warped, drawn
 thicker or thinner and run through the same clean-up the app applies to a photo,
-so training matches what the phone sees.
+so training matches what the phone sees. Some also get a gap nicked through
+them or a thin grid-line stroke left across them, as happens on grid paper.
 
 ## Test on real photos
 
@@ -31,8 +33,8 @@ Make `sheets.json` listing photos and the newest total in each column, left to r
 ```
 
 Then `node realtest.js sheets.json`. `MODEL=path.json` tests a different model.
-On the three sheets used so far it reads 8 of 9 totals; a photo of one player's
-column reads right every time.
+On the three sheets used so far it reads all 9 totals, and a photo of one
+player's column reads right every time.
 
 ## See what the reader sees
 
