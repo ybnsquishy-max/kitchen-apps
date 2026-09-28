@@ -919,7 +919,7 @@ function layoutText(data){
     for (const w of ws) {
       if (cur && w.bbox.x0 - cur.x1 > 1.6 * h) { segs.push(cur); cur = null; }
       if (!cur) cur = { x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1, h, words: [] };
-      cur.words.push(w.text); cur.x1 = Math.max(cur.x1, w.bbox.x1); cur.y0 = Math.min(cur.y0, w.bbox.y0); cur.y1 = Math.max(cur.y1, w.bbox.y1);
+      cur.words.push(w.confidence < 45 && /[A-Za-z]{2}/.test(w.text) ? w.text + ' [?]' : w.text); cur.x1 = Math.max(cur.x1, w.bbox.x1); cur.y0 = Math.min(cur.y0, w.bbox.y0); cur.y1 = Math.max(cur.y1, w.bbox.y1);
     }
     if (cur) segs.push(cur);
   }
@@ -1007,7 +1007,7 @@ function tempsAndTimes(t){
 }
 const STOP_END = /^(the|a|an|to|and|or|with|in|into|of|on|for|until|over|at|from|by|then)$/i;
 function stepTitle(t){
-  const first = t.split(/[,;:.!?(]|\s[-–]\s|\s(?:and then|then|until|while)\s/i)[0].trim();
+  const first = t.replace(/\s*\[\?\]/g, '').split(/[,;:.!?(]|\s[-–]\s|\s(?:and then|then|until|while)\s/i)[0].trim();
   const words = first.split(/\s+/).slice(0, 6);
   while (words.length > 1 && STOP_END.test(words[words.length - 1])) words.pop();
   const s = words.join(' ');
@@ -1034,8 +1034,17 @@ function looksTitle(l){
   const letters = (l.match(/[A-Za-z]/g) || []).length;
   return l.length >= 3 && l.length <= 60 && letters / l.length > 0.6 && l.split(/\s+/).length <= 9 && !/[.!?]$/.test(l) && !RE_ING.test(l);
 }
+// Temperatures written "220 Oc" or "37oc" (OCR often reads that o as 0: "370c").
+const WARM_WORDS = /\b(water|dough|lukewarm|warm|temperature|prove|proof|core|internal|hold|chill|fridge|room)\b/i;
+function fixTemps(line){
+  line = line.replace(/\b(\d{1,3})\s?[oO°º]\s?([cCfF])\b/g, (m, n, u) => n + '°' + u.toUpperCase());
+  return line.replace(/\b(\d{2})0([cC])\b/g, (m, n, u) => {
+    const v = +(n + '0');
+    return v > 300 || (WARM_WORDS.test(line) && +n >= 15 && +n <= 99) ? n + '°C' : v + '°C';
+  });
+}
 function textToMethod(raw, titleHint){
-  const lines = String(raw || '').replace(/\r/g, '').split('\n').map(l => l.replace(/\s+/g, ' ').replace(/^[|]\s/, 'I ').trim());
+  const lines = String(raw || '').replace(/\r/g, '').split('\n').map(l => fixTemps(l.replace(/\s+/g, ' ').replace(/^[|]\s/, 'I ').trim()));
   const junk = l => { if (!l) return false; const n = (l.match(/[A-Za-z]/g) || []).length; return /^\d{1,3}$/.test(l) || n < 2 || n < l.length * 0.4; };
   let title = titleHint || '', sec = '', sawMethodHead = false;
   const ing = [], method = [], intro = [];
@@ -1060,14 +1069,20 @@ function textToMethod(raw, titleHint){
   // Join wrapped lines into steps: numbers or bullets start a step when the
   // recipe uses them, otherwise blank lines do.
   const numbered = body.filter(l => RE_STEPNUM.test(l) || RE_BULLET.test(l)).length >= 2;
-  const paras = []; let cur = null;
+  const paras = []; let cur = null, gap = false, prevLen = 99;
   const push = () => { if (cur && cur.trim()) paras.push(cur.trim()); cur = null; };
-  for (const l of body) {
-    if (!l) { if (!numbered) push(); continue; }
+  let lastNum = -1;
+  body.forEach((l, i) => { if (RE_STEPNUM.test(l) || RE_BULLET.test(l)) lastNum = i; });
+  for (const [i, l] of body.entries()) {
+    if (!l) { if (!numbered) push(); else if (i > lastNum) gap = true; continue; }
     const starts = RE_STEPNUM.test(l) || RE_BULLET.test(l);
-    if (starts) { push(); cur = l.replace(RE_STEPNUM, '').replace(RE_BULLET, ''); continue; }
+    if (starts) { gap = false; prevLen = l.length; push(); cur = l.replace(RE_STEPNUM, '').replace(RE_BULLET, ''); continue; }
+    if (gap && cur !== null && numbered) push();   // text after a gap isn't part of the last step
+    gap = false;
     if (cur === null) cur = l;
-    else cur = /[A-Za-z]-$/.test(cur) ? cur.slice(0, -1) + l : cur + ' ' + l;
+    else if (/[A-Za-z]-$/.test(cur)) cur = cur.slice(0, -1) + l;
+    else cur += (prevLen < 45 && l.length < 45 ? '\n' : ' ') + l;   // a list of short lines stays a list
+    prevLen = l.length;
   }
   push();
   const steps = [];
@@ -2384,7 +2399,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '440e539845';
+  var VERSION = '5dd0bde27e';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
