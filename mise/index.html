@@ -424,9 +424,11 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
         <button class="btn secondary" id="videoCancelBtn">Cancel</button>
       </div>
       <p class="hint" id="videoHowTo">Mise listens to the video and reads any words shown on screen. Getting a video from TikTok: Share → Save video. From Instagram, screen-record the reel. Then tap Video → Method and pick it.</p>
+      <p class="hint" id="androidShareTip" hidden>On Android you can also share a saved video straight to Mise from Photos or Files. If Mise isn't in the share menu yet, open Mise again tomorrow (Android updates it in the background), or remove Mise from your home screen and add it again.</p>
     </div>
     <p class="hint edit-only" id="readHint" hidden></p>
     <p class="status" id="notesStatus" hidden></p>
+    <button class="btn secondary small" id="stopWorkBtn" hidden>Stop</button>
     <input type="file" accept="image/*" capture="environment" id="photoInput">
     <input type="file" accept="image/*" id="libraryInput" multiple>
     <input type="file" accept="video/*" id="videoInput">
@@ -806,6 +808,8 @@ async function convert({ notes = [], text = '', video = null, caption = '' }){
   if (converting || (!homeApp && (!sampleFn || aiOff))) return;
   if (!notes.length && !text.trim() && !video) return;
   converting = true; updateNoteButtons();
+  cancelWork = false;
+  if (video) { $('stopWorkBtn').hidden = false; keepAwake(true); }
   setStatus($('notesStatus'), 'Reading notes… this can take up to a minute.');
   try {
     let res = { title: '', steps: [], note: '' };
@@ -836,8 +840,13 @@ async function convert({ notes = [], text = '', video = null, caption = '' }){
     if (text && !video) $('typedNotes').value = '';
     tab = 'method'; store(LS_TAB, tab);
   } catch (e) {
-    if (!e || e.code !== 'cancelled') setStatus($('notesStatus'), e && e.msg ? e.msg : aiError(e), true);
-  } finally { converting = false; render(); }
+    if (e && e.code === 'cancelled') setStatus($('notesStatus'), 'Stopped.');
+    else setStatus($('notesStatus'), e && e.msg ? e.msg : aiError(e), true);
+  } finally {
+    converting = false; cancelWork = false; $('stopWorkBtn').hidden = true; keepAwake(false);
+    if (primedVideo) { try { URL.revokeObjectURL(primedVideo.src); } catch (e) {} primedVideo = null; }
+    render();
+  }
 }
 
 // ===== Reading recipes in the home-screen app =====
@@ -1138,39 +1147,240 @@ function textToMethod(raw, titleHint){
 // as typed notes turn what was said into steps. With a Claude key, Claude gets
 // the words plus a few frames from the video and writes the method instead.
 const ASR_BASE = 'vendor/asr/', ASR_MODEL = 'Xenova/whisper-tiny';
-let asrPipe = null;
-function getAsr(){
-  if (!asrPipe) {
-    asrPipe = (async () => {
-      const T = await import(new URL(ASR_BASE + 'transformers.min.js', location.href).href);
-      T.env.allowLocalModels = false;
-      T.env.backends.onnx.wasm.wasmPaths = new URL(ASR_BASE, location.href).href;
-      const got = {};
-      return T.pipeline('automatic-speech-recognition', ASR_MODEL, {
-        dtype: 'q8', device: 'wasm',
-        progress_callback: p => {
-          if (!p || p.status !== 'progress' || !p.total) return;
-          got[p.file] = [p.loaded, p.total];
-          const all = Object.values(got), mb = all.reduce((a, x) => a + x[0], 0) / 1e6, tot = all.reduce((a, x) => a + x[1], 0) / 1e6;
-          if (tot > 5) setStatus($('notesStatus'), 'Getting the listening model (first time only): ' + Math.round(mb) + ' of ' + Math.round(tot) + ' MB…');
-        },
-      });
-    })();
-    asrPipe.catch(() => { asrPipe = null; });
-  }
-  return asrPipe;
+// Listening runs in a worker (asr-worker.js) so the page stays responsive and
+// Stop works at once; if the phone can't run it there, it runs on the page.
+let asrWorker = null, asrReady = null, asrMain = null, asrPending = new Map(), asrSeq = 0;
+function asrProgress(got){
+  const all = Object.values(got), mb = all.reduce((a, x) => a + x[0], 0) / 1e6, tot = all.reduce((a, x) => a + x[1], 0) / 1e6;
+  if (tot > 5) setStatus($('notesStatus'), 'Getting the listening model (first time only): ' + Math.round(mb) + ' of ' + Math.round(tot) + ' MB…');
 }
-// The video's sound as 16 kHz mono, which is what Whisper listens to.
-async function videoAudio(file){
-  const AC = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AC();
-  let audio;
-  try { audio = await ctx.decodeAudioData(await file.arrayBuffer()); }
-  finally { try { ctx.close(); } catch (e) {} }
+function asrCall(msg, transfer){
+  return new Promise((resolve, reject) => { const id = ++asrSeq; asrPending.set(id, { resolve, reject }); asrWorker.postMessage({ ...msg, id }, transfer || []); });
+}
+function stopAsr(){
+  if (asrWorker) { asrWorker.terminate(); asrWorker = null; asrReady = null; }
+  for (const p of asrPending.values()) p.reject({ code: 'cancelled' });
+  asrPending.clear();
+}
+async function startAsrWorker(){
+  const got = {};
+  asrWorker = new Worker(new URL('asr-worker.js', location.href), { type: 'module' });
+  asrWorker.onmessage = e => {
+    const d = e.data || {};
+    if (d.type === 'progress') { if (d.total) { got[d.file] = [d.loaded, d.total]; asrProgress(got); } return; }
+    const p = asrPending.get(d.id); if (!p) return;
+    asrPending.delete(d.id);
+    d.ok ? p.resolve(d) : p.reject(new Error(d.error));
+  };
+  asrWorker.onerror = e => { e.preventDefault && e.preventDefault(); for (const p of asrPending.values()) p.reject(new Error('worker')); asrPending.clear(); };
+  await asrCall({ type: 'load', model: ASR_MODEL });
+  return { run: async audio => { const copy = audio.slice(); return (await asrCall({ type: 'run', audio: copy }, [copy.buffer])).text; } };
+}
+async function startAsrMain(){
+  const T = await import(new URL(ASR_BASE + 'transformers.min.js', location.href).href);
+  T.env.allowLocalModels = false;
+  T.env.backends.onnx.wasm.wasmPaths = new URL(ASR_BASE, location.href).href;
+  const got = {};
+  const pipe = await T.pipeline('automatic-speech-recognition', ASR_MODEL, { dtype: 'q8', device: 'wasm', progress_callback: p => { if (p && p.status === 'progress' && p.total) { got[p.file] = [p.loaded, p.total]; asrProgress(got); } } });
+  return { run: async audio => String(((await pipe(audio, { language: 'english', task: 'transcribe' })) || {}).text || '') };
+}
+function getAsr(){
+  if (asrMain) return Promise.resolve(asrMain);
+  if (!asrReady) {
+    asrReady = (async () => {
+      try { return await startAsrWorker(); }
+      catch (e) {
+        if (e && e.code === 'cancelled') throw e;
+        stopAsr();
+        asrMain = await startAsrMain();   // older phones without module workers
+        return asrMain;
+      }
+    })();
+    asrReady.catch(() => { asrReady = null; });
+  }
+  return asrReady;
+}
+// ----- Getting the sound out of a video -----
+// Phones record MP4 (Android) or MOV (iPhone) with AAC sound. Read just the
+// sound track out of the file: only the box headers and the audio bytes are
+// loaded, never the whole video, and newer iPhones' extra "spatial audio"
+// track is skipped. The AAC frames get ADTS headers, which every phone
+// browser can decode.
+const box4 = (dv, p) => String.fromCharCode(dv.getUint8(p), dv.getUint8(p + 1), dv.getUint8(p + 2), dv.getUint8(p + 3));
+const u64 = (dv, p) => dv.getUint32(p) * 4294967296 + dv.getUint32(p + 4);
+function* mp4Boxes(dv, start, end){
+  for (let p = start; p + 8 <= end;) {
+    let size = dv.getUint32(p), hdr = 8;
+    if (size === 1) { size = u64(dv, p + 8); hdr = 16; } else if (size === 0) size = end - p;
+    if (size < hdr || p + size > end) return;
+    yield { type: box4(dv, p + 4), start: p + hdr, end: p + size };
+    p += size;
+  }
+}
+function mp4Child(dv, b, type){ for (const c of mp4Boxes(dv, b.start, b.end)) if (c.type === type) return c; return null; }
+function mp4Path(dv, b, path){ for (const t of path) { b = b && mp4Child(dv, b, t); } return b; }
+function mp4Find(dv, start, end, type, depth){   // search inside a sample entry (esds can sit in a "wave" box)
+  for (let p = start; p + 8 <= end; p++) if (box4(dv, p + 4) === type) { const size = dv.getUint32(p); if (size >= 8 && p + size <= end) return { start: p + 8, end: p + size }; }
+  return null;
+}
+async function mp4AudioTrack(file){
+  const rd = async (pos, len) => new DataView(await file.slice(pos, pos + len).arrayBuffer());
+  let moov = null;
+  for (let pos = 0; pos + 8 <= file.size;) {
+    const h = await rd(pos, 16);
+    let size = h.getUint32(0), hdr = 8;
+    const type = box4(h, 4);
+    if (pos === 0 && !/^(ftyp|moov|mdat|wide|free|skip|pnot)$/.test(type)) return null;   // not MP4/MOV
+    if (size === 1) { size = u64(h, 8); hdr = 16; } else if (size === 0) size = file.size - pos;
+    if (size < hdr) return null;
+    if (type === 'moov') { const dv = await rd(pos, size); moov = { dv, box: { start: hdr, end: size } }; break; }
+    pos += size;
+  }
+  if (!moov) return null;
+  const dv = moov.dv;
+  for (const trak of mp4Boxes(dv, moov.box.start, moov.box.end)) {
+    if (trak.type !== 'trak') continue;
+    const mdia = mp4Child(dv, trak, 'mdia'), hdlr = mdia && mp4Child(dv, mdia, 'hdlr');
+    if (!hdlr || box4(dv, hdlr.start + 8) !== 'soun') continue;
+    const stbl = mp4Path(dv, mdia, ['minf', 'stbl']);
+    const stsd = stbl && mp4Child(dv, stbl, 'stsd');
+    if (!stsd || dv.getUint32(stsd.start + 4) < 1) continue;
+    const entry = stsd.start + 8, entrySize = dv.getUint32(entry);
+    if (box4(dv, entry + 4) !== 'mp4a') continue;   // AAC only (skips spatial audio, ALAC, PCM)
+    const esds = mp4Find(dv, entry + 16, entry + entrySize, 'esds');
+    if (!esds) continue;
+    // esds → ES descriptor → decoder config → AudioSpecificConfig
+    let p = esds.start + 4;
+    const tag = () => { const t = dv.getUint8(p++); let len = 0, b; do { b = dv.getUint8(p++); len = (len << 7) | (b & 0x7f); } while (b & 0x80 && p < esds.end); return { t, len }; };
+    let asc = null;
+    while (p < esds.end && !asc) {
+      const d = tag();
+      if (d.t === 0x03) { const fl = dv.getUint8(p + 2); p += 3; if (fl & 0x80) p += 2; if (fl & 0x40) p += 1 + dv.getUint8(p); if (fl & 0x20) p += 2; }
+      else if (d.t === 0x04) p += 13;
+      else if (d.t === 0x05) asc = { at: p, len: d.len };
+      else p += d.len;
+    }
+    if (!asc) continue;
+    const a0 = dv.getUint8(asc.at), a1 = dv.getUint8(asc.at + 1), a2 = asc.len > 2 ? dv.getUint8(asc.at + 2) : 0;
+    let aot = a0 >> 3, freq = ((a0 & 7) << 1) | (a1 >> 7), chan = (a1 >> 3) & 15;
+    if (freq === 15) continue;   // explicit rate: not used by phones
+    if (aot === 5 || aot === 29) { const bits = ((a1 & 7) << 8 | a2); aot = (bits >> 2) & 31 || 2; }   // HE-AAC: use the core layer
+    if (aot < 1 || aot > 4) continue;
+    // Where each AAC frame is in the file.
+    const stsz = mp4Child(dv, stbl, 'stsz'), stsc = mp4Child(dv, stbl, 'stsc'), stco = mp4Child(dv, stbl, 'stco') || mp4Child(dv, stbl, 'co64');
+    if (!stsz || !stsc || !stco) continue;
+    const fixed = dv.getUint32(stsz.start + 4), n = dv.getUint32(stsz.start + 8);
+    const sizes = new Uint32Array(n);
+    for (let i = 0; i < n; i++) sizes[i] = fixed || dv.getUint32(stsz.start + 12 + i * 4);
+    const nChunks = dv.getUint32(stco.start + 4), wide = box4(dv, stco.start - 4) === 'co64';
+    const chunkAt = i => wide ? u64(dv, stco.start + 8 + i * 8) : dv.getUint32(stco.start + 8 + i * 4);
+    const nRuns = dv.getUint32(stsc.start + 4), runs = [];
+    for (let i = 0; i < nRuns; i++) runs.push([dv.getUint32(stsc.start + 8 + i * 12), dv.getUint32(stsc.start + 12 + i * 12)]);
+    const chunks = [];   // [file offset, first frame, frame count]
+    let frame = 0;
+    for (let c = 0, r = 0; c < nChunks && frame < n; c++) {
+      while (r + 1 < runs.length && runs[r + 1][0] <= c + 1) r++;
+      const k = Math.min(runs[r][1], n - frame);
+      chunks.push([chunkAt(c), frame, k]); frame += k;
+    }
+    const rates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+    return { file, sizes, chunks, profile: aot - 1, freq, chan: chan || 2, rate: rates[freq], frames: n, seconds: n * 1024 / rates[freq] };
+  }
+  return null;
+}
+// ADTS bytes for frames [from, to) of the track.
+async function adtsSlice(t, from, to){
+  let total = 0;
+  for (let i = from; i < to; i++) total += t.sizes[i] + 7;
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const [off, first, k] of t.chunks) {
+    if (first + k <= from || first >= to) continue;
+    let pos = off; for (let i = first; i < Math.max(first, from); i++) pos += t.sizes[i];
+    const a = Math.max(first, from), z = Math.min(first + k, to);
+    let len = 0; for (let i = a; i < z; i++) len += t.sizes[i];
+    const bytes = new Uint8Array(await t.file.slice(pos, pos + len).arrayBuffer());
+    let q = 0;
+    for (let i = a; i < z; i++) {
+      const fl = t.sizes[i] + 7;
+      out[o] = 0xFF; out[o + 1] = 0xF1; out[o + 2] = (t.profile << 6) | (t.freq << 2) | (t.chan >> 2);
+      out[o + 3] = ((t.chan & 3) << 6) | (fl >> 11); out[o + 4] = (fl >> 3) & 0xFF; out[o + 5] = ((fl & 7) << 5) | 0x1F; out[o + 6] = 0xFC;
+      out.set(bytes.subarray(q, q + t.sizes[i]), o + 7);
+      o += fl; q += t.sizes[i];
+    }
+  }
+  return out.buffer;
+}
+let videoAC = null, primedVideo = null;   // made during the tap, so phones allow sound
+function audioCtx(){ const AC = window.AudioContext || window.webkitAudioContext; if (!videoAC || videoAC.state === 'closed') videoAC = new AC(); return videoAC; }
+function decodeAudio(buf){ const ac = audioCtx(); return new Promise((res, rej) => { const r = ac.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); }); }
+async function to16k(audio){
   const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * 16000)), 16000);
   const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
   return (await off.startRendering()).getChannelData(0);
 }
+// The video's sound as 16 kHz mono, which is what Whisper listens to.
+async function videoAudio(file){
+  // 1. The AAC track, a minute at a time (keeps memory low on long videos).
+  let track = null;
+  try { track = await mp4AudioTrack(file); } catch (e) {}
+  if (track && track.seconds > 0.5) {
+    if (track.seconds > 45 * 60) throw { msg: 'That video is ' + fmtTime(track.seconds) + ' long. Trim it to under 45 minutes and try again.' };
+    try {
+      const per = Math.round(60 * track.rate / 1024), parts = [];
+      for (let f = 0; f < track.frames; f += per) {
+        checkCancel();
+        parts.push(await to16k(await decodeAudio(await adtsSlice(track, f, Math.min(track.frames, f + per)))));
+      }
+      const out = new Float32Array(parts.reduce((a, x) => a + x.length, 0));
+      let o = 0; for (const x of parts) { out.set(x, o); o += x.length; }
+      return out;
+    } catch (e) { if (e && e.code === 'cancelled') throw e; }
+  }
+  // 2. Let the browser open the whole file.
+  if (file.size <= 600e6) {
+    try { return await to16k(await decodeAudio(await file.arrayBuffer())); } catch (e) {}
+  }
+  // 3. Last resort: play the video silently to Mise and record the sound (takes as long as the video).
+  return await recordWhilePlaying(file);
+}
+async function recordWhilePlaying(file){
+  const ac = audioCtx();
+  try { await ac.resume(); } catch (e) {}
+  const v = primedVideo || document.createElement('video');
+  primedVideo = null;
+  if (!v.src) v.src = URL.createObjectURL(file);
+  v.playsInline = true; v.muted = false; v.currentTime = 0;
+  const src = ac.createMediaElementSource(v), proc = ac.createScriptProcessor(4096, 2, 1), bufs = [];
+  proc.onaudioprocess = e => { const a = e.inputBuffer.getChannelData(0), b = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : a, m = new Float32Array(a.length); for (let i = 0; i < a.length; i++) m[i] = (a[i] + b[i]) / 2; bufs.push(m); };
+  src.connect(proc); proc.connect(ac.destination);   // proc outputs silence, so nothing is heard
+  try {
+    await new Promise((res, rej) => {
+      v.onended = res; v.onerror = () => rej(new Error('play'));
+      const tick = setInterval(() => {
+        if (cancelWork) { clearInterval(tick); v.pause(); rej({ code: 'cancelled' }); return; }
+        if (isFinite(v.duration)) setStatus($('notesStatus'), 'Playing the video to hear it… ' + fmtTime(v.currentTime) + ' of ' + fmtTime(v.duration) + '. Keep Mise open.');
+      }, 500);
+      v.addEventListener('ended', () => clearInterval(tick));
+      v.play().catch(e => { clearInterval(tick); rej(e); });
+    });
+  } finally { try { src.disconnect(); proc.disconnect(); } catch (e) {} URL.revokeObjectURL(v.src); }
+  const len = bufs.reduce((a, x) => a + x.length, 0);
+  if (!len) throw new Error('silent');
+  const ab = ac.createBuffer(1, len, ac.sampleRate), ch = ab.getChannelData(0);
+  let o = 0; for (const x of bufs) { ch.set(x, o); o += x.length; }
+  return to16k(ab);
+}
+// ----- Stop button, screen kept awake -----
+let cancelWork = false, wakeLock = null;
+function checkCancel(){ if (cancelWork) throw { code: 'cancelled' }; }
+async function keepAwake(on){
+  try {
+    if (on && navigator.wakeLock && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && converting) keepAwake(true); });
 // Cut into pieces of up to 30 s, at the quietest moment near the end of each, so words aren't split.
 function audioPieces(a){
   const R = 16000, out = [];
@@ -1190,24 +1400,28 @@ function audioPieces(a){
 }
 const fmtTime = sec => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
 async function listenToVideo(file){
-  if (file.size > 600e6) throw { msg: 'That video is too big for the phone to open (' + Math.round(file.size / 1e6) + ' MB). Trim it, or save it at a lower quality, and try again.' };
   setStatus($('notesStatus'), 'Getting the sound from the video…');
   let audio;
   try { audio = await videoAudio(file); }
-  catch (e) { throw { msg: "Couldn't get the sound from that video. Try a video saved on your phone (MP4 or MOV)." }; }
+  catch (e) {
+    if (e && (e.code === 'cancelled' || e.msg)) throw e;
+    // No sound we can use: carry on with the pictures and on-screen words.
+    return { words: '', seconds: 0, noSound: true };
+  }
   const total = audio.length / 16000;
   if (total > 45 * 60) throw { msg: 'That video is ' + fmtTime(total) + ' long. Trim it to under 45 minutes and try again.' };
-  let pipe;
-  try { pipe = await getAsr(); } catch (e) { throw { msg: "Couldn't load the listening model. Check your internet connection for the first use, then try again." }; }
-  const pieces = audioPieces(audio), texts = [];
+  let asr;
+  try { asr = await getAsr(); } catch (e) { if (e && e.code === 'cancelled') throw e; throw { msg: "Couldn't load the listening model. Check your internet connection for the first use, then try again." }; }
+  const pieces = audioPieces(audio), texts = [], started = Date.now();
   let done = 0;
   for (const piece of pieces) {
-    setStatus($('notesStatus'), 'Listening to the video… ' + fmtTime(done) + ' of ' + fmtTime(total) + '. Keep Mise open.');
+    checkCancel();
+    const spent = (Date.now() - started) / 1000, left = done > 0 ? spent / done * (total - done) : 0;
+    setStatus($('notesStatus'), 'Listening to the video… ' + fmtTime(done) + ' of ' + fmtTime(total) + (left > 50 ? ', about ' + Math.ceil(left / 60) + ' min left' : '') + '. Keep Mise open.');
     // Skip near-silent pieces: Whisper invents words ("Thank you.") in silence.
     let en = 0; for (let k = 0; k < piece.length; k += 4) en += piece[k] * piece[k];
     if (en / (piece.length / 4) > 1e-5) {
-      const r = await pipe(piece, { language: 'english', task: 'transcribe' });
-      texts.push(String((r && r.text) || '').trim());
+      texts.push(String(await asr.run(piece)).trim());
     }
     done += piece.length / 16000;
   }
@@ -1261,7 +1475,9 @@ async function videoScreenText(file, knownDuration){
     const mask = document.createElement('canvas'); mask.width = big.width; mask.height = big.height; const mg = mask.getContext('2d');
     const stepT = Math.max(1, d / 150), lines = [];
     let prev = null, reads = 0;
-    for (let t = Math.min(0.5, d / 2); t < d && reads < 60; t += stepT) {
+    const began = Date.now();
+    for (let t = Math.min(0.5, d / 2); t < d && reads < 60 && Date.now() - began < 150000; t += stepT) {
+      checkCancel();
       await new Promise(r => { v.onseeked = r; v.currentTime = t; setTimeout(r, 4000); });
       sg.drawImage(v, 0, 0, 24, 40);
       const px = sg.getImageData(0, 0, 24, 40).data, g = new Float32Array(960);
@@ -1270,22 +1486,17 @@ async function videoScreenText(file, knownDuration){
       prev = g; reads++;
       setStatus($('notesStatus'), 'Reading words on screen… ' + fmtTime(t) + ' of ' + fmtTime(d));
       bg.drawImage(v, 0, 0, big.width, big.height);
-      // Reels mostly use white words (often outlined): keep only white pixels,
-      // as black on white. Then try the frame as it is (black words on a box).
+      // Caption words as black on white: white or yellow words (often outlined),
+      // and dark words on white boxes. Then try the frame as it is.
       const img = bg.getImageData(0, 0, big.width, big.height), md = mg.createImageData(big.width, big.height);
-      let white = 0;
-      for (let i = 0; i < img.data.length; i += 4) {
-        const r0 = img.data[i], g0 = img.data[i + 1], b0 = img.data[i + 2], lo = Math.min(r0, g0, b0), hi = Math.max(r0, g0, b0);
-        const on = lo > 185 && hi - lo < 45; if (on) white++;
-        md.data[i] = md.data[i + 1] = md.data[i + 2] = on ? 0 : 255; md.data[i + 3] = 255;
-      }
+      const white = captionMask(img, md);
       mg.putImageData(md, 0, 0);
       let found = 0;
-      for (const src of white > 200 && white < img.data.length / 4 * 0.4 ? [mask, big] : [big]) {
+      for (const src of white > 150 ? [mask, big] : [big]) {
         const r = await w.recognize(src, {}, { text: true, blocks: true });
         for (const bl of r.data.blocks || []) for (const pa of bl.paragraphs || []) {
-          const text = String(pa.text || '').replace(/\s+/g, ' ').trim();
-          if (pa.confidence < 60 || !/[A-Za-z]{3}/.test(text) || /^[@#]|tiktok|instagram|original sound|follow|subscribe|reels?\b|like for|save (this|for later)|comment/i.test(text)) continue;
+          const text = paragraphText(pa);
+          if (pa.confidence < 60 || !/[A-Za-z]{3}/.test(text) || SCREEN_UI.test(text)) continue;
           if ((text.match(/[A-Za-z0-9°.,/+&' -]/g) || []).length < text.length * 0.85) continue;
           found++;
           const key = text.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1301,9 +1512,71 @@ async function videoScreenText(file, knownDuration){
     releaseOcrSoon();
     // Pieces of one caption read on the same frame, in order, stay together.
     return lines.map(x => x.text);
-  } catch (e) { return []; }
+  } catch (e) { if (e && e.code === 'cancelled') throw e; return []; }
   finally { URL.revokeObjectURL(url); }
 }
+// Which pixels are caption letters. White (or yellow) letters are kept unless
+// they're part of a big solid white shape (a text box, a plate); for a white
+// box, the dark letters inside it are kept instead. Writes black-on-white into
+// out and returns how many letter pixels it found.
+function captionMask(img, out){
+  const W = img.width, H = img.height, d = img.data, n = W * H;
+  const bright = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], lo = Math.min(r, g, b), hi = Math.max(r, g, b);
+    bright[i] = (lo > 185 && hi - lo < 45) || (r > 215 && g > 185 && b < 120 && r >= g - 10 && r - b > 110) ? 1 : 0;
+  }
+  // Group touching bright pixels; solid shapes (filled more than 60% of their box) aren't letters.
+  const label = new Int32Array(n), stack = new Int32Array(n), boxes = [];
+  let next = 0;
+  for (let i = 0; i < n; i++) {
+    if (!bright[i] || label[i]) continue;
+    next++; let sp = 0, count = 0, x0 = W, y0 = H, x1 = 0, y1 = 0;
+    stack[sp++] = i; label[i] = next;
+    while (sp) {
+      const j = stack[--sp], x = j % W, y = (j - x) / W; count++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && bright[j - 1] && !label[j - 1]) { label[j - 1] = next; stack[sp++] = j - 1; }
+      if (x < W - 1 && bright[j + 1] && !label[j + 1]) { label[j + 1] = next; stack[sp++] = j + 1; }
+      if (y > 0 && bright[j - W] && !label[j - W]) { label[j - W] = next; stack[sp++] = j - W; }
+      if (y < H - 1 && bright[j + W] && !label[j + W]) { label[j + W] = next; stack[sp++] = j + W; }
+    }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    if (bw * bh > W * H / 400 && count / (bw * bh) > 0.6 && bh > 12) boxes.push({ id: next, x0, y0, x1, y1 });
+  }
+  const solid = new Set(boxes.map(b => b.id)), inBox = new Uint8Array(n);
+  for (const b of boxes) for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) inBox[y * W + x] = 1;
+  let on = 0;
+  for (let i = 0; i < n; i++) {
+    const hi = Math.max(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]);
+    const text = bright[i] ? !solid.has(label[i]) && !inBox[i] : inBox[i] && hi < 100;
+    if (text) on++;
+    out.data[i * 4] = out.data[i * 4 + 1] = out.data[i * 4 + 2] = text ? 0 : 255; out.data[i * 4 + 3] = 255;
+  }
+  return on;
+}
+// A caption's text, line by line: words far to the side of the main group
+// (like/comment counts, icons) and tiny unsure bits are left out.
+function paragraphText(pa){
+  const lines = [];
+  for (const li of pa.lines || []) {
+    const ws = (li.words || []).filter(w => w.bbox && String(w.text || '').trim());
+    if (!ws.length) continue;
+    const h = Math.max(6, Math.max(...ws.map(w => w.bbox.y1 - w.bbox.y0)));
+    const groups = [[ws[0]]];
+    for (let i = 1; i < ws.length; i++) {
+      if (ws[i].bbox.x0 - ws[i - 1].bbox.x1 > 1.2 * h) groups.push([]);
+      groups[groups.length - 1].push(ws[i]);
+    }
+    const letters = g => g.reduce((a, w) => a + (String(w.text).match(/[A-Za-z]/g) || []).length, 0);
+    const main = groups.reduce((a, g) => letters(g) > letters(a) ? g : a, groups[0]);
+    const kept = main.filter((w, i) => { const t = String(w.text).trim(); return !(t.length <= 2 && w.confidence < 70 && !/^\d+$/.test(t) && (i === 0 || i === main.length - 1)); });
+    if (kept.length) lines.push(kept.map(w => w.text).join(' '));
+  }
+  return lines.join(' ').replace(/\s+/g, ' ').trim();
+}
+// App text in screen recordings and watermarks, not part of the recipe.
+const SCREEN_UI = /^[@#]|tiktok|instagram|original (sound|audio)|follow|subscribe|reels?\b|like for|save (this|for later)|comment|liked by|and others|add a comment|see translation|view (all|replies)|reply|sponsored|suggested|remix|views|\bshare\b|send|for you|following|search|capcut|^\d+[.,]?\d*\s*[km]?$|\bmore\b$|… ?more/i;
 // Same text read twice (OCR slips a letter or two).
 function similar(a, b){
   if (a === b || a.includes(b) || b.includes(a)) return true;
@@ -1324,8 +1597,9 @@ function cleanCaption(t){
     .filter(l => !/^(follow|like|save|share|comment|link in bio|full recipe)/i.test(l)).join('\n').trim();
 }
 async function readVideo(file, caption){
-  const { words, seconds } = await listenToVideo(file);
+  const { words, seconds, noSound } = await listenToVideo(file);
   const screen = await videoScreenText(file, seconds);
+  if (noSound && !screen.length && !caption && readWith() !== 'claude') throw { msg: "Couldn't open that video on this phone. Try saving it again (TikTok: Share → Save video), or record the screen while it plays and pick the recording." };
   const cap = cleanCaption(caption);
   // What was heard and seen goes in the typed-notes box too, to fix and read again.
   const heard = [cap && 'Caption:\n' + cap, screen.length && 'On screen:\n' + screen.join('\n'), words && 'Said:\n' + words].filter(Boolean).join('\n\n');
@@ -1354,7 +1628,9 @@ async function readVideo(file, caption){
   const shown = screenToMethod(screen);
   let steps = capSteps.length >= 2 ? capSteps : talkSteps.length >= 2 ? talkSteps : shown.steps.length ? shown.steps : capSteps.concat(talkSteps);
   const amounts = [];
-  const addA = list => list.forEach(a => { if (a && !amounts.some(x => similar(x.toLowerCase().replace(/[^a-z0-9]/g, ''), a.toLowerCase().replace(/[^a-z0-9]/g, '')))) amounts.push(a); });
+  // Same ingredient worded differently ("3 garlic cloves" / "3 cloves garlic") counts once.
+  const wordKey = t => t.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).map(w => w.replace(/(es|s)$/, '')).sort().join(' ');
+  const addA = list => list.forEach(a => { if (a && !amounts.some(x => wordKey(x) === wordKey(a) || similar(x.toLowerCase().replace(/[^a-z0-9]/g, ''), a.toLowerCase().replace(/[^a-z0-9]/g, '')))) amounts.push(a); });
   if (capMise) addA(capMise.detail.split('\n'));
   addA(shown.amounts);
   if (talkMise) addA(talkMise.detail.split('\n'));
@@ -1387,9 +1663,9 @@ function videoTitleFromName(name){
 // Turn what someone said while cooking into steps: drop the chat, split where
 // they move on ("then", "next", "now"...), and gather the amounts mentioned.
 const CHATTER = /\b(subscribe|like (and|this video)|comment below|notification|bell|welcome (back )?to (my|the) channel|hey (guys|everyone)|hi (guys|everyone)|thanks for watching|see you (next|in the)|link (is )?in the description|sponsor)\b/i;
-const CUES = /^(so )?(first(ly)?|to start|start by|then|next|now|after (that|this)|once|when|meanwhile|while|finally|lastly|last(ly)?|and then|step \d+|at this point|to finish|to serve)\b/i;
+const CUES = /^(so )?(first(ly)?|to start|start by|then|next|now|after (that|this)|once|when|meanwhile|while|final(ly)?|lastly|last(ly)?|and then|step \d+|at this point|to finish|to serve)\b/i;
 // A sentence that starts with a cooking action ("Pour in…", "I'll leave it…") is a new step.
-const FILLER_START = /^((and|so|now|then|next|okay|ok|alright|just|first|finally)[, ]+|(i'll|we'll|you'll|i|we|you)\s+(just\s+)?(want to|need to|wanna|gonna|are going to|'re going to|am going to|'m going to|can|should|will)?\s*)+/i;
+const FILLER_START = /^((and|so|now|then|next|okay|ok|alright|just|first|final(ly)?)[, ]+|(i'll|we'll|you'll|i|we|you)\s+(just\s+)?(want to|need to|wanna|gonna|are going to|'re going to|am going to|'m going to|can|should|will)?\s*)+/i;
 const ACTIONS = /^(add|put|place|pour|heat|cook|bake|mix|whisk|stir|combine|crack|leave|rest|serve|season|cut|chop|slice|dice|mince|melt|bring|boil|simmer|fry|saute|sauté|roast|grill|preheat|remove|take|transfer|fold|knead|roll|spread|sprinkle|drain|blend|beat|cream|grease|line|let|allow|turn|flip|cover|chill|refrigerate|freeze|garnish|plate|taste|reduce|strain|sieve|toss|marinate|brush|shape|divide|prove|proof|sift|measure|weigh|wash|rinse|peel|grate|zest|squeeze|pipe|fill|top|finish|drizzle|scoop|spoon|ladle|set|check|repeat|keep|lower|increase|use|get|grab|start|make)\b/i;
 const LITTLE = /\b(a (?:pinch|handful|little|knob|splash|drizzle|dash|sprinkle|squeeze|bunch)(?: of)?)\s+((?:(?!(?:and|into|in|to|with|then|until|for|on|at|over|the|it)\b)[a-z][a-z-]*\s*){1,2})/gi;
 const QTY = /\b(\d+(?:[.,/]\d+)?|a half|half an?|one|two|three|four|five|six|a couple of|a pinch of|a handful of)\s*(kilograms?|kilos?|kg|grams?|g|millilit(?:re|er)s?|ml|lit(?:re|er)s?|l|cups?|tablespoons?|tbsp|teaspoons?|tsp|pinch(?:es)?|cloves?|sprigs?|eggs?|egg yolks?|slices?|bunch(?:es)?|cans?|tins?)\b(?:\s+of)?((?:\s+(?!(?:and|into|in|to|with|then|until|for|on|at|the|a|it|we|you|i|so|but|or)\b)[a-z][a-z-]*){0,3})/gi;
@@ -1504,10 +1780,19 @@ function offerVideo(f, caption){
   $('videoName').textContent = '🎬 ' + (f.name || 'Video') + ' · ' + (f.size > 1e6 ? Math.round(f.size / 1e6) + ' MB' : Math.max(1, Math.round(f.size / 1e3)) + ' KB');
   $('videoCaption').value = caption || '';
   $('videoCard').hidden = false; setStatus($('notesStatus'), '');
+  $('androidShareTip').hidden = !/Android/i.test(navigator.userAgent);
   $('videoCard').scrollIntoView({ block: 'nearest' });
 }
 $('videoInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) offerVideo(f); };
-$('videoGoBtn').onclick = () => { const f = pendingVideo; if (!f) return; const caption = $('videoCaption').value; pendingVideo = null; $('videoCard').hidden = true; convert({ video: f, caption }); };
+$('videoGoBtn').onclick = () => {
+  const f = pendingVideo; if (!f) return;
+  const caption = $('videoCaption').value; pendingVideo = null; $('videoCard').hidden = true;
+  // Phones only allow sound after a tap: open the audio and the video now, in case they're needed.
+  try { audioCtx().resume(); } catch (e) {}
+  try { const v = document.createElement('video'); v.playsInline = true; v.src = URL.createObjectURL(f); const pl = v.play(); if (pl && pl.then) pl.then(() => v.pause(), () => {}); primedVideo = v; } catch (e) {}
+  convert({ video: f, caption });
+};
+$('stopWorkBtn').onclick = () => { cancelWork = true; stopAsr(); setStatus($('notesStatus'), 'Stopping…'); };
 $('videoCancelBtn').onclick = () => { pendingVideo = null; $('videoCard').hidden = true; };
 // Something shared to Mise from another app (Android): a video, or a link and caption.
 (async () => {
@@ -2854,7 +3139,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '73c82cc976';
+  var VERSION = 'e5095d8bba';
   var offered = false;
   function hardRefresh() {
     if (busy()) {

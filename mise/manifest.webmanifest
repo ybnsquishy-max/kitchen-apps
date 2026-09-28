@@ -47,7 +47,11 @@
         {
           "name": "video",
           "accept": [
-            "video/*"
+            "video/*",
+            "video/mp4",
+            "video/quicktime",
+            "video/webm",
+            "video/3gpp"
           ]
         }
       ]
