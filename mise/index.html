@@ -1009,7 +1009,7 @@ const STOP_END = /^(the|a|an|to|and|or|with|in|into|of|on|for|until|over|at|from
 function stepTitle(t){
   const first = t.replace(/\s*\[\?\]/g, '').split(/[,;:.!?(]|\s[-–]\s|\s(?:and then|then|until|while)\s/i)[0].trim();
   const words = first.split(/\s+/).slice(0, 6);
-  while (words.length > 1 && STOP_END.test(words[words.length - 1])) words.pop();
+  while (words.length > 1 && (STOP_END.test(words[words.length - 1]) || /^[\d.,/x–-]+$/i.test(words[words.length - 1]))) words.pop();
   const s = words.join(' ');
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Step';
 }
@@ -1029,7 +1029,7 @@ const RE_METHOD_HEAD = /^(method|directions?|instructions?|preparation|to make|t
 const RE_META = /^(serves|makes|yield|prep(?:aration)?(?: time)?|cook(?:ing)? time|total time|difficulty|portions?)\b/i;
 const RE_STEPNUM = /^(?:step\s*)?(\d{1,2})\s*[.):]\s*(?=\S)|^step\s*(\d{1,2})\b\s*/i;
 const RE_BULLET = /^[•·*▪■●◦«»\-–]\s+/;
-const RE_ING = /^(\d+[\d.,/ ]*|[½¼¾⅓⅔⅛]|a pinch|pinch|a handful|handful|a few|one|two|three)\s*(g|kg|mg|ml|l|litres?|liters?|cups?|c\b|tbsps?|tsps?|tablespoons?|teaspoons?|oz|lbs?|pinch|bunch|cloves?|sprigs?|slices?|tins?|cans?|packets?|x|large|small|medium|whole|fresh)?\b/i;
+const RE_ING = /^(\d+[\d.,/ -]*|[½¼¾⅓⅔⅛]|a pinch|pinch|a handful|handful|a few|one|two|three)\s*(g|grms?|grams?|kg|kgs|kilos?|mg|ml|mls|l|litres?|liters?|cups?|c\b|tbsps?|tbs|tsps?|tablesp|teasp|tablespoons?|teaspoons?|oz|lbs?|pinch|bunch|cloves?|sprigs?|slices?|tins?|cans?|packets?|pkts?|x|large|small|medium|whole|fresh)?\s*[A-Za-z(]/i;
 function looksTitle(l){
   const letters = (l.match(/[A-Za-z]/g) || []).length;
   return l.length >= 3 && l.length <= 60 && letters / l.length > 0.6 && l.split(/\s+/).length <= 9 && !/[.!?]$/.test(l) && !RE_ING.test(l);
@@ -1055,6 +1055,8 @@ function textToMethod(raw, titleHint){
     const mh = l.match(RE_METHOD_HEAD);
     if (mh && l.length < 60 && (!mh[3] || /^[A-Z]/.test(mh[3]))) { sec = 'method'; sawMethodHead = true; if (mh[3]) method.push(mh[3]); continue; }
     if (RE_META.test(l)) continue;
+    // "Cream cheese glaze:" before the method is the name of a group of ingredients.
+    if (sec !== 'method' && /^[A-Za-z][^.!?]{1,40}:$/.test(l) && (title || titleHint)) { ing.push(l); sec = 'ing'; continue; }
     if (!title && !sec && looksTitle(l)) { title = l.replace(/\s*[:\-–]$/, ''); continue; }
     if (sec === 'ing') {
       // A numbered sentence after the ingredients is the method starting without a heading.
@@ -1217,7 +1219,7 @@ function workflowSheet(){
   const all = [];
   book.steps.forEach(s => String(s.allergens || '').split(/[,;/]/).map(a => a.trim().toLowerCase()).filter(Boolean).forEach(a => { if (!all.includes(a)) all.push(a); }));
   const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  const rows = book.steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td><span class="t">${esc(s.title || 'Step')}</span>${s.detail ? `<span class="d">${esc(s.detail)}</span>` : ''}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
+  const rows = book.steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td><span class="t">${esc(s.title || 'Step')}</span>${s.detail ? `<span class="d">${esc(s.detail).replace(/^([^\n]{1,45}:)$/gm, '<b>$1</b>')}</span>` : ''}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
   const html = `<div class="ps-head"><h1>${esc(title)}</h1><div class="ps-meta">${book.steps.length} step${book.steps.length === 1 ? '' : 's'} · ${esc(date)}<br>Cook: ____________________</div></div>`
     + `<div class="ps-allerg"><b>Allergens:</b> ${all.length ? esc(all.join(', ')) : 'none noted. Check every label.'}</div>`
     + `<table><thead><tr><th>✓</th><th>#</th><th>Step</th><th>Temp / time</th><th>Allergens</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -2400,7 +2402,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '1fcc8c7cca';
+  var VERSION = 'a3b513c3f2';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
