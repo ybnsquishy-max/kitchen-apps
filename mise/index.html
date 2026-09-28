@@ -118,6 +118,9 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .typed{margin-top:18px;}
 .typed summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .keybox p{margin:8px 0;}
+.videocard{background:var(--raised);border-radius:10px;padding:14px;margin:0 0 14px;display:flex;flex-direction:column;gap:8px;}
+.videocard textarea{width:100%;min-height:90px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit;font:inherit;resize:vertical;}
+.videocard .row{margin:0;}
 .keyrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;}
 .keyrow input,.keyrow select{flex:1 1 180px;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit;font:inherit;}
 #printSheet{display:none;}
@@ -411,6 +414,16 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
     <div class="row">
       <button class="btn accent edit-only" id="convertBtn" disabled>Selected → Method</button>
       <button class="btn secondary" id="copyNotesBtn" hidden disabled>Copy selected to my copy</button>
+    </div>
+    <div class="videocard edit-only" id="videoCard" hidden>
+      <b id="videoName">Video</b>
+      <label class="hint" for="videoCaption">From TikTok or Instagram? Paste the post's caption too. It often has the whole recipe. (Optional)</label>
+      <textarea id="videoCaption" placeholder="Paste the caption here"></textarea>
+      <div class="row">
+        <button class="btn accent" id="videoGoBtn">Make the method</button>
+        <button class="btn secondary" id="videoCancelBtn">Cancel</button>
+      </div>
+      <p class="hint" id="videoHowTo">Mise listens to the video and reads any words shown on screen. Getting a video from TikTok: Share → Save video. From Instagram, screen-record the reel. Then tap Video → Method and pick it.</p>
     </div>
     <p class="hint edit-only" id="readHint" hidden></p>
     <p class="status" id="notesStatus" hidden></p>
@@ -789,7 +802,7 @@ function aiError(e){
     default: return "Couldn't reach Claude just now. Try again, or add steps by hand.";
   }
 }
-async function convert({ notes = [], text = '', video = null }){
+async function convert({ notes = [], text = '', video = null, caption = '' }){
   if (converting || (!homeApp && (!sampleFn || aiOff))) return;
   if (!notes.length && !text.trim() && !video) return;
   converting = true; updateNoteButtons();
@@ -797,7 +810,7 @@ async function convert({ notes = [], text = '', video = null }){
   try {
     let res = { title: '', steps: [], note: '' };
     if (homeApp) {
-      res = video ? await readVideo(video) : readWith() === 'claude' ? await readWithClaude(notes, text) : await readOnPhone(notes, text);
+      res = video ? await readVideo(video, caption) : readWith() === 'claude' ? await readWithClaude(notes, text) : await readOnPhone(notes, text);
     } else if (notes.length) {
       for (let i = 0; i < notes.length; i += maxImages) {
         const batch = notes.slice(i, i + maxImages);
@@ -1228,29 +1241,144 @@ function videoFrames(file, n, knownDuration){
     };
   });
 }
-async function readVideo(file){
+// Words shown on screen (TikTok / Reels captions over the video), read with
+// the photo reader from a frame every second or so, skipping frames that look
+// the same as the last one read.
+async function videoScreenText(file, knownDuration){
+  const url = URL.createObjectURL(file), v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  try {
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = rej; setTimeout(rej, 20000); });
+    let d = v.duration;
+    if (!isFinite(d) || !d) { await new Promise(r => { v.ondurationchange = r; v.currentTime = 1e9; setTimeout(r, 3000); }); d = isFinite(v.duration) && v.duration ? v.duration : knownDuration; }
+    if (!d || !v.videoWidth) return [];
+    const w = await getOcr();
+    await w.setParameters({ tessedit_pageseg_mode: '3' });
+    const k = Math.min(1, 900 / Math.max(v.videoWidth, v.videoHeight));
+    const big = document.createElement('canvas'); big.width = Math.round(v.videoWidth * k); big.height = Math.round(v.videoHeight * k);
+    const sig = document.createElement('canvas'); sig.width = 24; sig.height = 40;
+    const bg = big.getContext('2d', { willReadFrequently: true }), sg = sig.getContext('2d', { willReadFrequently: true });
+    const mask = document.createElement('canvas'); mask.width = big.width; mask.height = big.height; const mg = mask.getContext('2d');
+    const stepT = Math.max(1, d / 150), lines = [];
+    let prev = null, reads = 0;
+    for (let t = Math.min(0.5, d / 2); t < d && reads < 60; t += stepT) {
+      await new Promise(r => { v.onseeked = r; v.currentTime = t; setTimeout(r, 4000); });
+      sg.drawImage(v, 0, 0, 24, 40);
+      const px = sg.getImageData(0, 0, 24, 40).data, g = new Float32Array(960);
+      for (let i = 0; i < 960; i++) g[i] = (px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2]) / 3;
+      if (prev) { let diff = 0; for (let i = 0; i < 960; i++) diff += Math.abs(g[i] - prev[i]); if (diff / 960 < 5) continue; }
+      prev = g; reads++;
+      setStatus($('notesStatus'), 'Reading words on screen… ' + fmtTime(t) + ' of ' + fmtTime(d));
+      bg.drawImage(v, 0, 0, big.width, big.height);
+      // Reels mostly use white words (often outlined): keep only white pixels,
+      // as black on white. Then try the frame as it is (black words on a box).
+      const img = bg.getImageData(0, 0, big.width, big.height), md = mg.createImageData(big.width, big.height);
+      let white = 0;
+      for (let i = 0; i < img.data.length; i += 4) {
+        const r0 = img.data[i], g0 = img.data[i + 1], b0 = img.data[i + 2], lo = Math.min(r0, g0, b0), hi = Math.max(r0, g0, b0);
+        const on = lo > 185 && hi - lo < 45; if (on) white++;
+        md.data[i] = md.data[i + 1] = md.data[i + 2] = on ? 0 : 255; md.data[i + 3] = 255;
+      }
+      mg.putImageData(md, 0, 0);
+      let found = 0;
+      for (const src of white > 200 && white < img.data.length / 4 * 0.4 ? [mask, big] : [big]) {
+        const r = await w.recognize(src, {}, { text: true, blocks: true });
+        for (const bl of r.data.blocks || []) for (const pa of bl.paragraphs || []) {
+          const text = String(pa.text || '').replace(/\s+/g, ' ').trim();
+          if (pa.confidence < 60 || !/[A-Za-z]{3}/.test(text) || /^[@#]|tiktok|instagram|original sound|follow|subscribe|reels?\b|like for|save (this|for later)|comment/i.test(text)) continue;
+          if ((text.match(/[A-Za-z0-9°.,/+&' -]/g) || []).length < text.length * 0.85) continue;
+          found++;
+          const key = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (key.length < 4) continue;
+          const same = lines.find(x => similar(x.key, key));
+          if (same) { if (key.length > same.key.length) { same.text = text; same.key = key; } continue; }   // keep the fullest reading
+          lines.push({ t, text, key });
+        }
+        if (found) break;
+      }
+    }
+    await w.setParameters({ tessedit_pageseg_mode: '4' });
+    releaseOcrSoon();
+    // Pieces of one caption read on the same frame, in order, stay together.
+    return lines.map(x => x.text);
+  } catch (e) { return []; }
+  finally { URL.revokeObjectURL(url); }
+}
+// Same text read twice (OCR slips a letter or two).
+function similar(a, b){
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  if (Math.abs(a.length - b.length) > Math.max(a.length, b.length) * 0.25) return false;
+  const m = a.length, n = b.length, d = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { let p = d[0]; d[0] = i; for (let j = 1; j <= n; j++) { const q = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, p + (a[i - 1] === b[j - 1] ? 0 : 1)); p = q; } }
+  return d[n] <= Math.max(a.length, b.length) * 0.2;
+}
+// Talk counts as cooking talk (not song lyrics) when it names actions or amounts.
+function cookingTalk(words){
+  const sentences = words.match(/[^.!?]+[.!?]*/g) || [];
+  const acts = sentences.filter(x => ACTIONS.test(x.trim().replace(FILLER_START, ''))).length;
+  const amts = (words.match(QTY) || []).length;
+  return words.split(' ').length >= 12 && acts + amts >= 2;
+}
+function cleanCaption(t){
+  return String(t || '').split('\n').map(l => l.replace(/(^|\s)[#@][\w.]+/g, ' ').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, ' ').replace(/\s+/g, ' ').trim())
+    .filter(l => !/^(follow|like|save|share|comment|link in bio|full recipe)/i.test(l)).join('\n').trim();
+}
+async function readVideo(file, caption){
   const { words, seconds } = await listenToVideo(file);
-  // The words go in the typed-notes box too, so they can be fixed and read again.
-  if (words) { $('typedNotes').value = words; $('typedBox').open = true; }
+  const screen = await videoScreenText(file, seconds);
+  const cap = cleanCaption(caption);
+  // What was heard and seen goes in the typed-notes box too, to fix and read again.
+  const heard = [cap && 'Caption:\n' + cap, screen.length && 'On screen:\n' + screen.join('\n'), words && 'Said:\n' + words].filter(Boolean).join('\n\n');
+  if (heard) { $('typedNotes').value = heard; $('typedBox').open = true; }
   const nameGuess = videoTitleFromName(file.name);
   if (readWith() === 'claude') {
     setStatus($('notesStatus'), 'Picking frames from the video…');
     const frames = await videoFrames(file, 8, seconds);
-    if (!frames.length && words.split(' ').length < 8) throw { msg: "Couldn't get any sound or pictures from that video." };
+    if (!frames.length && !heard) throw { msg: "Couldn't get any sound or pictures from that video." };
     setStatus($('notesStatus'), 'Sending the video frames and words to Claude… this can take up to a minute.');
     const content = frames.map(f => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: f.data } }));
-    content.push({ type: 'text', text: (frames.length ? 'The attached ' + frames.length + ' images are frames taken in order from a cooking video (at ' + frames.map(f => fmtTime(f.t)).join(', ') + '). ' : '') +
-      (words ? 'Below is an automatic transcript of what is said in the video; it may mishear words, so use the frames and cooking sense to correct obvious mistakes. ' : 'The video has no speech. ') +
-      'Turn the video into a clear step-by-step kitchen workflow that a cook can print and follow, keeping the order it is done in. Leave out chat, greetings and requests to like or subscribe. ' + CLAUDE_SHAPE +
-      (words ? '\n\nTranscript:\n' + words.slice(0, 40000) : '') });
+    content.push({ type: 'text', text: (frames.length ? 'The attached ' + frames.length + ' images are frames taken in order from a cooking video, maybe a TikTok or Instagram reel (at ' + frames.map(f => fmtTime(f.t)).join(', ') + '). ' : '') +
+      'Below are what the post caption says, words read automatically from text shown on screen, and an automatic transcript of what is said (any of these may be missing; the reading and transcript may have mistakes, and the "speech" may be song lyrics from background music, which you should ignore). ' +
+      'Turn the video into a clear step-by-step kitchen workflow that a cook can print and follow, keeping the order it is done in. Leave out chat, greetings and requests to like, follow or subscribe. ' + CLAUDE_SHAPE +
+      '\n\nCaption:\n' + (cap || '(none)').slice(0, 8000) + '\n\nOn screen:\n' + (screen.join('\n') || '(none)').slice(0, 8000) + '\n\nTranscript:\n' + (words || '(none)').slice(0, 40000) });
     const { parsed, cost } = await askClaude(content, 'That video is too long to read in one go. Try a shorter video.');
     return { title: String(parsed.title || nameGuess || '').slice(0, 120), steps: cleanSteps(parsed.steps), note: cost ? 'About ' + Math.max(1, Math.round(cost * 100)) + '¢ (US) on your Anthropic account.' : '' };
   }
-  if (words.split(' ').length < 12) throw { msg: "Couldn't hear anyone explaining the recipe in that video." + (claudeKey() ? ' With "Read photos with" set to Claude, Claude can watch videos without talking.' : ' Videos without talking need a Claude key (see below).') };
-  const res = spokenToMethod(words);
-  if (!res.title) res.title = nameGuess;
-  res.note = 'Made from what was said, so check the steps. The words it heard are in "Or paste typed notes" below.';
-  return res;
+  // Free: use the best source for the steps, and gather the amounts from all of them.
+  const fromCap = cap ? textToMethod(cap) : null;
+  const capMise = fromCap && fromCap.steps.find(st => /^Mise en place/.test(st.title));
+  const capSteps = fromCap ? fromCap.steps.filter(st => st !== capMise) : [];
+  const talk = cookingTalk(words) ? spokenToMethod(words) : null;
+  const talkMise = talk && talk.steps.find(st => /^Mise en place/.test(st.title));
+  const talkSteps = talk ? talk.steps.filter(st => st !== talkMise) : [];
+  const shown = screenToMethod(screen);
+  let steps = capSteps.length >= 2 ? capSteps : talkSteps.length >= 2 ? talkSteps : shown.steps.length ? shown.steps : capSteps.concat(talkSteps);
+  const amounts = [];
+  const addA = list => list.forEach(a => { if (a && !amounts.some(x => similar(x.toLowerCase().replace(/[^a-z0-9]/g, ''), a.toLowerCase().replace(/[^a-z0-9]/g, '')))) amounts.push(a); });
+  if (capMise) addA(capMise.detail.split('\n'));
+  addA(shown.amounts);
+  if (talkMise) addA(talkMise.detail.split('\n'));
+  if (!steps.length && !amounts.length) {
+    throw { msg: "Couldn't find a recipe in that video: no cooking talk or words on screen." + (claudeKey() ? ' With "Read photos with" set to Claude, Claude can watch it.' : ' Paste the post\'s caption when you pick the video, or add a Claude key (see below) so Claude can watch it.') };
+  }
+  if (amounts.length) steps = [{ id: uid(), title: 'Mise en place: gather ingredients', detail: amounts.join('\n').slice(0, 2000), temp: '', allergens: allergensIn(amounts.join(' ')) }].concat(steps);
+  const title = (fromCap && fromCap.title) || (talk && talk.title) || shown.title || nameGuess;
+  const used = [cap && 'the caption', screen.length && 'words on screen', talk && 'what was said'].filter(Boolean);
+  return { title, steps, note: 'Made from ' + (used.join(', ').replace(/, ([^,]*)$/, ' and $1') || 'the video') + ', so check the steps. What it read and heard is in "Or paste typed notes" below.' };
+}
+// On-screen captions: amounts become ingredients, the first big line the title, the rest steps.
+function screenToMethod(lines){
+  const amounts = [], steps = [];
+  let title = '';
+  lines.forEach((l, i) => {
+    const t = l.replace(RE_STEPNUM, '').replace(RE_BULLET, '').trim();
+    const q = l.match(new RegExp(QTY.source, 'i'));
+    if (RE_ING.test(t) || (q && l.length < 50)) { amounts.push(ACTIONS.test(t) && q ? q[0].trim() : t); return; }
+    if (!title && i < 3 && looksTitle(t) && !ACTIONS.test(t)) { title = t.replace(/\b[a-z]/g, c => c.toUpperCase()); return; }
+    if (t.split(' ').length < 2) return;
+    steps.push({ id: uid(), title: stepTitle(t).slice(0, 200), detail: t.slice(0, 2000), temp: tempsAndTimes(t), allergens: allergensIn(t) });
+  });
+  return { title, amounts, steps };
 }
 function videoTitleFromName(name){
   const base = String(name || '').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
@@ -1370,7 +1498,37 @@ function claudeHttpError(status, data){
 $('convertBtn').onclick = () => convert({ notes: chosenNotes() });
 $('convertTextBtn').onclick = () => convert({ text: $('typedNotes').value });
 $('videoBtn').onclick = () => $('videoInput').click();
-$('videoInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) convert({ video: f }); };
+let pendingVideo = null;
+function offerVideo(f, caption){
+  pendingVideo = f;
+  $('videoName').textContent = '🎬 ' + (f.name || 'Video') + ' · ' + (f.size > 1e6 ? Math.round(f.size / 1e6) + ' MB' : Math.max(1, Math.round(f.size / 1e3)) + ' KB');
+  $('videoCaption').value = caption || '';
+  $('videoCard').hidden = false; setStatus($('notesStatus'), '');
+  $('videoCard').scrollIntoView({ block: 'nearest' });
+}
+$('videoInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) offerVideo(f); };
+$('videoGoBtn').onclick = () => { const f = pendingVideo; if (!f) return; const caption = $('videoCaption').value; pendingVideo = null; $('videoCard').hidden = true; convert({ video: f, caption }); };
+$('videoCancelBtn').onclick = () => { pendingVideo = null; $('videoCard').hidden = true; };
+// Something shared to Mise from another app (Android): a video, or a link and caption.
+(async () => {
+  if (!/[?&]shared=1/.test(location.search) || !window.caches) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  try {
+    const c = await caches.open('mise-share');
+    const [v, i] = await Promise.all([c.match('video'), c.match('info')]);
+    const info = i ? await i.json() : {};
+    await c.delete('video'); await c.delete('info');
+    const text = [info.title, info.text].filter(Boolean).join('\n').replace(/https?:\/\/\S+/g, '').trim();
+    tab = 'notes'; store(LS_TAB, tab); render();
+    if (v) {
+      const blob = await v.blob();
+      offerVideo(new File([blob], decodeURIComponent(v.headers.get('x-name') || 'video'), { type: blob.type }), text);
+    } else if (info.url || info.text) {
+      if (text) { $('typedNotes').value = text; $('typedBox').open = true; }
+      setStatus($('notesStatus'), "Got the link. Mise can't download videos from TikTok or Instagram, so save the video first (TikTok: Share → Save video; Instagram: screen-record), then share the video file to Mise." + (text ? ' The post text is in "Or paste typed notes".' : ''), true);
+    }
+  } catch (e) {}
+})();
 
 // ===== Method =====
 // Each method is a tab. Steps from before tabs existed (no m) belong to the
@@ -2696,7 +2854,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'a389cd2641';
+  var VERSION = '73c82cc976';
   var offered = false;
   function hardRefresh() {
     if (busy()) {

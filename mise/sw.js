@@ -1,11 +1,11 @@
-// Offline support for the installable Mise app (version a389cd2641).
+// Offline support for the installable Mise app (version 73c82cc976).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-a389cd2641';
+const CACHE = 'mise-73c82cc976';
 const FONT_CACHE = 'mise-fonts';
 // Big, rarely-changing files for Video → Method, kept across app updates:
 // the speech engine (vendor/asr) and the model the library saves itself.
 const ASR_CACHE = 'mise-asr-3.8.1';
-const KEEP = [FONT_CACHE, ASR_CACHE, 'transformers-cache'];
+const KEEP = [FONT_CACHE, ASR_CACHE, 'transformers-cache', 'mise-share'];
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/Sortable.min.js', 'vendor/party.js'];
 
 self.addEventListener('install', (event) => {
@@ -24,6 +24,21 @@ function withTimeout(p, ms) {
 }
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+  // A video or link shared to Mise from another app (Android share menu).
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/share')) {
+    event.respondWith((async () => {
+      try {
+        const form = await req.formData(), c = await caches.open('mise-share');
+        await c.delete('video'); await c.delete('info');
+        const f = form.get('video');
+        if (f && typeof f !== 'string' && f.size) await c.put('video', new Response(f, { headers: { 'content-type': f.type || 'video/mp4', 'x-name': encodeURIComponent(f.name || 'video') } }));
+        const info = { title: form.get('title') || '', text: form.get('text') || '', url: form.get('url') || '' };
+        await c.put('info', new Response(JSON.stringify(info), { headers: { 'content-type': 'application/json' } }));
+      } catch (e) {}
+      return Response.redirect('./?shared=1', 303);
+    })());
+    return;
+  }
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.pathname.endsWith('/version.json')) return;   // always from the network
