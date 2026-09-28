@@ -117,6 +117,15 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .note-card input.title{width:100%;border:none;background:none;padding:7px 8px;font-size:0.8rem;}
 .typed{margin-top:18px;}
 .typed summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
+.keybox p{margin:8px 0;}
+.keyrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;}
+.keyrow input,.keyrow select{flex:1 1 180px;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit;font:inherit;}
+#printSheet{display:none;}
+@media print{
+  body.printing > :not(#printSheet){display:none !important;}
+  body.printing #printSheet{display:block;}
+  body.printing{background:#fff !important;padding:0 !important;}
+}
 .typed textarea{display:block;width:100%;min-height:110px;margin:10px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);resize:vertical;}
 
 /* Method */
@@ -396,6 +405,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
       <button class="btn accent edit-only" id="convertBtn" disabled>Selected → Method</button>
       <button class="btn secondary" id="copyNotesBtn" hidden disabled>Copy selected to my copy</button>
     </div>
+    <p class="hint edit-only" id="readHint" hidden></p>
     <p class="status" id="notesStatus" hidden></p>
     <input type="file" accept="image/*" capture="environment" id="photoInput">
     <input type="file" accept="image/*" id="libraryInput" multiple>
@@ -407,6 +417,24 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
       <textarea id="typedNotes" placeholder="e.g. Hollandaise: clarify 250g butter. Reduce vinegar + peppercorns. Whisk yolks over bain-marie to 65°C. Hold below 63°C, max 2 hrs. Contains egg, dairy."></textarea>
       <button class="btn secondary" id="convertTextBtn">Text → Method</button>
     </details>
+    <details class="typed keybox edit-only" id="keyBox" hidden>
+      <summary>Handwriting &amp; whiteboards (optional Claude key)</summary>
+      <p class="hint">Printed recipe books are read on this phone for free. Handwriting and whiteboards need Claude. To use it, paste your own API key from console.anthropic.com. Each photo costs about 2–5 cents on your Anthropic account. The key is kept only on this phone, and is only ever sent to Anthropic.</p>
+      <div class="keyrow" id="keyForm">
+        <input type="password" id="keyInput" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Claude API key">
+        <button class="btn secondary small" id="keySaveBtn">Save key</button>
+      </div>
+      <div id="keySaved" hidden>
+        <div class="keyrow">
+          <label for="readWith" class="hint">Read photos with</label>
+          <select id="readWith">
+            <option value="claude">Claude: handwriting, whiteboards, books</option>
+            <option value="free">This phone: printed books only, free</option>
+          </select>
+        </div>
+        <div class="keyrow"><span class="hint">Key saved on this phone.</span><button class="btn secondary small" id="keyRemoveBtn">Remove key</button></div>
+      </div>
+    </details>
   </section>
 
   <!-- Method -->
@@ -417,6 +445,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
     <div class="row" style="margin-top:12px;">
       <button class="btn secondary edit-only" id="addStepBtn">+ Add step</button>
       <button class="btn secondary" id="printWfBtn">Save to print</button>
+      <button class="btn secondary" id="saveWfBtn" hidden>Save file</button>
       <button class="btn secondary" id="copyWfBtn" hidden>Copy method to my copy</button>
     </div>
     <p class="status" id="methodStatus" hidden></p>
@@ -608,6 +637,7 @@ let firstRun = !localStorage.getItem(LS_MINE);
 if (firstRun) book = starterBook();
 let shared = false, sharedAvailable = false, readOnly = false;
 let artifactApi = null, server = null;
+const homeApp = !window.claude;   // the home-screen app, not the Claude artifact
 let sampleFn = null, maxImages = 0, aiOff = false, downloads = null, converting = false;
 let syncTimer = null, syncing = false, syncAgain = false, retried = false;
 let newIds = new Set();
@@ -719,13 +749,14 @@ function renderNotes(){
     card.querySelector('.title').oninput = e => { n.title = e.target.value; persist(); };
     grid.appendChild(card);
   });
-  $('typedBox').hidden = !sampleFn || aiOff;
+  $('typedBox').hidden = homeApp ? false : (!sampleFn || aiOff);
+  renderKeyBox();
   updateNoteButtons();
 }
 function chosenNotes(){ const s = selection(); return book.notes.filter(n => s.has(n.id)); }
 function updateNoteButtons(){
   const any = chosenNotes().length > 0;
-  $('convertBtn').disabled = converting || !any || !sampleFn || aiOff || !maxImages;
+  $('convertBtn').disabled = converting || !any || (!homeApp && (!sampleFn || aiOff || !maxImages));
   $('copyNotesBtn').disabled = !any;
   $('convertTextBtn').disabled = converting;
 }
@@ -746,31 +777,370 @@ function aiError(e){
   }
 }
 async function convert({ notes = [], text = '' }){
-  if (converting || !sampleFn || aiOff) return;
+  if (converting || (!homeApp && (!sampleFn || aiOff))) return;
+  if (!notes.length && !text.trim()) return;
   converting = true; updateNoteButtons();
   setStatus($('notesStatus'), 'Reading notes… this can take up to a minute.');
   try {
-    let steps = [];
-    if (notes.length) {
+    let res = { title: '', steps: [], note: '' };
+    if (homeApp) {
+      res = readWith() === 'claude' ? await readWithClaude(notes, text) : await readOnPhone(notes, text);
+    } else if (notes.length) {
       for (let i = 0; i < notes.length; i += maxImages) {
         const batch = notes.slice(i, i + maxImages);
         const images = await Promise.all(batch.map(photoBlob));
         const prompt = 'The attached ' + (images.length > 1 ? images.length + ' images show' : 'image shows') + ' handwritten or printed cooking method notes from a commercial cookery class. Read them and turn them into a step-by-step kitchen method. ' + STEP_SHAPE;
-        steps = steps.concat(cleanSteps(await sampleFn.json(prompt, { images, modelTier: 'default' })));
+        res.steps = res.steps.concat(cleanSteps(await sampleFn.json(prompt, { images, modelTier: 'default' })));
       }
     } else {
-      steps = cleanSteps(await sampleFn.json('Below are typed cooking method notes from a commercial cookery class. Turn them into a step-by-step kitchen method. ' + STEP_SHAPE + '\n\nNotes:\n' + text.slice(0, 20000), { modelTier: 'default' }));
+      res.steps = cleanSteps(await sampleFn.json('Below are typed cooking method notes from a commercial cookery class. Turn them into a step-by-step kitchen method. ' + STEP_SHAPE + '\n\nNotes:\n' + text.slice(0, 20000), { modelTier: 'default' }));
     }
+    const steps = res.steps;
     if (!steps.length) throw { code: 'empty' };
     book.steps = book.steps.concat(steps);
-    if (!book.methodTitle) book.methodTitle = (notes[0] && notes[0].title) || 'Untitled method';
+    if (!book.methodTitle) book.methodTitle = res.title || (notes[0] && notes[0].title) || 'Untitled method';
     persist();
-    setStatus($('notesStatus'), 'Added ' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ' to Method.');
+    setStatus($('notesStatus'), 'Added ' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ' to Method.' + (res.note ? ' ' + res.note : ''));
     if (text) $('typedNotes').value = '';
     tab = 'method'; store(LS_TAB, tab);
   } catch (e) {
-    if (!e || e.code !== 'cancelled') setStatus($('notesStatus'), aiError(e), true);
+    if (!e || e.code !== 'cancelled') setStatus($('notesStatus'), e && e.msg ? e.msg : aiError(e), true);
   } finally { converting = false; render(); }
+}
+
+// ===== Reading recipes in the home-screen app =====
+// Printed books: Tesseract reads the photo on the phone itself (free, no
+// account, offline after the first use), then plain rules turn the text into
+// steps. Handwriting and whiteboards: the viewer's own Claude API key, kept in
+// this browser only and sent only to api.anthropic.com.
+const LS_KEY = 'mise_claude_key', LS_READ_WITH = 'mise_read_with';
+function claudeKey(){ return load(LS_KEY, ''); }
+function readWith(){ return claudeKey() && load(LS_READ_WITH, 'claude') !== 'free' ? 'claude' : 'free'; }
+function renderKeyBox(){
+  $('keyBox').hidden = !homeApp;
+  $('readHint').hidden = !homeApp;
+  if (!homeApp) return;
+  const has = !!claudeKey();
+  $('keyForm').hidden = has; $('keySaved').hidden = !has;
+  $('readWith').value = readWith();
+  $('readHint').textContent = readWith() === 'claude'
+    ? 'Select photos, then tap Selected → Method. Claude reads handwriting, whiteboards and books (a few cents a photo).'
+    : 'Select photos of a printed recipe, then tap Selected → Method. Your phone reads it for free.' + (has ? '' : ' For handwriting or a whiteboard, see the Claude key option below.');
+}
+$('keySaveBtn').onclick = () => {
+  const k = $('keyInput').value.trim();
+  if (!/^sk-ant-[\w-]{20,}$/.test(k)) { setStatus($('notesStatus'), "That doesn't look like a Claude API key. It starts with sk-ant-.", true); return; }
+  store(LS_KEY, k); store(LS_READ_WITH, 'claude'); $('keyInput').value = '';
+  setStatus($('notesStatus'), 'Key saved on this phone. Photos will be read by Claude.');
+  renderKeyBox();
+};
+$('keyRemoveBtn').onclick = () => {
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
+  setStatus($('notesStatus'), 'Key removed from this phone. Photos will be read on the phone for free.');
+  renderKeyBox();
+};
+$('readWith').onchange = e => { store(LS_READ_WITH, e.target.value); renderKeyBox(); };
+
+// ----- Free reader: Tesseract on the phone -----
+let ocrWorker = null, ocrIdle = null, ocrLoading = '';
+function loadScript(src){ return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); }
+const OCR_BASE = '../uno/ocr/';   // shared with Last Card on the same site
+async function getOcr(){
+  clearTimeout(ocrIdle);
+  if (!ocrWorker) {
+    const base = new URL(OCR_BASE, location.href).href;
+    if (!window.Tesseract) await loadScript(base + 'tesseract.min.js');
+    ocrWorker = window.Tesseract.createWorker('eng', 1, {
+      workerPath: base + 'worker.min.js', corePath: base, langPath: base, gzip: true, workerBlobURL: false,
+      logger: m => { if (ocrLoading && m && /loading/.test(m.status || '')) setStatus($('notesStatus'), ocrLoading); },
+    }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '4' }); return w; });
+    ocrWorker.catch(() => { ocrWorker = null; });
+  }
+  return ocrWorker;
+}
+function releaseOcrSoon(){
+  clearTimeout(ocrIdle);
+  ocrIdle = setTimeout(() => { const w = ocrWorker; ocrWorker = null; if (w) w.then(x => x.terminate()).catch(() => {}); }, 90000);
+}
+// A grey, slightly enlarged copy: small cookbook print reads better bigger.
+function ocrCanvas(blob){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => {
+      const k = Math.min(2, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.filter = 'grayscale(1) contrast(1.3)'; ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); resolve(c);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+const HANDWRITING_TIP = claudeKeyTip => claudeKeyTip
+  ? ' For handwriting or a whiteboard, switch "Read photos with" to Claude below.'
+  : ' For handwriting or a whiteboard, add a Claude key under "Handwriting & whiteboards" below.';
+async function readOnPhone(notes, text){
+  if (!notes.length) return textToMethod(text);
+  const first = !ocrWorker;
+  ocrLoading = first ? 'Getting the phone reader ready. The first time downloads about 7 MB; after that it works offline.' : '';
+  if (first) setStatus($('notesStatus'), ocrLoading);
+  let w;
+  try { w = await getOcr(); } catch (e) { throw { msg: "Couldn't load the phone reader. Check your internet connection for the first use, then try again." }; }
+  ocrLoading = '';
+  let all = '', conf = 0, words = 0, title = '';
+  for (let i = 0; i < notes.length; i++) {
+    setStatus($('notesStatus'), notes.length > 1 ? 'Reading photo ' + (i + 1) + ' of ' + notes.length + '…' : 'Reading the photo…');
+    const r = await w.recognize(await ocrCanvas(await photoBlob(notes[i])), { rotateAuto: true }, { text: true, blocks: true });
+    const lay = layoutText(r.data);
+    all += (lay.text || r.data.text) + '\n\n';
+    if (!title) title = lay.title;
+    const n = (r.data.text.match(/[A-Za-z]{2,}/g) || []).length;
+    conf += (r.data.confidence || 0) * n; words += n;
+  }
+  releaseOcrSoon();
+  const avg = words ? conf / words : 0;
+  const res = textToMethod(all, title);
+  if (words < 6 || avg < 40 || !res.steps.length) throw { msg: "Couldn't find printed text to read in " + (notes.length > 1 ? 'those photos.' : 'that photo.') + HANDWRITING_TIP(!!claudeKey()) };
+  if (avg < 70) res.note = 'Some words were hard to read, so check the steps.';
+  return res;
+}
+
+// Cookbooks often put Ingredients and Method side by side. Tesseract can join
+// a line from each column, so rebuild the reading order from word positions:
+// split lines at wide gaps, keep full-width lines (titles, intros) in place,
+// and read the columns between them left to right, top to bottom.
+function layoutText(data){
+  const segs = [];
+  for (const bl of data.blocks || []) for (const pa of bl.paragraphs || []) for (const li of pa.lines || []) {
+    const ws = (li.words || []).filter(w => w.text && w.text.trim() && w.bbox);
+    if (!ws.length) continue;
+    const h = Math.max(8, ws.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b)[ws.length >> 1]);
+    let cur = null;
+    for (const w of ws) {
+      if (cur && w.bbox.x0 - cur.x1 > 1.6 * h) { segs.push(cur); cur = null; }
+      if (!cur) cur = { x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1, h, words: [] };
+      cur.words.push(w.text); cur.x1 = Math.max(cur.x1, w.bbox.x1); cur.y0 = Math.min(cur.y0, w.bbox.y0); cur.y1 = Math.max(cur.y1, w.bbox.y1);
+    }
+    if (cur) segs.push(cur);
+  }
+  if (!segs.length) return { text: '', title: '' };
+  const X0 = Math.min(...segs.map(g => g.x0)), X1 = Math.max(...segs.map(g => g.x1));
+  const hMed = segs.map(g => g.h).sort((a, b) => a - b)[segs.length >> 1];
+  // Gutters: strips of the page that almost no line crosses.
+  const step = Math.max(4, hMed / 2), nb = Math.ceil((X1 - X0) / step) + 1, cov = new Array(nb).fill(0);
+  for (const g of segs) for (let i = Math.floor((g.x0 - X0) / step); i <= Math.floor((g.x1 - X0) / step); i++) cov[i]++;
+  const maxCov = Math.max(...cov), low = Math.max(2, 0.25 * maxCov), gutters = [];
+  for (let i = 0; i < nb;) {
+    if (cov[i] > low) { i++; continue; }
+    let j = i; while (j < nb && cov[j] <= low) j++;
+    const inGap = Math.max(...cov.slice(i, j)), busy = 2 * inGap + 3;
+    if (i > 0 && j < nb && (j - i) * step >= 1.5 * hMed && Math.max(...cov.slice(0, i)) >= busy && Math.max(...cov.slice(j)) >= busy) gutters.push(X0 + (i + j) / 2 * step);
+    i = j;
+  }
+  const spans = g => gutters.some(x => g.x0 < x - step && g.x1 > x + step);
+  const colOf = g => gutters.filter(x => x < g.x0).length;
+  segs.sort((a, b) => a.y0 - b.y0);
+  const out = [];
+  let big = { h: 1.3 * hMed, text: '' };   // the biggest print is usually the dish name
+  const emit = list => {
+    // Pieces at the same height are one line, read left to right.
+    const rows = [];
+    for (const g of list) {
+      const cy = (g.y0 + g.y1) / 2, row = rows.find(r => Math.abs(r.cy - cy) < 0.5 * hMed);
+      if (row) { row.segs.push(g); row.y0 = Math.min(row.y0, g.y0); row.y1 = Math.max(row.y1, g.y1); }
+      else rows.push({ cy, y0: g.y0, y1: g.y1, segs: [g] });
+    }
+    rows.sort((a, b) => a.y0 - b.y0);
+    let prev = null;
+    for (const r of rows) {
+      if (prev && r.y0 - prev.y1 > 0.9 * hMed) out.push('');
+      const text = r.segs.sort((a, b) => a.x0 - b.x0).map(g => g.words.join(' ')).join(' '), h = Math.max(...r.segs.map(g => g.h));
+      if (h > big.h && looksTitle(text)) big = { h, text };
+      out.push(text); prev = r;
+    }
+    out.push('');
+  };
+  let region = [];
+  const flush = () => { for (let c = 0; c <= gutters.length; c++) { const col = region.filter(g => colOf(g) === c); if (col.length) emit(col); } region = []; };
+  for (const g of segs) {
+    if (spans(g)) { flush(); emit([g]); }
+    else region.push(g);
+  }
+  flush();
+  return { text: out.join('\n'), title: big.text };
+}
+
+// ----- Text → workflow rules -----
+const ALLERGENS = [
+  ['gluten', /\b(flour|bread|breadcrumbs?|panko|pasta|spaghetti|noodles?|wheat|barley|rye|couscous|semolina|pastry|filo|phyllo|brioche|croutons?|beer|malt|spelt|tortillas?|biscuits?|soy sauce|seitan|roux)\b/i],
+  ['egg', /\b(eggs?|yolks?|egg whites?|mayonnaise|mayo|aioli|meringue|hollandaise|custard)\b/i],
+  ['dairy', /\b(milk|butter|cream|cheese|yogh?urt|parmesan|parmigiano|mozzarella|ricotta|mascarpone|cheddar|feta|ghee|buttermilk|cr[èe]me|custard|b[ée]chamel|hollandaise)\b/i, /\b(coconut (milk|cream)|cream of tartar|peanut butter|(soy|almond|oat|rice|nut) milk)\b/gi],
+  ['fish', /\b(fish|salmon|tuna|cod|haddock|anchov(y|ies)|sardines?|mackerel|trout|snapper|barramundi|whiting|worcestershire)\b/i],
+  ['crustacean', /\b(prawns?|shrimps?|crabs?|lobsters?|crayfish|langoustines?)\b/i],
+  ['mollusc', /\b(mussels?|oysters?|squid|calamari|clams?|scallops?|octopus|pipis?|abalone|cuttlefish)\b/i],
+  ['peanut', /\b(peanuts?|satay)\b/i],
+  ['tree nuts', /\b(almonds?|walnuts?|cashews?|hazelnuts?|pecans?|pistachios?|macadamias?|pine nuts?|brazil nuts?|praline|marzipan|frangipane)\b/i],
+  ['soy', /\b(soy|soya|tofu|edamame|miso|tamari|tempeh)\b/i],
+  ['sesame', /\b(sesame|tahini|hummus|houmous)\b/i],
+  ['celery', /\b(celery|celeriac)\b/i],
+  ['mustard', /\b(mustard|dijon)\b/i],
+  ['lupin', /\blupin/i],
+  ['sulphites', /\b(wine|sulphites?|sulfites?)\b/i],
+];
+function allergensIn(t){
+  return ALLERGENS.filter(([, re, not]) => re.test(not ? t.replace(not, ' ') : t)).map(a => a[0]).join(', ');
+}
+const NUMWORD = '(?:a few|one|two|three|four|five|six|eight|ten|fifteen|twenty|thirty|forty|forty-five)';
+function tempsAndTimes(t){
+  const out = [];
+  const add = v => { if (!out.includes(v)) out.push(v); };
+  t.replace(/\bgas\s*mark\s*(\d{1,2})\b/gi, (m, n) => add('gas mark ' + n));
+  t.replace(/\b(\d{2,3})\s?(?:°|º|˚|degrees?)\s?(c|f|celsius|fahrenheit)?\b|\b(\d{2,3})\s?(c|f)\b(?![a-z'])/gi, (m, a, u1, b, u2) => {
+    const u = (u1 || u2 || '').charAt(0).toUpperCase(); add((a || b) + '°' + u);
+  });
+  t.replace(new RegExp('\\b(\\d+(?:[.,]\\d+)?(?:\\s?(?:-|–|to)\\s?\\d+(?:[.,]\\d+)?)?|' + NUMWORD + ')\\s?(minutes?|mins?|hours?|hrs?|hr|seconds?|secs?)\\b', 'gi'), (m, n, u) => {
+    u = u.toLowerCase(); const unit = /^h/.test(u) ? 'hr' : /^s/.test(u) ? 'sec' : 'min';
+    add(n.replace(/\s?(?:-|to)\s?/, '–') + ' ' + unit);
+  });
+  if (/\bovernight\b/i.test(t)) add('overnight');
+  return out.join(', ').slice(0, 100);
+}
+const STOP_END = /^(the|a|an|to|and|or|with|in|into|of|on|for|until|over|at|from|by|then)$/i;
+function stepTitle(t){
+  const first = t.split(/[,;:.!?(]|\s[-–]\s|\s(?:and then|then|until|while)\s/i)[0].trim();
+  const words = first.split(/\s+/).slice(0, 6);
+  while (words.length > 1 && STOP_END.test(words[words.length - 1])) words.pop();
+  const s = words.join(' ');
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Step';
+}
+function splitLong(p){
+  if (p.length <= 320) return [p];
+  const sentences = p.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [p], out = [];
+  let cur = '';
+  for (const x of sentences) {
+    if (cur && (cur + x).length > 240) { out.push(cur.trim()); cur = ''; }
+    cur += x;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+const RE_ING_HEAD = /^(ingredients?|you(?:'ll| will)? need|what you(?:'ll)? need|for the [a-z ]{2,20}|shopping list)\s*[:.\-–]?\s*$/i;
+const RE_METHOD_HEAD = /^(method|directions?|instructions?|preparation|to make|to cook|how to (?:make|cook)(?: it)?|steps?)\s*([:.\-–]\s*(.*))?$/i;
+const RE_META = /^(serves|makes|yield|prep(?:aration)?(?: time)?|cook(?:ing)? time|total time|difficulty|portions?)\b/i;
+const RE_STEPNUM = /^(?:step\s*)?(\d{1,2})\s*[.):]\s*(?=\S)|^step\s*(\d{1,2})\b\s*/i;
+const RE_BULLET = /^[•·*▪■●◦«»\-–]\s+/;
+const RE_ING = /^(\d+[\d.,/ ]*|[½¼¾⅓⅔⅛]|a pinch|pinch|a handful|handful|a few|one|two|three)\s*(g|kg|mg|ml|l|litres?|liters?|cups?|c\b|tbsps?|tsps?|tablespoons?|teaspoons?|oz|lbs?|pinch|bunch|cloves?|sprigs?|slices?|tins?|cans?|packets?|x|large|small|medium|whole|fresh)?\b/i;
+function looksTitle(l){
+  const letters = (l.match(/[A-Za-z]/g) || []).length;
+  return l.length >= 3 && l.length <= 60 && letters / l.length > 0.6 && l.split(/\s+/).length <= 9 && !/[.!?]$/.test(l) && !RE_ING.test(l);
+}
+function textToMethod(raw, titleHint){
+  const lines = String(raw || '').replace(/\r/g, '').split('\n').map(l => l.replace(/\s+/g, ' ').replace(/^[|]\s/, 'I ').trim());
+  const junk = l => { if (!l) return false; const n = (l.match(/[A-Za-z]/g) || []).length; return /^\d{1,3}$/.test(l) || n < 2 || n < l.length * 0.4; };
+  let title = titleHint || '', sec = '', sawMethodHead = false;
+  const ing = [], method = [], intro = [];
+  for (const l of lines) {
+    if (junk(l) || (titleHint && l === titleHint)) continue;
+    if (!l) { (sec === 'method' ? method : sec === 'ing' ? ing : intro).push(''); continue; }
+    if (RE_ING_HEAD.test(l)) { if (/^for the/i.test(l)) ing.push(l.replace(/[:.]$/, '') + ':'); sec = 'ing'; continue; }
+    const mh = l.match(RE_METHOD_HEAD);
+    if (mh && l.length < 60 && (!mh[3] || /^[A-Z]/.test(mh[3]))) { sec = 'method'; sawMethodHead = true; if (mh[3]) method.push(mh[3]); continue; }
+    if (RE_META.test(l)) continue;
+    if (!title && !sec && looksTitle(l)) { title = l.replace(/\s*[:\-–]$/, ''); continue; }
+    if (sec === 'ing') {
+      // A numbered sentence after the ingredients is the method starting without a heading.
+      if (RE_STEPNUM.test(l) && l.length > 25 && !RE_ING.test(l.replace(RE_STEPNUM, ''))) { sec = 'method'; method.push(l); }
+      else ing.push(l);
+    }
+    else if (sec === 'method') method.push(l);
+    else if (RE_ING.test(l) && l.length < 70 && !RE_STEPNUM.test(l)) ing.push(l);
+    else intro.push(l);
+  }
+  const body = sawMethodHead || method.length ? method : intro;
+  // Join wrapped lines into steps: numbers or bullets start a step when the
+  // recipe uses them, otherwise blank lines do.
+  const numbered = body.filter(l => RE_STEPNUM.test(l) || RE_BULLET.test(l)).length >= 2;
+  const paras = []; let cur = null;
+  const push = () => { if (cur && cur.trim()) paras.push(cur.trim()); cur = null; };
+  for (const l of body) {
+    if (!l) { if (!numbered) push(); continue; }
+    const starts = RE_STEPNUM.test(l) || RE_BULLET.test(l);
+    if (starts) { push(); cur = l.replace(RE_STEPNUM, '').replace(RE_BULLET, ''); continue; }
+    if (cur === null) cur = l;
+    else cur = /[A-Za-z]-$/.test(cur) ? cur.slice(0, -1) + l : cur + ' ' + l;
+  }
+  push();
+  const steps = [];
+  const ingredients = ing.filter(Boolean).map(l => l.replace(RE_BULLET, ''));
+  if (ingredients.length) {
+    const t = ingredients.join('\n');
+    steps.push({ id: uid(), title: 'Mise en place: gather ingredients', detail: t.slice(0, 2000), temp: '', allergens: allergensIn(t) });
+  }
+  for (const p of paras) for (const part of splitLong(p)) {
+    if (part.length < 4) continue;
+    steps.push({ id: uid(), title: stepTitle(part).slice(0, 200), detail: part.slice(0, 2000), temp: tempsAndTimes(part), allergens: allergensIn(part).slice(0, 200) });
+  }
+  return { title: title.slice(0, 120), steps, note: '' };
+}
+
+// ----- Claude with the viewer's own key -----
+const CLAUDE_MODEL = 'claude-opus-5';
+const CLAUDE_SHAPE = 'Reply with ONLY a JSON object, no other text, shaped like: {"title": "the dish or method name, or an empty string", "steps": [step objects]} where each step object is shaped like: {"title": "short step name", "detail": "method / safety notes, including amounts", "temp": "temperature or time if mentioned, else empty string", "allergens": "comma-separated allergens this step involves (gluten, egg, dairy, fish, crustacean, mollusc, peanut, tree nuts, soy, sesame, celery, mustard, lupin, sulphites), else empty string"}. If ingredients are listed, make the first step "Mise en place: gather ingredients" with the ingredients and amounts, one per line, in its detail. Keep the order the recipe gives. If a word is hard to read, give your best reading followed by [?].';
+async function readWithClaude(notes, text){
+  const key = claudeKey();
+  const out = { title: '', steps: [], note: '' };
+  let cost = 0;
+  const batches = notes.length ? [] : [null];
+  for (let i = 0; i < notes.length; i += 10) batches.push(notes.slice(i, i + 10));
+  for (let b = 0; b < batches.length; b++) {
+    const batch = batches[b], content = [];
+    if (batch) {
+      setStatus($('notesStatus'), 'Sending ' + (batch.length > 1 ? batch.length + ' photos' : 'the photo') + ' to Claude… this can take up to a minute.');
+      for (const n of batch) {
+        const du = await readAsDataUrl(await photoBlob(n));
+        const m = du.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.*)$/);
+        if (!m) throw { msg: "One of those photos isn't a JPEG or PNG, so Claude can't read it." };
+        content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
+      }
+      content.push({ type: 'text', text: 'The attached ' + (batch.length > 1 ? batch.length + ' images show' : 'image shows') + ' a recipe from a cookbook, handwritten notes, or a whiteboard from a commercial cookery class. Read all of it, including handwriting, and turn it into a clear step-by-step kitchen workflow that a cook can print and follow. ' + CLAUDE_SHAPE });
+    } else {
+      setStatus($('notesStatus'), 'Sending your notes to Claude…');
+      content.push({ type: 'text', text: 'Below are typed cooking notes from a commercial cookery class. Turn them into a clear step-by-step kitchen workflow that a cook can print and follow. ' + CLAUDE_SHAPE + '\n\nNotes:\n' + text.slice(0, 20000) });
+    }
+    let res, data;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8000, messages: [{ role: 'user', content }] }),
+      });
+    } catch (e) { throw { msg: "Couldn't reach Claude. Check your internet connection and try again." }; }
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) throw { msg: claudeHttpError(res.status, data) };
+    if (data.usage) cost += ((data.usage.input_tokens || 0) * 5 + (data.usage.output_tokens || 0) * 25) / 1e6;
+    if (data.stop_reason === 'refusal') throw { msg: 'Claude declined to read that. Try a different photo.' };
+    const txt = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+    let parsed = null;
+    try { const a = txt.indexOf('{'), z = txt.lastIndexOf('}'); parsed = JSON.parse(txt.slice(a, z + 1)); } catch (e) {}
+    if (!parsed) {
+      try { const a = txt.indexOf('['), z = txt.lastIndexOf(']'); parsed = { steps: JSON.parse(txt.slice(a, z + 1)) }; } catch (e) {}
+    }
+    if (!parsed) throw { msg: data.stop_reason === 'max_tokens' ? 'That recipe was too long to read in one go. Select fewer photos at a time.' : "Couldn't make sense of Claude's answer. Try again." };
+    if (!out.title && parsed.title) out.title = String(parsed.title).slice(0, 120);
+    out.steps = out.steps.concat(cleanSteps(parsed.steps));
+  }
+  if (cost) out.note = 'About ' + Math.max(1, Math.round(cost * 100)) + '¢ (US) on your Anthropic account.';
+  return out;
+}
+function claudeHttpError(status, data){
+  const err = (data && data.error) || {}, m = String(err.message || '');
+  if (status === 401 || err.type === 'authentication_error') return "Claude didn't accept that API key. Check it at console.anthropic.com, or remove it to use the free phone reader.";
+  if (status === 403 || err.type === 'permission_error') return "That API key isn't allowed to use Claude. Check it at console.anthropic.com.";
+  if (/credit balance/i.test(m)) return 'Your Anthropic account is out of credit. Add some under Billing at console.anthropic.com.';
+  if (status === 413 || /too large|exceeds/i.test(m)) return 'Those photos are too big to send together. Select fewer photos.';
+  if (status === 429) return 'Too many requests right now. Wait a minute and try again.';
+  if (status === 529 || status >= 500) return 'Claude is busy right now. Try again in a minute.';
+  return 'Claude couldn’t read that' + (m ? ' (' + m.slice(0, 120) + ')' : '') + '.';
 }
 $('convertBtn').onclick = () => convert({ notes: chosenNotes() });
 $('convertTextBtn').onclick = () => convert({ text: $('typedNotes').value });
@@ -812,13 +1182,51 @@ function renderMethod(){
     list.appendChild(row);
   });
 }
-$('printWfBtn').onclick = async () => {
+// The printed workflow: a tick box per step, temps and times in their own
+// column, and every allergen in the dish in a box at the top.
+const PRINT_CSS = '#printSheet{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;font-size:10.5pt;line-height:1.35}'
+  + '#printSheet .ps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:3px solid #000;padding-bottom:6px;margin-bottom:10px}'
+  + '#printSheet h1{font-size:20pt;margin:0;line-height:1.1}#printSheet .ps-meta{font-size:9pt;text-align:right;white-space:nowrap}'
+  + '#printSheet .ps-allerg{border:2px solid #000;padding:6px 10px;margin:0 0 12px;font-size:10pt}'
+  + '#printSheet table{width:100%;border-collapse:collapse}#printSheet tr{break-inside:avoid;page-break-inside:avoid}'
+  + '#printSheet th{background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact;text-align:left;border:1px solid #000;padding:4px 6px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em}'
+  + '#printSheet td{border:1px solid #000;padding:6px;vertical-align:top}#printSheet .c-no{width:26px;text-align:center;font-weight:bold;font-size:12pt}'
+  + '#printSheet .c-tick{width:24px;text-align:center}#printSheet .box{display:inline-block;width:14px;height:14px;border:1.5px solid #000;margin-top:2px}'
+  + '#printSheet .c-temp{width:17%;font-weight:bold}#printSheet .c-all{width:15%;font-size:9.5pt}'
+  + '#printSheet .t{font-weight:bold;display:block}#printSheet .d{white-space:pre-wrap}'
+  + '#printSheet .ps-notes{margin-top:14px;font-size:10pt;break-inside:avoid}#printSheet .ps-line{border-bottom:1px solid #000;height:22px}'
+  + '@page{margin:12mm}';
+function workflowSheet(){
   const title = book.methodTitle || 'Method';
-  const css = 'body{font-family:Arial,sans-serif;margin:24px;max-width:720px}h1{font-size:20px}.s{break-inside:avoid;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #ccc}.s h2{margin:0 0 2px;font-size:14px}.s p{margin:0;font-size:12px;white-space:pre-wrap}';
-  const body = `<h1>${esc(title)}</h1>` + book.steps.map((s, i) => `<div class="s"><h2>${i + 1}. ${esc(s.title || 'Step')}</h2>${s.detail ? `<p>${esc(s.detail)}</p>` : ''}${s.temp || s.allergens ? `<p><i>${esc([s.temp, s.allergens ? 'Allergens: ' + s.allergens : ''].filter(Boolean).join(' — '))}</i></p>` : ''}</div>`).join('');
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${body}</body></html>`;
-  await saveFile((title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'method') + '.html', doc, $('methodStatus'), 'Saved. Open the file and print it from your browser.');
+  const all = [];
+  book.steps.forEach(s => String(s.allergens || '').split(/[,;/]/).map(a => a.trim().toLowerCase()).filter(Boolean).forEach(a => { if (!all.includes(a)) all.push(a); }));
+  const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const rows = book.steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td><span class="t">${esc(s.title || 'Step')}</span>${s.detail ? `<span class="d">${esc(s.detail)}</span>` : ''}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
+  const html = `<div class="ps-head"><h1>${esc(title)}</h1><div class="ps-meta">${book.steps.length} step${book.steps.length === 1 ? '' : 's'} · ${esc(date)}<br>Cook: ____________________</div></div>`
+    + `<div class="ps-allerg"><b>Allergens:</b> ${all.length ? esc(all.join(', ')) : 'none noted. Check every label.'}</div>`
+    + `<table><thead><tr><th>✓</th><th>#</th><th>Step</th><th>Temp / time</th><th>Allergens</th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<div class="ps-notes"><b>Notes</b><div class="ps-line"></div><div class="ps-line"></div><div class="ps-line"></div></div>`;
+  return { title, html };
+}
+function saveWorkflow(){
+  const { title, html } = workflowSheet();
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>body{margin:24px;background:#fff}${PRINT_CSS}</style></head><body><div id="printSheet">${html}</div></body></html>`;
+  return saveFile((title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'method') + '.html', doc, $('methodStatus'), 'Saved. Open the file and print it from your browser.');
+}
+$('printWfBtn').onclick = () => {
+  if (!book.steps.length) { setStatus($('methodStatus'), 'Add some steps first.', true); return; }
+  if (!homeApp) { saveWorkflow(); return; }   // printing is blocked inside Claude
+  let sheet = $('printSheet');
+  if (!sheet) {
+    sheet = document.createElement('div'); sheet.id = 'printSheet'; document.body.appendChild(sheet);
+    const st = document.createElement('style'); st.textContent = PRINT_CSS; document.head.appendChild(st);
+  }
+  sheet.innerHTML = workflowSheet().html;
+  document.body.classList.add('printing');   // only changes what gets printed
+  try { window.print(); } catch (e) { saveWorkflow(); }
 };
+$('saveWfBtn').onclick = () => { if (!book.steps.length) { setStatus($('methodStatus'), 'Add some steps first.', true); return; } saveWorkflow(); };
+if (homeApp) { $('printWfBtn').textContent = 'Print'; $('saveWfBtn').hidden = false; }
 
 // ===== Pantry =====
 // Tapping anywhere on a date chip opens the calendar: the real date box
@@ -1976,7 +2384,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '02a9349c86';
+  var VERSION = '440e539845';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
