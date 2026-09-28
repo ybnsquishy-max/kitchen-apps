@@ -1191,7 +1191,7 @@ function renderMethod(){
         <button class="icon-btn rm" aria-label="Remove step">✕</button>
       </div>`;
     row.querySelector('.stitle').oninput = e => { s.title = e.target.value; persist(); };
-    row.querySelector('.sdetail').oninput = e => { s.detail = e.target.value; persist(); };
+    row.querySelector('.sdetail').oninput = e => { s.detail = e.target.value; fitText(e.target); persist(); };
     row.querySelector('.temp').oninput = e => { s.temp = e.target.value; persist(); };
     row.querySelector('.allerg').oninput = e => { s.allergens = e.target.value; persist(); };
     row.querySelector('.up').onclick = () => { if (i > 0) { [book.steps[i - 1], book.steps[i]] = [book.steps[i], book.steps[i - 1]]; persist(); render(); } };
@@ -1199,7 +1199,10 @@ function renderMethod(){
     row.querySelector('.rm').onclick = () => removeWithUndo('steps', s, s.title ? '“' + s.title + '”' : 'step');
     list.appendChild(row);
   });
+  if ($('view-method').classList.contains('active')) list.querySelectorAll('.sdetail').forEach(fitText);
 }
+// Step notes grow to show all their text (ingredient lists can be long).
+function fitText(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
 // The printed workflow: a tick box per step, temps and times in their own
 // column, and every allergen in the dish in a box at the top.
 const PRINT_CSS = '#printSheet{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;font-size:10.5pt;line-height:1.35}'
@@ -2402,7 +2405,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'a3b513c3f2';
+  var VERSION = '8ec196c4c6';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
