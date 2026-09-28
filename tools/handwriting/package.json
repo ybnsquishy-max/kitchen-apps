@@ -1,0 +1,9 @@
+{
+  "name": "last-card-handwriting-tools",
+  "private": true,
+  "description": "Train and test Last Card's on-phone handwritten score reader.",
+  "dependencies": {
+    "mnist": "1.1.0",
+    "sharp": "^0.33.0"
+  }
+}
