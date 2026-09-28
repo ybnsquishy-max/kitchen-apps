@@ -1,6 +1,6 @@
-// Offline support for the installable Mise app (version a0c2f71e6e).
+// Offline support for the installable Mise app (version dba1db3665).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-a0c2f71e6e';
+const CACHE = 'mise-dba1db3665';
 const FONT_CACHE = 'mise-fonts';
 // Big, rarely-changing files for Video → Method, kept across app updates:
 // the speech engine (vendor/asr) and the model the library saves itself.

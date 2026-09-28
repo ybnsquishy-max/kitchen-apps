@@ -89,6 +89,27 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .item .unit{color:var(--ink-soft);font-size:0.85rem;}
 .item.done .name{text-decoration:line-through;color:var(--ink-soft);}
 .sq{display:flex;align-items:center;gap:4px;flex:none;}
+/* Shopping cards: coloured edge (amber = restocks the Pantry), round tick, amount pill */
+.sitem{position:relative;overflow:hidden;border:1px solid var(--line);box-shadow:0 1px 2px rgba(0,0,0,.04);padding:10px 10px 10px 16px;gap:10px;min-height:56px;}
+.sitem::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--line);}
+.sitem.restock::before{background:var(--accent);}
+.sitem.done::before{background:var(--ok);}
+.sitem.done{opacity:.72;}
+.sitem .name{font-weight:600;font-size:1.02rem;}
+.sitem input[type=checkbox]{appearance:none;-webkit-appearance:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--ink-soft);background:var(--surface);margin:0;cursor:pointer;display:grid;place-content:center;transition:background .15s,border-color .15s;}
+.sitem input[type=checkbox]::after{content:'';width:11px;height:6px;border-left:2.5px solid #fff;border-bottom:2.5px solid #fff;transform:rotate(-45deg) translate(1px,-1px);opacity:0;}
+.sitem input[type=checkbox]:checked{background:var(--ok);border-color:var(--ok);}
+.sitem input[type=checkbox]:checked::after{opacity:1;}
+.sitem.done .name{text-decoration-color:var(--ok);}
+.sitem .sq{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px;}
+.sitem .sq button{border:none;background:var(--raised);width:28px;height:28px;}
+.sitem .sq input{border:none;background:none;width:34px;padding:4px 0;font-size:1.02rem;}
+.sitem .sq .u{padding-right:6px;min-width:0;}
+.sitem .unit{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-weight:600;}
+.sitem .unit:empty{display:none;}
+.shopbar{height:8px;border-radius:999px;background:var(--line);margin:12px auto 0;max-width:240px;overflow:hidden;}
+.shopbar span{display:block;height:100%;background:var(--ok);border-radius:999px;transition:width .3s;}
+.stat-sub{font-size:0.78rem;color:var(--ink-soft);margin-top:6px;}
 .sq button{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;line-height:1;padding:0;}
 .sq input{width:48px;text-align:center;font-weight:600;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:5px 2px;font-size:0.95rem;-moz-appearance:textfield;}
 .sq input::-webkit-inner-spin-button,.sq input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
@@ -533,7 +554,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
 
   <!-- Shopping -->
   <section class="view" id="view-shopping">
-    <div class="stat-box"><div class="stat-number" id="needCount">0</div><div class="stat-label">Items needed</div></div>
+    <div class="stat-box"><div class="stat-number" id="needCount">0</div><div class="stat-label">Items needed</div><div class="shopbar" id="shopBar" hidden><span id="shopBarFill"></span></div><div class="stat-sub" id="shopBarText" hidden></div></div>
     <div class="tools edit-only"><button class="btn secondary small areasBtn">Areas</button><button class="btn secondary small" id="sortShopBtn">Sort A–Z</button></div>
     <div id="shopGroups"></div>
     <div class="add-form edit-only">
@@ -2275,6 +2296,10 @@ function renderPantry(){
 function renderShopping(){
   const open = book.shop.filter(s => !s.done), done = book.shop.filter(s => s.done);
   $('needCount').textContent = open.length;
+  const total = book.shop.length;
+  $('shopBar').hidden = $('shopBarText').hidden = !done.length;
+  $('shopBarFill').style.width = total ? Math.round(done.length / total * 100) + '%' : '0';
+  $('shopBarText').textContent = done.length + ' of ' + total + ' in the trolley';
   $('areaList').innerHTML = [...new Set(book.cats.map(c => c.name).concat(book.shop.map(s => s.area)).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('');
   // Areas follow the Pantry's order, then any others A–Z, then items with no area.
   const areaOrder = book.cats.map(c => c.name);
@@ -2286,7 +2311,7 @@ function renderShopping(){
   wrap.innerHTML = open.length ? '' : '<p class="hint">Nothing to buy. Add items below, or send out-of-stock items here from the Pantry.</p>';
   const row = s => {
     const li = document.createElement('li');
-    li.className = 'item' + (s.done ? ' done' : '');
+    li.className = 'item sitem' + (s.done ? ' done' : '') + (s.pantryId ? ' restock' : '');
     li.dataset.id = s.id;
     li.innerHTML = `${s.done ? '' : '<button class="handle edit-only" aria-label="Drag to reorder">⠿</button>'}<input type="checkbox" ${s.done ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="Got it">
       <span class="name">${badge(s.id)}${esc(s.name)}</span>
@@ -3393,7 +3418,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'a0c2f71e6e';
+  var VERSION = 'dba1db3665';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
