@@ -129,6 +129,12 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .typed textarea{display:block;width:100%;min-height:110px;margin:10px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);resize:vertical;}
 
 /* Method */
+.mtabs{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 12px;margin:0 0 4px;}
+.mtab{flex:0 1 auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;font-size:0.85rem;font-weight:600;padding:7px 12px;border-radius:999px;cursor:pointer;}
+.mtab.active{background:var(--ink);color:var(--surface);border-color:var(--ink);}
+.mtab .n{opacity:.6;font-weight:500;margin-left:6px;}
+.mtab.add{font-weight:700;border-style:dashed;}
+.linkish{background:none;border:none;color:var(--ink-soft);text-decoration:underline;font:inherit;font-size:0.85rem;padding:14px 0 0;cursor:pointer;}
 .wf-title{width:100%;font-family:'Barlow Condensed',system-ui,sans-serif;font-size:1.4rem;font-weight:700;border:none;border-bottom:1px solid var(--line);background:none;padding:4px 0;margin-bottom:12px;}
 .step{display:flex;gap:12px;background:var(--raised);border-radius:10px;padding:14px;margin-bottom:12px;}
 .step .num{font-family:'Barlow Condensed',system-ui,sans-serif;font-weight:700;font-size:1.2rem;color:var(--accent);min-width:22px;font-variant-numeric:tabular-nums;}
@@ -439,6 +445,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
 
   <!-- Method -->
   <section class="view" id="view-method">
+    <div class="mtabs" id="methodTabs" role="tablist" aria-label="Methods"></div>
     <input class="wf-title" id="wfTitle" placeholder="Dish or method name">
     <div id="stepList"></div>
     <p class="hint" id="stepsEmpty">No steps yet. Add one, or turn a photo of your notes into steps on the Notes tab.</p>
@@ -448,6 +455,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
       <button class="btn secondary" id="saveWfBtn" hidden>Save file</button>
       <button class="btn secondary" id="copyWfBtn" hidden>Copy method to my copy</button>
     </div>
+    <button class="linkish edit-only" id="delMethodBtn" hidden>Delete this method</button>
     <p class="status" id="methodStatus" hidden></p>
   </section>
 
@@ -551,7 +559,8 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
 <script>
 // ===== Data =====
 // One "book" holds everything:
-//   notes [{id,title,img}], steps [{id,title,detail,temp,allergens}], methodTitle,
+//   notes [{id,title,img}], methods [{id,title}], steps [{id,title,detail,temp,allergens,m}],
+//   methodTitle (the first method's name, from before there were tabs),
 //   cats [{id,name}], pantry [{id,cat,name,qty,unit,expires}], shop [{id,name,qty,unit,area,done,pantryId}]
 // Inside Claude there's a shared book (saved as files next to the page:
 // book.json plus one JPEG per photo) and each person's My copy on their device.
@@ -567,7 +576,8 @@ const LS_REMOVED = 'mise_removed';   // ids this person deleted, so a copy someo
 const MAX_PHOTO_SIDE = 1600;
 const LISTS = {
   notes: ['title'],
-  steps: ['title', 'detail', 'temp', 'allergens'],
+  methods: ['title'],
+  steps: ['title', 'detail', 'temp', 'allergens', 'm'],   // m: which method (tab) the step is in
   cats: ['name'],
   pantry: ['cat', 'name', 'qty', 'unit', 'expires'],
   shop: ['name', 'qty', 'unit', 'area', 'done', 'pantryId'],
@@ -579,10 +589,10 @@ function load(key, fallback){ try { const v = localStorage.getItem(key); return 
 function store(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
 const $ = id => document.getElementById(id);
 
-function emptyBook(){ return { v: 1, methodTitle: '', notes: [], steps: [], cats: [], pantry: [], shop: [] }; }
+function emptyBook(){ return { v: 1, methodTitle: '', notes: [], methods: [], steps: [], cats: [], pantry: [], shop: [] }; }
 function starterBook(){
   const dry = uid(), cool = uid();
-  return { v: 1, methodTitle: '', notes: [], steps: [],
+  return { v: 1, methodTitle: '', notes: [], methods: [], steps: [],
     cats: [{ id: dry, name: 'Dry Store' }, { id: cool, name: 'Cool Room' }],
     pantry: [],
     shop: [
@@ -797,10 +807,16 @@ async function convert({ notes = [], text = '' }){
     }
     const steps = res.steps;
     if (!steps.length) throw { code: 'empty' };
+    // Each recipe read gets its own tab (or fills the open tab if it's empty).
+    const name = res.title || (notes[0] && notes[0].title) || 'Untitled method';
+    let m = current();
+    if (m && !curSteps().length) { m = realMethod(); if (!m.title) m.title = name; }
+    else m = newMethod(name);
+    if (m.id === 'm0' && !book.methodTitle) book.methodTitle = m.title;
+    steps.forEach(st => { st.m = m.id; });
     book.steps = book.steps.concat(steps);
-    if (!book.methodTitle) book.methodTitle = res.title || (notes[0] && notes[0].title) || 'Untitled method';
     persist();
-    setStatus($('notesStatus'), 'Added ' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ' to Method.' + (res.note ? ' ' + res.note : ''));
+    setStatus($('notesStatus'), 'Added “' + m.title + '” (' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ') to Method.' + (res.note ? ' ' + res.note : ''));
     if (text) $('typedNotes').value = '';
     tab = 'method'; store(LS_TAB, tab);
   } catch (e) {
@@ -1164,15 +1180,81 @@ $('convertBtn').onclick = () => convert({ notes: chosenNotes() });
 $('convertTextBtn').onclick = () => convert({ text: $('typedNotes').value });
 
 // ===== Method =====
-$('wfTitle').oninput = e => { book.methodTitle = e.target.value; persist(); };
-$('addStepBtn').onclick = () => { book.steps.push({ id: uid(), title: '', detail: '', temp: '', allergens: '' }); persist(); render(); };
+// Each method is a tab. Steps from before tabs existed (no m) belong to the
+// first tab, id 'm0', named by the old methodTitle; it only gets a row in
+// book.methods once it's renamed, so every device agrees on it.
+const LS_METHOD = 'mise_method';
+let curMethod = load(LS_METHOD, '');
+function methodList(){
+  const ids = new Set(book.methods.map(m => m.id));
+  const list = book.methods.slice();
+  if (!ids.has('m0') && book.steps.some(st => !ids.has(st.m))) list.unshift({ id: 'm0', title: book.methodTitle, virtual: true });
+  return list;
+}
+function methodOf(st){ return book.methods.some(m => m.id === st.m) ? st.m : 'm0'; }
+function current(){
+  const list = methodList();
+  return list.find(m => m.id === curMethod) || list[list.length - 1] || null;
+}
+function curSteps(){ const m = current(); return m ? book.steps.filter(st => methodOf(st) === m.id) : []; }
+function setMethod(id){ curMethod = id; store(LS_METHOD, id); }
+function newMethod(title){
+  const m = { id: uid(), title: title || '' };
+  book.methods.push(m); setMethod(m.id); return m;
+}
+// Makes sure the current tab is a real row (the first tab starts virtual).
+function realMethod(){
+  let m = current();
+  if (!m) return newMethod('');
+  if (m.virtual) { m = { id: 'm0', title: m.title || '' }; book.methods.unshift(m); setMethod('m0'); }
+  return m;
+}
+function renderMethodTabs(){
+  const bar = $('methodTabs'), list = methodList(), cur = current();
+  bar.innerHTML = '';
+  bar.hidden = !list.length && locked();
+  list.forEach(m => {
+    const b = document.createElement('button');
+    const n = book.steps.filter(st => methodOf(st) === m.id).length;
+    b.className = 'mtab' + (cur && cur.id === m.id ? ' active' : '');
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', cur && cur.id === m.id ? 'true' : 'false');
+    b.innerHTML = esc(m.title || 'Untitled') + '<span class="n">' + n + '</span>';
+    b.onclick = () => { setMethod(m.id); setStatus($('methodStatus'), ''); render(); };
+    bar.appendChild(b);
+  });
+  if (!locked()) {
+    const add = document.createElement('button');
+    add.className = 'mtab add'; add.textContent = '+ New method'; add.setAttribute('aria-label', 'New method');
+    add.onclick = () => { newMethod(''); persist(); render(); $('wfTitle').focus(); };
+    bar.appendChild(add);
+  }
+}
+$('delMethodBtn').onclick = () => {
+  const m = current(); if (!m) return;
+  const steps = curSteps(), beforeSteps = book.steps.slice(), beforeMethods = book.methods.slice(), beforeTitle = book.methodTitle;
+  const ids = steps.map(st => st.id).concat(m.virtual ? [] : [m.id]);
+  book.steps = book.steps.filter(st => !steps.includes(st));
+  book.methods = book.methods.filter(x => x.id !== m.id);
+  if (m.id === 'm0') book.methodTitle = '';
+  forget(ids); setMethod(''); persist(); render();
+  toast('Deleted “' + (m.title || 'Untitled') + '”.', () => { book.steps = beforeSteps; book.methods = beforeMethods; book.methodTitle = beforeTitle; unforget(ids); setMethod(m.id); persist(); render(); });
+};
+$('wfTitle').oninput = e => {
+  const m = realMethod(); m.title = e.target.value;
+  if (m.id === 'm0') book.methodTitle = m.title;   // older versions still read this
+  persist(); renderMethodTabs();
+};
+$('addStepBtn').onclick = () => { const m = realMethod(); book.steps.push({ id: uid(), title: '', detail: '', temp: '', allergens: '', m: m.id }); persist(); render(); };
 function renderMethod(){
-  $('wfTitle').value = book.methodTitle || '';
+  renderMethodTabs();
+  const cm = current(), steps = curSteps();
+  if (document.activeElement !== $('wfTitle')) $('wfTitle').value = cm ? cm.title || '' : '';
   $('wfTitle').readOnly = locked();
+  $('delMethodBtn').hidden = !cm || locked();
   const list = $('stepList');
   list.innerHTML = '';
-  $('stepsEmpty').hidden = book.steps.length > 0;
-  book.steps.forEach((s, i) => {
+  $('stepsEmpty').hidden = steps.length > 0;
+  steps.forEach((s, i) => {
     const row = document.createElement('div');
     row.className = 'step';
     const ro = locked() ? 'readonly' : '';
@@ -1194,8 +1276,10 @@ function renderMethod(){
     row.querySelector('.sdetail').oninput = e => { s.detail = e.target.value; fitText(e.target); persist(); };
     row.querySelector('.temp').oninput = e => { s.temp = e.target.value; persist(); };
     row.querySelector('.allerg').oninput = e => { s.allergens = e.target.value; persist(); };
-    row.querySelector('.up').onclick = () => { if (i > 0) { [book.steps[i - 1], book.steps[i]] = [book.steps[i], book.steps[i - 1]]; persist(); render(); } };
-    row.querySelector('.down').onclick = () => { if (i < book.steps.length - 1) { [book.steps[i + 1], book.steps[i]] = [book.steps[i], book.steps[i + 1]]; persist(); render(); } };
+    // Swap with the neighbouring step in this method.
+    const swap = other => { if (!other) return; const a = book.steps.indexOf(s), b = book.steps.indexOf(other); [book.steps[a], book.steps[b]] = [book.steps[b], book.steps[a]]; persist(); render(); };
+    row.querySelector('.up').onclick = () => swap(steps[i - 1]);
+    row.querySelector('.down').onclick = () => swap(steps[i + 1]);
     row.querySelector('.rm').onclick = () => removeWithUndo('steps', s, s.title ? '“' + s.title + '”' : 'step');
     list.appendChild(row);
   });
@@ -1227,12 +1311,13 @@ function stepCell(s){
   return `<span class="t">${esc(title || 'Step')}</span>${detail ? `<span class="d">${d(detail)}</span>` : ''}`;
 }
 function workflowSheet(){
-  const title = book.methodTitle || 'Method';
+  const cm = current(), steps = curSteps();
+  const title = (cm && cm.title) || 'Method';
   const all = [];
-  book.steps.forEach(s => String(s.allergens || '').split(/[,;/]/).map(a => a.trim().toLowerCase()).filter(Boolean).forEach(a => { if (!all.includes(a)) all.push(a); }));
+  steps.forEach(s => String(s.allergens || '').split(/[,;/]/).map(a => a.trim().toLowerCase()).filter(Boolean).forEach(a => { if (!all.includes(a)) all.push(a); }));
   const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  const rows = book.steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td>${stepCell(s)}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
-  const html = `<div class="ps-head"><h1>${esc(title)}</h1><div class="ps-meta">${book.steps.length} step${book.steps.length === 1 ? '' : 's'} · ${esc(date)}<br>Cook: ____________________</div></div>`
+  const rows = steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td>${stepCell(s)}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
+  const html = `<div class="ps-head"><h1>${esc(title)}</h1><div class="ps-meta">${steps.length} step${steps.length === 1 ? '' : 's'} · ${esc(date)}<br>Cook: ____________________</div></div>`
     + `<div class="ps-allerg"><b>Allergens:</b> ${all.length ? esc(all.join(', ')) : 'none noted. Check every label.'}</div>`
     + `<table><thead><tr><th>✓</th><th>#</th><th>Step</th><th>Temp / time</th><th>Allergens</th></tr></thead><tbody>${rows}</tbody></table>`
     + `<div class="ps-notes"><b>Notes</b><div class="ps-line"></div><div class="ps-line"></div><div class="ps-line"></div></div>`;
@@ -1244,7 +1329,7 @@ function saveWorkflow(){
   return saveFile((title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'method') + '.html', doc, $('methodStatus'), 'Saved. Open the file and print it from your browser.');
 }
 $('printWfBtn').onclick = () => {
-  if (!book.steps.length) { setStatus($('methodStatus'), 'Add some steps first.', true); return; }
+  if (!curSteps().length) { setStatus($('methodStatus'), 'Add some steps first.', true); return; }
   if (!homeApp) { saveWorkflow(); return; }   // printing is blocked inside Claude
   let sheet = $('printSheet');
   if (!sheet) {
@@ -1255,7 +1340,7 @@ $('printWfBtn').onclick = () => {
   document.body.classList.add('printing');   // only changes what gets printed
   try { window.print(); } catch (e) { saveWorkflow(); }
 };
-$('saveWfBtn').onclick = () => { if (!book.steps.length) { setStatus($('methodStatus'), 'Add some steps first.', true); return; } saveWorkflow(); };
+$('saveWfBtn').onclick = () => { if (!curSteps().length) { setStatus($('methodStatus'), 'Add some steps first.', true); return; } saveWorkflow(); };
 if (homeApp) { $('printWfBtn').textContent = 'Print'; $('saveWfBtn').hidden = false; }
 
 // ===== Pantry =====
@@ -1550,9 +1635,10 @@ function shoppingText(){
   return lines.join('\n').trim();
 }
 function methodText(){
-  if (!book.steps.length) return '';
-  const lines = ['📋 ' + (book.methodTitle || 'Method'), ''];
-  book.steps.forEach((st, i) => {
+  const steps = curSteps(), cm = current();
+  if (!steps.length) return '';
+  const lines = ['📋 ' + ((cm && cm.title) || 'Method'), ''];
+  steps.forEach((st, i) => {
     lines.push((i + 1) + '. ' + (st.title || 'Step'));
     if (st.detail) lines.push('   ' + st.detail);
     const meta = [st.temp, st.allergens ? 'Allergens: ' + st.allergens : ''].filter(Boolean).join(' · ');
@@ -1561,7 +1647,7 @@ function methodText(){
   return lines.join('\n');
 }
 $('shareShopText').onclick = () => { const t = shoppingText(); if (!t) { toast('The shopping list is empty.'); return; } $('inviteHelp').hidden = true; shareText('Shopping list', t); };
-$('shareMethodText').onclick = () => { const t = methodText(); if (!t) { toast('No method steps yet.'); return; } $('inviteHelp').hidden = true; shareText(book.methodTitle || 'Method', t); };
+$('shareMethodText').onclick = () => { const t = methodText(); if (!t) { toast('No method steps yet.'); return; } $('inviteHelp').hidden = true; shareText((current() && current().title) || 'Method', t); };
 $('shareInvite').onclick = () => {
   $('inviteHelp').hidden = !window.claude ? true : false;
   shareText('Mise', 'Join my Mise list: ' + MISE_LINK + (window.claude ? '' : '\n(Open it in Claude to see the shared list.)'));
@@ -1658,7 +1744,7 @@ function applyShared(b, localPhotos){
 }
 
 // What changed since this person last looked at the shared list.
-const NAMES = { notes: ['photo', 'photos'], steps: ['step', 'steps'], cats: ['area', 'areas'], pantry: ['pantry item', 'pantry items'], shop: ['shopping item', 'shopping items'] };
+const NAMES = { notes: ['photo', 'photos'], methods: ['method', 'methods'], steps: ['step', 'steps'], cats: ['area', 'areas'], pantry: ['pantry item', 'pantry items'], shop: ['shopping item', 'shopping items'] };
 function label(key, x){ return x.title || x.name || ''; }
 function markSeen(b){ const s = {}; for (const k of Object.keys(LISTS)) s[k] = b[k].map(x => ({ id: x.id, t: label(k, x) })); store(LS_SEEN, s); }
 function showChanges(live){
@@ -1736,11 +1822,14 @@ async function copyToMine(notes, steps){
     try { mine.notes.push({ id: n.id, title: n.title, img: n.img && n.img.startsWith('data:') ? n.img : await readAsDataUrl(await photoBlob(n)) }); added++; } catch (e) {}
   }
   for (const s of steps) if (!mine.steps.some(m => m.id === s.id)) { mine.steps.push({ ...s }); added++; }
+  // Bring the method (tab) along so the steps keep their name.
+  const cm = steps.length && current();
+  if (cm && !mine.methods.some(m => m.id === cm.id)) mine.methods.push({ id: cm.id, title: cm.title || '' });
   if (steps.length && !mine.methodTitle) mine.methodTitle = book.methodTitle;
   return store(LS_MINE, mine) ? added : -1;
 }
 $('copyNotesBtn').onclick = async () => { const n = await copyToMine(chosenNotes(), []); setStatus($('notesStatus'), n < 0 ? 'This device is out of space.' : n ? 'Copied ' + n + ' to My copy.' : 'Already in My copy.', n < 0); };
-$('copyWfBtn').onclick = async () => { const n = await copyToMine([], book.steps); setStatus($('methodStatus'), n < 0 ? 'This device is out of space.' : n ? 'Copied ' + n + ' steps to My copy.' : 'Already in My copy.', n < 0); };
+$('copyWfBtn').onclick = async () => { const n = await copyToMine([], curSteps()); setStatus($('methodStatus'), n < 0 ? 'This device is out of space.' : n ? 'Copied ' + n + ' steps to My copy.' : 'Already in My copy.', n < 0); };
 
 // Offer to put what's already on this device into the shared list.
 function showMigrate(){
@@ -2414,7 +2503,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'a01c33dec7';
+  var VERSION = '5e6fbadc07';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
