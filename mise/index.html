@@ -269,6 +269,9 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
 .note-card .handle{position:absolute;bottom:34px;left:6px;background:rgba(0,0,0,0.55);color:#fff;border-radius:6px;padding:4px 6px;}
 .install{display:flex;align-items:center;gap:14px;border:1px solid var(--line);border-radius:12px;background:var(--raised);padding:14px;margin-bottom:22px;}
 .install svg{width:44px;height:44px;border-radius:10px;flex:none;}
+.movecard .moveic{font-size:32px;line-height:44px;flex:none;}
+.movecard .btn{margin-top:8px;}
+#movePasteBox textarea{width:100%;min-height:70px;margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit;font:inherit;}
 .install div{flex:1;min-width:0;font-size:0.85rem;line-height:1.4;}
 .install b{display:block;font-size:0.95rem;}
 .install a.btn{text-decoration:none;white-space:nowrap;}
@@ -355,6 +358,12 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
       <button class="btn accent small" id="myNameSave">Save</button>
     </div>
     <p class="hint" id="partyHint">Send the link, or tell people the code. Anyone who already has Mise can open their app, tap <b>Share → Join a party</b> and enter the code.</p>
+  </div>
+  <div class="install movecard" id="moveCard" hidden>
+    <span class="moveic" aria-hidden="true">📲</span>
+    <div><b>Moving from your old Mise?</b><span>In the old Mise tap Share → Move to a new Mise, then come back here and tap Paste.</span>
+      <button class="btn accent small" id="moveCardPaste">Paste from my old Mise</button></div>
+    <button class="x" id="moveCardClose" aria-label="Hide">✕</button>
   </div>
   <div class="install" id="installCard" hidden>
     <svg viewBox="0 0 512 512" aria-hidden="true">
@@ -513,6 +522,14 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
       <button class="share-opt" id="shareShopText"><span class="ic">🛒</span><div><b>Send the shopping list</b><span>A tidy list by area, ready for Messages or WhatsApp</span></div></button>
       <button class="share-opt" id="shareMethodText"><span class="ic">📋</span><div><b>Send the method</b><span>The steps, temperatures and allergens as text</span></div></button>
       <button class="share-opt" id="backupBtn"><span class="ic">📦</span><div><b>Send a copy of everything</b><span>A file they open in their Mise. Their changes are kept when you send another.</span></div></button>
+      <button class="share-opt" id="moveOutBtn"><span class="ic">📲</span><div><b>Move to a new Mise</b><span>Copies everything (lists, methods, photos, parties) to paste into Mise after adding it to your home screen again</span></div></button>
+      <button class="share-opt" id="moveInBtn"><span class="ic">📥</span><div><b>Paste from my old Mise</b><span>Brings in everything you copied with "Move to a new Mise"</span></div></button>
+      <div id="movePasteBox" hidden>
+        <p class="hint">Long-press the box below, tap Paste, then Add.</p>
+        <textarea id="movePasteText" aria-label="Paste your old Mise here" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+        <button class="btn accent small" id="movePasteGo">Add to this Mise</button>
+      </div>
+      <p class="status" id="moveStatus" hidden></p>
       <button class="share-opt" id="joinPartyOpt"><span class="ic">🔑</span><div><b>Join a party</b><span>Enter the code or paste the link someone sent you</span></div></button>
       <div id="joinPartyBox" hidden>
         <div class="joinbox"><input id="joinCodeInput" placeholder="Party code or link" autocapitalize="off" autocomplete="off" aria-label="Party code or link"><button class="btn accent" id="joinCodeBtn">Join</button></div>
@@ -695,6 +712,7 @@ function render(){
   $('copyNotesBtn').hidden = !inShared;
   $('copyWfBtn').hidden = !inShared;
   renderNotes(); renderMethod(); renderPantry(); renderShopping();
+  renderMoveCard();
   enableDragging();
 }
 const locked = () => shared && readOnly;
@@ -2189,6 +2207,7 @@ async function saveFile(filename, data, statusEl, okText){
 }
 const MISE_LINK = 'https://claude.ai/artifact/Gru9LRv3eEyMcA1L3jHa23';
 function openShare(){
+  $('movePasteBox').hidden = true; setStatus($('moveStatus'), '');
   $('shareSheet').hidden = false; $('shareBackdrop').hidden = false; $('shareResult').hidden = true; $('inviteHelp').hidden = true;
   $('shareSheet').scrollTop = 0; $('shareClose').focus();
 }
@@ -2275,6 +2294,99 @@ $('shareInvite').onclick = () => {
   shareText('Mise', 'Join my Mise list: ' + MISE_LINK + (window.claude ? '' : '\n(Open it in Claude to see the shared list.)'));
   $('inviteHelp').hidden = false;
 };
+// ===== Moving to a new Mise =====
+// Each home-screen app keeps its own storage, so re-adding Mise starts empty.
+// "Move to a new Mise" copies everything Mise keeps on this phone to the
+// clipboard; "Paste from my old Mise" puts it into the new one. The Claude key
+// is left out so it never sits on the clipboard.
+const MOVE_PREFIX = 'MISE-MOVE-1:';
+const MOVE_SKIP = /^mise_(claude_key|move_hidden)$/;
+function moveText(){
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('mise_') && !MOVE_SKIP.test(k)) data[k] = localStorage.getItem(k);
+  }
+  if (!data[LS_MINE] && !party && !shared) data[LS_MINE] = JSON.stringify(book);   // a starter list never saved yet
+  return MOVE_PREFIX + JSON.stringify({ at: new Date().toISOString(), data });
+}
+async function copyToClipboard(text){
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  try {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch (e) { return false; }
+}
+function moveMsg(text, warn){ setStatus($('moveStatus'), text, warn); }
+$('moveOutBtn').onclick = async () => {
+  const text = moveText(), mb = text.length / 1e6;
+  if (await copyToClipboard(text)) {
+    moveMsg('Copied' + (mb >= 0.5 ? ' (' + mb.toFixed(1) + ' MB)' : '') + '. Now open the new Mise and tap Paste from my old Mise (on the welcome card, or Share → Paste from my old Mise). Keep this one until you see everything there.');
+  } else {
+    moveMsg("Couldn't copy on this phone, so saving a file instead. In the new Mise, use Share → Someone sent you a copy? → Open a copy someone sent.", true);
+    $('backupBtn').click();
+  }
+};
+async function pasteFromOldMise(text){
+  text = String(text || '').trim();
+  const at = text.indexOf(MOVE_PREFIX);
+  if (at < 0) return "That isn't a copy of Mise. In your old Mise tap Share → Move to a new Mise, then come straight back and paste.";
+  let data;
+  try { data = (JSON.parse(text.slice(at + MOVE_PREFIX.length)) || {}).data || {}; }
+  catch (e) { return 'That copy looks cut off. Copy it again in your old Mise and paste straight away.'; }
+  const keys = Object.keys(data).filter(k => k.startsWith('mise_') && !MOVE_SKIP.test(k) && typeof data[k] === 'string');
+  if (!keys.length) return 'That copy is empty.';
+  const hasOwn = !!localStorage.getItem(LS_MINE) || partyList().length > 0;
+  try {
+    if (!hasOwn) {
+      for (const k of keys) localStorage.setItem(k, data[k]);   // a new Mise: take everything as it was
+    } else {
+      // This Mise already has things: add what's missing, change nothing here.
+      let inc = null; try { inc = clean(JSON.parse(data[LS_MINE] || 'null'), true); } catch (e) {}
+      if (inc) {
+        const mine = clean(load(LS_MINE, null), true);
+        const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+        // Areas with the same name are one area; pantry items follow them.
+        const catMap = {};
+        for (const c of inc.cats) { const hit = mine.cats.find(y => y.id === c.id || same(y.name, c.name)); if (hit) catMap[c.id] = hit.id; else mine.cats.push(c); }
+        for (const x of inc.pantry) { const cat = catMap[x.cat] || x.cat; if (!mine.pantry.some(y => y.id === x.id || (same(y.name, x.name) && y.cat === cat))) mine.pantry.push({ ...x, cat }); }
+        // Shopping items with the same name are the same item (both phones start with Flour, Sugar…).
+        for (const x of inc.shop) if (!mine.shop.some(y => y.id === x.id || same(y.name, x.name))) mine.shop.push(x);
+        for (const key of ['notes', 'methods', 'steps']) for (const x of inc[key]) if (!mine[key].some(y => y.id === x.id)) mine[key].push(x);
+        if (!mine.methodTitle) mine.methodTitle = inc.methodTitle;
+        localStorage.setItem(LS_MINE, JSON.stringify(mine));
+      }
+      let theirs = []; try { theirs = JSON.parse(data.mise_parties || '[]'); } catch (e) {}
+      const list = partyList();
+      for (const p of Array.isArray(theirs) ? theirs : []) if (p && p.code && !list.some(x => x.code === p.code)) list.push(p);
+      store('mise_parties', list);
+      for (const k of keys) if (k !== LS_MINE && k !== 'mise_parties' && k !== 'mise_party_current' && localStorage.getItem(k) == null) localStorage.setItem(k, data[k]);
+    }
+  } catch (e) { return 'This phone ran out of space for Mise. Delete a few photos in the old Mise and try again.'; }
+  store('mise_move_hidden', true);
+  sessionStorage.setItem('mise_moved_in', '1');
+  location.reload();
+  return '';
+}
+async function pasteFlow(){
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch (e) {}
+  if (!text) {   // no clipboard access here: paste by hand
+    if ($('shareSheet').hidden) openShare();
+    $('movePasteBox').hidden = false; $('movePasteText').focus();
+    return;
+  }
+  const err = await pasteFromOldMise(text);
+  if (err) { if ($('shareSheet').hidden) openShare(); moveMsg(err, true); }
+}
+$('moveInBtn').onclick = pasteFlow;
+$('moveCardPaste').onclick = pasteFlow;
+$('movePasteGo').onclick = async () => { const err = await pasteFromOldMise($('movePasteText').value); if (err) moveMsg(err, true); };
+$('moveCardClose').onclick = () => { store('mise_move_hidden', true); renderMoveCard(); };
+function renderMoveCard(){ $('moveCard').hidden = !(homeApp && (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) && !localStorage.getItem(LS_MINE) && !partyList().length && !load('mise_move_hidden', false)); }
+try { if (sessionStorage.getItem('mise_moved_in')) { sessionStorage.removeItem('mise_moved_in'); setTimeout(() => toast('Everything from your old Mise is here. You can remove the old one from your home screen.'), 400); } } catch (e) {}
+
 $('backupBtn').onclick = async () => {
   const withPhotos = clean(book, true);
   for (const n of withPhotos.notes) if (!n.img || !n.img.startsWith('data:')) { try { n.img = await readAsDataUrl(await photoBlob(n)); } catch (e) {} }
@@ -3099,7 +3211,7 @@ render();
 (function () {
   var KEY = 'mise_just_updated';
   // What's new, shown once after an update.
-  var NEWS = 'Mise updated: a new logo, and Video → Method now reads TikTok and Reels captions.' + (/iPhone|iPad/.test(navigator.userAgent) ? ' (On iPhone the home-screen picture stays the old one until Mise is added again. Save a copy first: Share → Send a copy of everything.)' : '');
+  var NEWS = 'Mise updated: a new logo, and Video → Method now reads TikTok and Reels captions.' + (/iPhone|iPad/.test(navigator.userAgent) ? ' To get the new icon on iPhone: add Mise to your home screen again, then in this one tap Share → Move to a new Mise, and paste in the new one.' : '');
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -3127,7 +3239,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'b71ccf6f1e';
+  var VERSION = 'c7055e39b4';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
