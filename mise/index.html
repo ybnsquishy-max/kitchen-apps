@@ -1100,7 +1100,7 @@ function textToMethod(raw, titleHint){
 
 // ----- Claude with the viewer's own key -----
 const CLAUDE_MODEL = 'claude-opus-5';
-const CLAUDE_SHAPE = 'Reply with ONLY a JSON object, no other text, shaped like: {"title": "the dish or method name, or an empty string", "steps": [step objects]} where each step object is shaped like: {"title": "short step name", "detail": "method / safety notes, including amounts", "temp": "temperature or time if mentioned, else empty string", "allergens": "comma-separated allergens this step involves (gluten, egg, dairy, fish, crustacean, mollusc, peanut, tree nuts, soy, sesame, celery, mustard, lupin, sulphites), else empty string"}. If ingredients are listed, make the first step "Mise en place: gather ingredients" with the ingredients and amounts, one per line, in its detail. Keep the order the recipe gives. If a word is hard to read, give your best reading followed by [?].';
+const CLAUDE_SHAPE = 'Reply with ONLY a JSON object, no other text, shaped like: {"title": "the dish or method name, or an empty string", "steps": [step objects]} where each step object is shaped like: {"title": "short step name", "detail": "method / safety notes, including amounts", "temp": "temperature or time if mentioned, else empty string", "allergens": "comma-separated allergens this step involves (gluten, egg, dairy, fish, crustacean, mollusc, peanut, tree nuts, soy, sesame, celery, mustard, lupin, sulphites), else empty string"}. If ingredients are listed, make the first step "Mise en place: gather ingredients" with the ingredients and amounts, one per line, in its detail. Keep the order the recipe gives. If a word is hard to read, give your best reading followed by [?]. If the images do not contain a recipe or cooking method at all (for example a menu brainstorm, a list of dish ideas or class notes), reply with {"title": "", "steps": [], "notRecipe": "a few words on what the photo shows instead"}.';
 async function readWithClaude(notes, text){
   const key = claudeKey();
   const out = { title: '', steps: [], note: '' };
@@ -1141,6 +1141,7 @@ async function readWithClaude(notes, text){
       try { const a = txt.indexOf('['), z = txt.lastIndexOf(']'); parsed = { steps: JSON.parse(txt.slice(a, z + 1)) }; } catch (e) {}
     }
     if (!parsed) throw { msg: data.stop_reason === 'max_tokens' ? 'That recipe was too long to read in one go. Select fewer photos at a time.' : "Couldn't make sense of Claude's answer. Try again." };
+    if (parsed.notRecipe && !(parsed.steps || []).length) throw { msg: "That doesn't look like a recipe" + (typeof parsed.notRecipe === 'string' ? ' (Claude says: ' + parsed.notRecipe.slice(0, 120) + ')' : '') + ', so no steps were added.' };
     if (!out.title && parsed.title) out.title = String(parsed.title).slice(0, 120);
     out.steps = out.steps.concat(cleanSteps(parsed.steps));
   }
@@ -2399,7 +2400,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '5dd0bde27e';
+  var VERSION = '1fcc8c7cca';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
