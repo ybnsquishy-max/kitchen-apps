@@ -231,6 +231,16 @@ input:focus{border-color:var(--blue);outline:none;}
 .live{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent);flex:none;}
 .live.off{background:var(--ink-soft);box-shadow:none;}
 .pb-code{font-family:var(--display);font-size:1.5rem;letter-spacing:.1em;}
+.members{display:flex;flex-wrap:wrap;gap:6px;}
+.member{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface2);font-size:.85rem;line-height:1.2;color:var(--ink);}
+.member i{width:8px;height:8px;border-radius:50%;background:var(--ink-soft);opacity:.45;flex:none;}
+.member.on i{background:var(--good);opacity:1;box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent);}
+.member small{color:var(--ink-soft);font-size:.75rem;}
+.member.me{border-color:var(--yellow);}
+button.member{cursor:pointer;font:inherit;}
+.myname{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.myname label{font-size:.85rem;font-weight:700;}
+.myname input{flex:1 1 140px;min-width:0;}
 .emo-pick{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;}
 .emo-pick button{border:1px solid transparent;background:none;border-radius:10px;font-size:1.3rem;aspect-ratio:1;padding:0;}
 .emo-pick button[aria-pressed="true"]{border-color:var(--ink);background:var(--surface2);}
@@ -285,6 +295,13 @@ input:focus{border-color:var(--blue);outline:none;}
     </div>
     <div class="emo-pick" id="partyEmoPick" hidden role="group" aria-label="Pick an emoji for this party"></div>
     <div class="pb-status"><i class="live off" id="partyDot"></i><span id="partyPeople">Connecting…</span><button class="linkbtn" id="inviteToggle" aria-expanded="false" style="margin-left:auto">Invite people</button></div>
+    <div class="members" id="partyMembers" aria-label="People in this party"></div>
+    <div class="myname" id="myNameBox" hidden>
+      <label for="myNameInput">Your name</label>
+      <input id="myNameInput" maxlength="24" placeholder="So others know it's you" autocomplete="given-name">
+      <button class="btn accent small" id="myNameSave">Save</button>
+    </div>
+    <p class="hint" id="partyAwayHint" hidden>Everyone stays in the party when they close Last Card, like a PS4 party. Scores sync as soon as someone else opens the app.</p>
     <div id="partyInvite" class="stack" hidden>
       <div class="pb-code">Code: <span id="partyCodeText"></span></div>
       <div class="row"><input id="partyLinkBox" readonly aria-label="Party link" style="flex:1;min-width:0"><button class="btn accent small" id="partyShareBtn">Send link</button></div>
@@ -347,6 +364,7 @@ function normalize(d){
   })).filter(g => g.playerIds.length >= 2);
   const out = { players, games, lastPlayers: Array.isArray(d.lastPlayers) ? d.lastPlayers : [] };
   if (d._name) { out._name = String(d._name).slice(0, 40); out._nt = +d._nt || 0; }
+  if (d._members && typeof d._members === 'object') out._members = mergeMembers({}, d._members);
   if (d._emo) { out._emo = String(d._emo).slice(0, 8); out._et = +d._et || 0; }
   return out;
 }
@@ -1294,6 +1312,34 @@ function stampChanges(){
   const liveG = new Set(S.games.map(g => g.id));
   for (const id of bg.keys()) if (!liveG.has(id)) party.tomb[id] = now;
 }
+// Who this phone is, across every party. Closing the app never removes you from a
+// party; only Leave does. The member list travels with the party's scores.
+function myId(){ let id = load('lastcard_member_id', null); if (!id) { id = Math.random().toString(36).slice(2, 12); store('lastcard_member_id', id); } return id; }
+function myName(){ return String(load('lastcard_member_name', '') || load('mise_member_name', '') || ''); }
+function stampMe(extra){
+  if (!party) return;
+  S._members = { ...(S._members || {}) };
+  S._members[myId()] = { name: myName(), t: Date.now(), ...(extra || {}) };
+}
+function mergeMembers(a, b){
+  const out = { ...(a || {}) };
+  for (const [id, m] of Object.entries(b || {})) {
+    if (!m || typeof m !== 'object') continue;
+    const c = { name: String(m.name || '').slice(0, 24), t: Number(m.t) || 0 };
+    if (m.left) c.left = true;
+    if (!out[id] || c.t > (out[id].t || 0)) out[id] = c;
+  }
+  return out;
+}
+function ago(t){
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 2) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : d + ' days ago';
+}
 function savePartyLocal(){ store(partyKey(party.code), S); store(partyKey(party.code, 'tomb'), party.tomb); }
 function sendSoon(){ clearTimeout(partyTimer); partyTimer = setTimeout(() => { if (party && party.sendState) party.sendState({ book: S, tomb: party.tomb }); }, 250); }
 function partyPersist(){ stampChanges(); party.shadow = snap(); savePartyLocal(); sendSoon(); }
@@ -1312,7 +1358,9 @@ function mergeFromPeer(inc){
   const players = byId(S.players, other.players, newer);
   const games = byId(S.games, other.games, (a, b) => ({ ...newer(a, b), rounds: byId(a.rounds, b.rounds, newer).sort((x, y) => (x.t || 0) - (y.t || 0)) }));
   games.forEach(g => { g.rounds = g.rounds.filter(alive); });
-  const merged = { ...S, players, games };
+  const merged = { ...S, players, games, _members: mergeMembers(S._members, other._members) };
+  const meNow = merged._members[myId()];
+  if (meNow && meNow.left) { delete meNow.left; meNow.t = Date.now(); }
   if ((other._nt || 0) > (S._nt || 0) && other._name) { merged._name = other._name; merged._nt = other._nt; }
   if ((other._et || 0) > (S._et || 0) && other._emo) { merged._emo = other._emo; merged._et = other._et; }
   S = normalize(merged);
@@ -1339,7 +1387,8 @@ async function joinParty(code, seedFromCurrent, name){
   const saved = load(partyKey(code), null);
   S = saved ? normalize(saved) : seedFromCurrent ? normalize(readStore()) : normalize({});
   if (!saved && name) { S._name = name; S._nt = Date.now(); }
-  party = { code, room: null, sendState: null, peers: new Set(), shadow: saved ? snap() : normalize({}), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
+  party = { code, room: null, sendState: null, peers: new Set(), peerMember: {}, shadow: saved ? snap() : normalize({}), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
+  stampMe();
   if (!saved) stampChanges();   // a new party stamps everything it starts with
   party.shadow = snap(); savePartyLocal();
   store('lastcard_party_current', code);
@@ -1352,11 +1401,25 @@ async function joinParty(code, seedFromCurrent, name){
   const relay = load('lastcard_party_relay', null);   // for testing with a private relay
   const room = relay ? lib.joinRoomRelay({ appId: PARTY_APP, relayConfig: { urls: [relay] } }, code) : lib.joinRoom({ appId: PARTY_APP }, code);
   party.room = room;
-  const state = room.makeAction('state');
+  const state = room.makeAction('state'), hello = room.makeAction('hello');
   party.sendState = (data, target) => state.send(data, target ? { target } : undefined);
+  party.sayHello = target => hello.send({ id: myId(), name: myName() }, target ? { target } : undefined);
   state.onMessage = data => mergeFromPeer(data);
-  room.onPeerJoin = peerId => { party.peers.add(peerId); updatePartyBar(); party.sendState({ book: S, tomb: party.tomb }, peerId); toast('Someone joined the party.'); };
-  room.onPeerLeave = peerId => { party.peers.delete(peerId); updatePartyBar(); };
+  hello.onMessage = (data, { peerId }) => {
+    if (!party || !data || typeof data.id !== 'string') return;
+    const id = data.id.slice(0, 16);
+    party.peerMember[peerId] = id;
+    const known = S._members && S._members[id] && !S._members[id].left;
+    if (!known) toast((String(data.name || '').slice(0, 24) || 'Someone') + ' joined the party.');
+    S._members = mergeMembers(S._members, { [id]: { name: data.name, t: Date.now() } });
+    party.shadow = snap(); savePartyLocal(); updatePartyBar();
+  };
+  room.onPeerJoin = peerId => { party.peers.add(peerId); stampMe(); party.sayHello(peerId); party.sendState({ book: S, tomb: party.tomb }, peerId); updatePartyBar(); };
+  room.onPeerLeave = peerId => {
+    const id = party.peerMember[peerId];
+    if (id && S._members && S._members[id] && !S._members[id].left) { S._members[id] = { ...S._members[id], t: Date.now() }; party.shadow = snap(); savePartyLocal(); }
+    party.peers.delete(peerId); delete party.peerMember[peerId]; updatePartyBar();
+  };
   party.connected = true; updatePartyBar();
 }
 function leaveParty(quiet){
@@ -1404,10 +1467,42 @@ function updatePartyBar(){
   $('partyEmoBtn').textContent = partyEmo(S._emo);
   $('partyLinkBox').value = partyLink(party.code);
   $('partyCodeText').textContent = prettyCode(party.code);
-  const n = party.peers.size;
-  $('partyDot').classList.toggle('off', !n);
-  $('partyPeople').textContent = n ? (n + 1) + ' people here' : (party.connected ? 'Waiting for others to join…' : 'Connecting…');
+  const online = new Set(Object.values(party.peerMember || {}));
+  const me = myId();
+  const members = Object.entries(S._members || {}).filter(([, m]) => !m.left);
+  const others = members.filter(([id]) => id !== me);
+  const here = others.filter(([id]) => online.has(id)).length + Math.max(0, party.peers.size - online.size);
+  $('partyDot').classList.toggle('off', !here);
+  $('partyPeople').textContent = !party.connected ? 'Connecting…'
+    : !others.length ? (here ? (here + 1) + ' here now' : 'Waiting for others to join…')
+    : members.length + ' in party · ' + (here + 1) + ' online';
+  members.sort(([a, x], [b, y]) => (a === me ? -1 : b === me ? 1 : 0) || (online.has(b) - online.has(a)) || (y.t - x.t));
+  $('partyMembers').innerHTML = members.map(([id, m]) => {
+    const isMe = id === me, on = isMe || online.has(id);
+    const label = isMe ? (m.name ? esc(m.name) + ' (you)' : 'You') : esc(m.name || 'Someone');
+    const sub = on ? 'online' : 'last here ' + ago(m.t);
+    return isMe
+      ? `<button type="button" class="member on me" id="editMyName" aria-label="Change your name"><i></i>${label} <small>${sub}</small></button>`
+      : `<span class="member${on ? ' on' : ''}"><i></i>${label} <small>${sub}</small></span>`;
+  }).join('');
+  const edit = $('editMyName'); if (edit) edit.onclick = () => showNameBox(true);
+  if (!myName() && !$('myNameBox').dataset.dismissed) showNameBox(false);
+  $('partyAwayHint').hidden = !(others.length && !here);
 }
+function showNameBox(focus){
+  $('myNameBox').hidden = false;
+  $('myNameInput').value = myName();
+  if (focus) $('myNameInput').focus();
+}
+function saveMyName(){
+  const v = $('myNameInput').value.trim().slice(0, 24);
+  store('lastcard_member_name', v);
+  $('myNameBox').hidden = true;
+  $('myNameBox').dataset.dismissed = '1';
+  if (party) { stampMe(); party.shadow = snap(); savePartyLocal(); sendSoon(); if (party.sayHello) party.sayHello(); updatePartyBar(); }
+}
+$('myNameSave').onclick = saveMyName;
+$('myNameInput').onkeydown = e => { if (e.key === 'Enter') saveMyName(); };
 function openPartyPanel(open){
   const show = open === undefined ? $('partyPanel').hidden : open;
   $('partyPanel').hidden = !show;
@@ -1458,9 +1553,12 @@ $('partyShareBtn').onclick = async () => {
   if (await copyText(msg + '\n' + link)) toast('Party link and code copied. Paste them into a message.');
   else { $('partyLinkBox').focus(); $('partyLinkBox').select(); toast('Press and hold the link to copy it.'); }
 };
-$('partyLeave').onclick = () => {
+$('partyLeave').onclick = async () => {
   if (!party) return;
   const code = party.code, name = S._name || 'the party';
+  stampMe({ left: true }); party.shadow = snap(); savePartyLocal();
+  if (party.sendState && party.peers.size) { party.sendState({ book: S, tomb: party.tomb }); await new Promise(r => setTimeout(r, 400)); }
+  if (!party || party.code !== code) return;
   forgetParty(code); leaveParty(false);
   toast('Left ' + name + '. Rejoin any time with its code.', () => joinParty(code, false));
 };
@@ -1503,6 +1601,22 @@ $('restoreInput').onchange = restoreBackup;
 document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
 render();
 // Joining from a link, or rejoining the party this phone was in.
+// Phones pause the connection when Last Card is in the background. Coming back
+// reconnects to the same party straight away; you never leave it by closing.
+let partyHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (!party) return;
+  if (document.visibilityState === 'hidden') {
+    partyHiddenAt = Date.now();
+    stampMe(); party.shadow = snap(); savePartyLocal();
+    if (party.sendState && party.peers.size) party.sendState({ book: S, tomb: party.tomb });
+  } else if (partyHiddenAt && Date.now() - partyHiddenAt > 15000) {
+    partyHiddenAt = 0;
+    joinParty(party.code, false);
+  }
+});
+window.addEventListener('online', () => { if (party && !party.peers.size) joinParty(party.code, false); });
+setInterval(() => { if (party && document.visibilityState === 'visible') updatePartyBar(); }, 60000);
 (function(){
   const m = location.hash.match(/^#party-([a-z0-9]{6,16})$/);
   const code = m ? m[1] : load('lastcard_party_current', null);
@@ -1543,7 +1657,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '276d96e27b';
+  var VERSION = '631b353916';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
