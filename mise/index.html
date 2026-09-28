@@ -213,6 +213,16 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
 .party-link{display:flex;gap:8px;margin-top:12px;}
 .party-link input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface);font-size:0.85rem;}
 .party .hint{margin:10px 0 0;}
+.members{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+.member{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:0.85rem;line-height:1.2;}
+.member i{width:8px;height:8px;border-radius:50%;background:var(--ink-soft);opacity:0.45;flex:none;}
+.member.on i{background:var(--ok);opacity:1;box-shadow:0 0 0 3px rgba(62,123,79,0.18);}
+.member small{color:var(--ink-soft);font-size:0.75rem;}
+.member.me{border-color:var(--accent);}
+button.member{cursor:pointer;font:inherit;color:inherit;}
+.myname{display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;}
+.myname label{font-size:0.85rem;font-weight:600;}
+.myname input{flex:1 1 140px;min-width:0;border:1px solid var(--accent);border-radius:8px;padding:8px 10px;background:var(--surface);font:inherit;}
 .ptabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin:0 -2px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
 .ptabs::-webkit-scrollbar{display:none;}
 .ptab{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:9px 14px;font-weight:600;font-size:0.9rem;cursor:pointer;white-space:nowrap;}
@@ -326,6 +336,12 @@ details.more summary{cursor:pointer;color:var(--ink-soft);font-size:0.85rem;}
     <div class="party-link">
       <input id="partyLinkBox" readonly aria-label="Party link">
       <button class="btn accent small" id="partyShareBtn">Send link</button>
+    </div>
+    <div class="members" id="partyMembers" aria-label="People in this party"></div>
+    <div class="myname" id="myNameBox" hidden>
+      <label for="myNameInput">Your name</label>
+      <input id="myNameInput" maxlength="24" placeholder="So others know it's you" autocomplete="given-name">
+      <button class="btn accent small" id="myNameSave">Save</button>
     </div>
     <p class="hint" id="partyHint">Send the link, or tell people the code. Anyone who already has Mise can open their app, tap <b>Share → Join a party</b> and enter the code.</p>
   </div>
@@ -1393,6 +1409,34 @@ const WEB_APP_URL = 'https://ybnsquishy-max.github.io/kitchen-apps/mise/';
 let party = null;   // { code, room, sendState, sendPhoto, askPhoto, peers:Set, shadow, tomb }
 let partyTimer = null, partyRenderPending = false;
 
+// Who this phone is, across every party. Closing the app never removes you from a
+// party; only Leave does. The member list travels with the party list.
+function myId(){ let id = load('mise_member_id', null); if (!id) { id = Math.random().toString(36).slice(2, 12); store('mise_member_id', id); } return id; }
+function myName(){ return String(load('mise_member_name', '') || ''); }
+function stampMe(extra){
+  if (!party) return;
+  book._members = { ...(book._members || {}) };
+  book._members[myId()] = { name: myName(), t: Date.now(), ...(extra || {}) };
+}
+function mergeMembers(a, b){
+  const out = { ...(a || {}) };
+  for (const [id, m] of Object.entries(b || {})) {
+    if (!m || typeof m !== 'object') continue;
+    const clean = { name: String(m.name || '').slice(0, 24), t: Number(m.t) || 0 };
+    if (m.left) clean.left = true;
+    if (!out[id] || clean.t > (out[id].t || 0)) out[id] = clean;
+  }
+  return out;
+}
+function ago(t){
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 2) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : d + ' days ago';
+}
 function partyKey(code, part){ return 'mise_party_' + code + (part ? '_' + part : ''); }
 function newPartyCode(){ const a = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; for (let i = 0; i < 8; i++) c += a[Math.floor(Math.random() * a.length)]; return c; }
 function partyLink(code){ return WEB_APP_URL + '#party-' + code; }
@@ -1460,6 +1504,9 @@ function mergeFromPeer(inc){
   if ((other._nt || 0) > (book._nt || 0) && other._name) { cleaned._name = String(other._name).slice(0, 40); cleaned._nt = other._nt; }
   cleaned._emo = book._emo; cleaned._et = book._et || 0;
   if ((other._et || 0) > (book._et || 0) && other._emo) { cleaned._emo = String(other._emo).slice(0, 8); cleaned._et = other._et; }
+  cleaned._members = mergeMembers(book._members || (party.shadow && party.shadow._members), other._members);
+  const meNow = cleaned._members[myId()];
+  if (meNow && meNow.left) { delete meNow.left; meNow.t = Date.now(); }   // someone had an old copy saying you left
   book = cleaned;
   rememberParty(party.code, book._name, book._emo);
   updatePartyBar();
@@ -1479,6 +1526,7 @@ function renderSoon(){
   render();
 }
 function partyPersist(){
+  if (!book._members && party.shadow && party.shadow._members) book._members = party.shadow._members;
   stampChanges();
   party.shadow = snapshotParty();
   savePartyLocal();
@@ -1493,19 +1541,53 @@ function updatePartyBar(){
   $('partyEmoBtn').textContent = partyEmo(book._emo);
   $('partyLinkBox').value = partyLink(party.code);
   $('partyCodeText').textContent = prettyCode(party.code);
-  const n = party.peers.size;
-  $('partyDot').classList.toggle('off', !n);
-  $('partyPeople').textContent = n ? (n + 1) + ' people here' : (party.connected ? 'Waiting for others to join…' : 'Connecting…');
+  const online = new Set(Object.values(party.peerMember || {}));
+  const me = myId();
+  const members = Object.entries(book._members || {}).filter(([, m]) => !m.left);
+  const others = members.filter(([id]) => id !== me);
+  const here = others.filter(([id]) => online.has(id)).length + (party.peers.size > online.size ? party.peers.size - online.size : 0);
+  $('partyDot').classList.toggle('off', !here);
+  $('partyPeople').textContent = !party.connected ? 'Connecting…'
+    : !others.length ? (here ? (here + 1) + ' here now' : 'Waiting for others to join…')
+    : (members.length) + ' in party · ' + (here + 1) + ' online';
+  members.sort(([a, x], [b, y]) => (a === me ? -1 : b === me ? 1 : 0) || (online.has(b) - online.has(a)) || (y.t - x.t));
+  $('partyMembers').innerHTML = members.map(([id, m]) => {
+    const isMe = id === me, on = isMe || online.has(id);
+    const label = isMe ? (m.name ? esc(m.name) + ' (you)' : 'You') : esc(m.name || 'Someone');
+    const sub = on ? 'online' : 'last here ' + ago(m.t);
+    const tag = isMe ? 'button' : 'span';
+    return `<${tag} class="member${on ? ' on' : ''}${isMe ? ' me' : ''}"${isMe ? ' type="button" id="editMyName" aria-label="Change your name"' : ''}><i></i>${label} <small>${sub}</small></${tag}>`;
+  }).join('');
+  const edit = $('editMyName'); if (edit) edit.onclick = () => showNameBox(true);
+  if (!myName() && !$('myNameBox').dataset.dismissed) showNameBox(false);
+  $('partyHint').innerHTML = others.length && !here
+    ? 'Everyone stays in the party when they close Mise, like a PS4 party. Changes sync as soon as someone else opens the app. To add more people, send the link or tell them the code.'
+    : 'Send the link, or tell people the code. Anyone who already has Mise can open their app, tap <b>Share → Join a party</b> and enter the code.';
 }
+function showNameBox(focus){
+  $('myNameBox').hidden = false;
+  $('myNameInput').value = myName();
+  if (focus) $('myNameInput').focus();
+}
+function saveMyName(){
+  const v = $('myNameInput').value.trim().slice(0, 24);
+  store('mise_member_name', v);
+  $('myNameBox').hidden = true;
+  $('myNameBox').dataset.dismissed = '1';
+  if (party) { stampMe(); party.shadow = snapshotParty(); savePartyLocal(); if (party.sendState) party.sendState(stateForPeers()); if (party.sayHello) party.sayHello(); updatePartyBar(); }
+}
+$('myNameSave').onclick = saveMyName;
+$('myNameInput').onkeydown = e => { if (e.key === 'Enter') saveMyName(); };
 async function joinParty(code, seedFromCurrent, name){
   if (!canParty()) return;
   leaveParty(true);
   const saved = load(partyKey(code), null);
   const start = saved ? clean(saved, true) : (seedFromCurrent ? clean(load(LS_MINE, null) || book, true) : emptyBook());
-  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; start._name = saved._name; start._nt = saved._nt || 0; start._emo = saved._emo; start._et = saved._et || 0; }
+  if (saved) { for (const key of Object.keys(LISTS)) start[key].forEach((x, i) => { x._t = saved[key][i] && saved[key][i]._t; }); start._o = saved._o || {}; start._mt = saved._mt || 0; start._name = saved._name; start._nt = saved._nt || 0; start._emo = saved._emo; start._et = saved._et || 0; start._members = mergeMembers({}, saved._members); }
   else if (name) { start._name = name; start._nt = Date.now(); }
   book = start;
-  party = { code, room: null, sendState: null, peers: new Set(), shadow: saved ? snapshotParty() : emptyBook(), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
+  party = { code, room: null, sendState: null, peers: new Set(), peerMember: {}, shadow: saved ? snapshotParty() : emptyBook(), tomb: load(partyKey(code, 'tomb'), {}), connected: false };
+  stampMe();
   if (!saved) stampChanges();   // a new party stamps everything it starts with
   party.shadow = snapshotParty();
   savePartyLocal();
@@ -1519,14 +1601,27 @@ async function joinParty(code, seedFromCurrent, name){
   const relay = load('mise_party_relay', null);   // for testing with a private relay
   const room = relay ? lib.joinRoomRelay({ appId: PARTY_APP, relayConfig: { urls: [relay] } }, code) : lib.joinRoom({ appId: PARTY_APP }, code);
   party.room = room;
-  const state = room.makeAction('state'), photo = room.makeAction('photo'), want = room.makeAction('want');
+  const state = room.makeAction('state'), photo = room.makeAction('photo'), want = room.makeAction('want'), hello = room.makeAction('hello');
+  party.sayHello = (target) => hello.send({ id: myId(), name: myName() }, target ? { target } : undefined);
+  hello.onMessage = (data, { peerId }) => {
+    if (!party || !data || typeof data.id !== 'string') return;
+    party.peerMember[peerId] = data.id.slice(0, 16);
+    const known = book._members && book._members[party.peerMember[peerId]] && !book._members[party.peerMember[peerId]].left;
+    if (!known) toast((String(data.name || '').slice(0, 24) || 'Someone') + ' joined the party.');
+    book._members = mergeMembers(book._members, { [party.peerMember[peerId]]: { name: data.name, t: Date.now() } });
+    party.shadow = snapshotParty(); savePartyLocal(); updatePartyBar();
+  };
   party.sendState = (data, target) => state.send(data, target ? { target } : undefined);
   party.askPhoto = (ids) => want.send(ids);
   state.onMessage = (data) => mergeFromPeer(data);
   want.onMessage = (ids, { peerId }) => { (Array.isArray(ids) ? ids : []).forEach(id => { const n = book.notes.find(x => x.id === id && x.img); if (n) photo.send({ id: n.id, img: n.img }, { target: peerId }); }); };
   photo.onMessage = (data) => { const n = data && book.notes.find(x => x.id === data.id); if (n && !n.img && typeof data.img === 'string' && data.img.startsWith('data:image/')) { n.img = data.img; party.shadow = snapshotParty(); savePartyLocal(); renderSoon(); } };
-  room.onPeerJoin = (peerId) => { party.peers.add(peerId); updatePartyBar(); party.sendState(stateForPeers(), peerId); toast('Someone joined the party.'); };
-  room.onPeerLeave = (peerId) => { party.peers.delete(peerId); updatePartyBar(); };
+  room.onPeerJoin = (peerId) => { party.peers.add(peerId); stampMe(); party.sayHello(peerId); party.sendState(stateForPeers(), peerId); updatePartyBar(); };
+  room.onPeerLeave = (peerId) => {
+    const id = party.peerMember[peerId];
+    if (id && book._members && book._members[id] && !book._members[id].left) { book._members[id] = { ...book._members[id], t: Date.now() }; party.shadow = snapshotParty(); savePartyLocal(); }
+    party.peers.delete(peerId); delete party.peerMember[peerId]; updatePartyBar();
+  };
   party.connected = true; updatePartyBar();
 }
 function leaveParty(quiet){
@@ -1540,9 +1635,12 @@ function leaveParty(quiet){
   updatePartyBar();
   if (!quiet) { render(); toast('Left the party. You\'re back on your own list. The party list stays on this phone if you rejoin.'); }
 }
-$('partyLeave').onclick = () => {
+$('partyLeave').onclick = async () => {
   if (!party) return;
   const code = party.code, name = book._name || 'the party';
+  stampMe({ left: true }); party.shadow = snapshotParty(); savePartyLocal();
+  if (party.sendState && party.peers.size) { party.sendState(stateForPeers()); await new Promise(r => setTimeout(r, 400)); }
+  if (!party || party.code !== code) return;
   forgetParty(code); leaveParty(true); render();
   toast('Left ' + name + '. Rejoin any time with its code.', () => joinParty(code, false));
 };
@@ -1673,6 +1771,22 @@ $('sharePartyBtn').onclick = () => {
     setStatus($('shareStatus'), 'Parties run in the Mise app, not inside Claude. Tap "Open the Mise app", then tap Share → Start a party there.');
   }
 };
+// Phones pause the connection when Mise is in the background. Coming back
+// reconnects to the same party straight away; you never leave it by closing.
+let partyHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (!party) return;
+  if (document.visibilityState === 'hidden') {
+    partyHiddenAt = Date.now();
+    stampMe(); party.shadow = snapshotParty(); savePartyLocal();
+    if (party.sendState && party.peers.size) party.sendState(stateForPeers());
+  } else if (partyHiddenAt && Date.now() - partyHiddenAt > 15000) {
+    partyHiddenAt = 0;
+    joinParty(party.code, false);
+  }
+});
+window.addEventListener('online', () => { if (party && !party.peers.size) joinParty(party.code, false); });
+setInterval(() => { if (party && document.visibilityState === 'visible') updatePartyBar(); }, 60000);
 // Joining from a link, or rejoining the party this phone was in.
 (function(){
   const m = location.hash.match(/^#party-([a-z0-9]{6,16})$/);
@@ -1862,7 +1976,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '4c7994f826';
+  var VERSION = '02a9349c86';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
