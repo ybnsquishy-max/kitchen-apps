@@ -375,5 +375,26 @@
     return { xAt: y => xt + (xb - xt) * (y - yt) / Math.max(1, yb - yt) };
   }
 
-  root.HandwrittenScores = { setModel, readNumber, readSheet, _digitImage: digitImage, _components: components, _inkMask: inkMask, _groupDigits: groupDigits, _strokes: strokes, _toLines: toLines, predict: (a) => predict(a) };
+  // Read the same photo at a few sizes and let the reads vote, column by column.
+  // One unlucky resize can't produce a wrong number, and disagreement is flagged.
+  function readSheetVote(images, wantCols) {
+    const runs = images.map(im => readSheet(im.rgba, im.W, im.H, wantCols).map(c => ({ ...c, nx: c.x / im.W })));
+    const ref = runs.slice().sort((a, b) => b.length - a.length)[0] || [];
+    return ref.map(rc => {
+      const votes = {};
+      let best = null;
+      runs.forEach(run => {
+        const c = run.slice().sort((a, b) => Math.abs(a.nx - rc.nx) - Math.abs(b.nx - rc.nx))[0];
+        if (!c || Math.abs(c.nx - rc.nx) > 0.12 || !c.last || c.last.value == null) return;
+        const k = c.last.value, v = votes[k] || (votes[k] = { n: 0, conf: 0, col: c });
+        v.n++; v.conf += c.last.conf;
+      });
+      Object.values(votes).forEach(v => { if (!best || v.n > best.n || (v.n === best.n && v.conf > best.conf)) best = v; });
+      if (!best) return { ...rc, agree: 0 };
+      const agree = best.n / runs.length;
+      return { ...best.col, last: { ...best.col.last, conf: Math.min(best.col.last.conf, agree) }, agree };
+    });
+  }
+
+  root.HandwrittenScores = { readSheetVote, setModel, readNumber, readSheet, _digitImage: digitImage, _components: components, _inkMask: inkMask, _groupDigits: groupDigits, _strokes: strokes, _toLines: toLines, predict: (a) => predict(a) };
 })(typeof window !== 'undefined' ? window : globalThis);

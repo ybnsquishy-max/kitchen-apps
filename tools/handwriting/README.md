@@ -32,7 +32,9 @@ Make `sheets.json` listing photos and the newest total in each column, left to r
 [{ "file": "/path/to/sheet.jpg", "want": [319, 267, 298] }]
 ```
 
-Then `node realtest.js sheets.json`. `MODEL=path.json` tests a different model.
+Then `node realtest.js sheets.json`. The app reads each photo at 1200, 1400 and
+1600px and lets the reads vote (`readSheetVote`), which keeps it steady whatever
+way the phone resizes the photo; `realtest.js` checks a single 1400px read. `MODEL=path.json` tests a different model.
 On the three sheets used so far it reads all 9 totals, and a photo of one
 player's column reads right every time.
 
