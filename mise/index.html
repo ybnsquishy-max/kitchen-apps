@@ -682,7 +682,14 @@ function persist(){
   if (!store(LS_MINE, book)) setStatus($('notesStatus'), "This device is out of space. Delete a few photos to keep new changes.", true);
   firstRun = false;
 }
-function setStatus(el, text, warn){ el.textContent = text || ''; el.hidden = !text; el.classList.toggle('warn', !!warn); }
+function setStatus(el, text, warn){
+  el.textContent = text || ''; el.hidden = !text; el.classList.toggle('warn', !!warn);
+  if (videoRun && text && el.id === 'notesStatus') { videoRun.step = text; store('mise_video_run', videoRun); }
+}
+// While a video is being read: updates wait, and if the phone restarts Mise
+// (usually out of memory) the next start says where it got to.
+let videoRun = null;
+window.__appBusy = () => converting;
 
 // ===== Toast =====
 let undoFn = null, toastTimer = null;
@@ -813,7 +820,7 @@ async function convert({ notes = [], text = '', video = null, caption = '' }){
   if (!notes.length && !text.trim() && !video) return;
   converting = true; updateNoteButtons();
   cancelWork = false;
-  if (video) { $('stopWorkBtn').hidden = false; keepAwake(true); }
+  if (video) { $('stopWorkBtn').hidden = false; keepAwake(true); videoRun = { name: video.name || 'video', mb: Math.round(video.size / 1e6), step: '' }; store('mise_video_run', videoRun); }
   setStatus($('notesStatus'), 'Reading notes… this can take up to a minute.');
   try {
     let res = { title: '', steps: [], note: '' };
@@ -848,6 +855,7 @@ async function convert({ notes = [], text = '', video = null, caption = '' }){
     else setStatus($('notesStatus'), e && e.msg ? e.msg : aiError(e), true);
   } finally {
     converting = false; cancelWork = false; $('stopWorkBtn').hidden = true; keepAwake(false);
+    if (videoRun) { videoRun = null; try { localStorage.removeItem('mise_video_run'); } catch (e) {} }
     if (primedVideo) { try { URL.revokeObjectURL(primedVideo.src); } catch (e) {} primedVideo = null; }
     render();
   }
@@ -1815,6 +1823,13 @@ $('videoGoBtn').onclick = () => {
   try { const v = document.createElement('video'); v.playsInline = true; v.src = URL.createObjectURL(f); const pl = v.play(); if (pl && pl.then) pl.then(() => v.pause(), () => {}); primedVideo = v; } catch (e) {}
   convert({ video: f, caption });
 };
+(() => {
+  const r = load('mise_video_run', null);
+  if (!r) return;
+  try { localStorage.removeItem('mise_video_run'); } catch (e) {}
+  tab = 'notes'; store(LS_TAB, tab);
+  setTimeout(() => setStatus($('notesStatus'), 'Mise restarted while reading “' + r.name + '” (' + r.mb + ' MB)' + (r.step ? ', at: ' + r.step.replace(/ Keep Mise open\.$/, '') : '') + '. The phone probably ran short of memory. Try again with other apps closed, or trim the video shorter. If it keeps happening, send a screenshot of this message.', true), 300);
+})();
 $('stopWorkBtn').onclick = () => { cancelWork = true; stopAsr(); setStatus($('notesStatus'), 'Stopping…'); };
 $('videoCancelBtn').onclick = () => { pendingVideo = null; $('videoCard').hidden = true; };
 // Something shared to Mise from another app (Android): a video, or a link and caption.
@@ -3258,7 +3273,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '6ca5ccc78a';
+  var VERSION = '53111f008c';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
@@ -3270,7 +3285,7 @@ render();
     hardRefresh2();
   }
   function hardRefresh2() {
-    caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return !/fonts/.test(k); }).map(function (k) { return caches.delete(k); })); })
+    caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return !/fonts|mise-asr|transformers-cache|mise-share/.test(k); }).map(function (k) { return caches.delete(k); })); })
       .catch(function () {}).then(reloadNow);
   }
   var lastCheck = 0;
