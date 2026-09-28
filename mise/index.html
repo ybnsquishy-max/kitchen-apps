@@ -1317,11 +1317,23 @@ async function adtsSlice(t, from, to){
 }
 let videoAC = null, primedVideo = null;   // made during the tap, so phones allow sound
 function audioCtx(){ const AC = window.AudioContext || window.webkitAudioContext; if (!videoAC || videoAC.state === 'closed') videoAC = new AC(); return videoAC; }
-function decodeAudio(buf){ const ac = audioCtx(); return new Promise((res, rej) => { const r = ac.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); }); }
+// Decoding uses an offline audio context: it doesn't need the phone's audio,
+// so music playing or headphones can't pause it. Nothing is allowed to hang.
+function withTimeout(p, ms, what){ return new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('timeout: ' + what)), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); }); }
+function decodeWith(ac, buf){ return new Promise((res, rej) => { try { const r = ac.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); } catch (e) { rej(e); } }); }
+async function decodeAudio(buf, ms){
+  let off = null;
+  try { off = new OfflineAudioContext(2, 1, 44100); } catch (e) {}
+  try { return await withTimeout(decodeWith(off || audioCtx(), off ? buf.slice(0) : buf), ms || 30000, 'decode'); }
+  catch (e) {
+    if (!off) throw e;
+    return await withTimeout(decodeWith(audioCtx(), buf), ms || 30000, 'decode');   // some phones only decode on a live context
+  }
+}
 async function to16k(audio){
   const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * 16000)), 16000);
   const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
-  return (await off.startRendering()).getChannelData(0);
+  return (await withTimeout(off.startRendering(), 60000, 'resample')).getChannelData(0);
 }
 // The video's sound as 16 kHz mono, which is what Whisper listens to.
 async function videoAudio(file){
@@ -1331,9 +1343,10 @@ async function videoAudio(file){
   if (track && track.seconds > 0.5) {
     if (track.seconds > 45 * 60) throw { msg: 'That video is ' + fmtTime(track.seconds) + ' long. Trim it to under 45 minutes and try again.' };
     try {
-      const per = Math.round(60 * track.rate / 1024), parts = [];
+      const per = Math.round(60 * track.rate / 1024), parts = [], mins = Math.ceil(track.seconds / 60);
       for (let f = 0; f < track.frames; f += per) {
         checkCancel();
+        setStatus($('notesStatus'), 'Getting the sound from the video… ' + (mins > 1 ? 'minute ' + (parts.length + 1) + ' of ' + mins : 'reading the sound track'));
         parts.push(await to16k(await decodeAudio(await adtsSlice(track, f, Math.min(track.frames, f + per)))));
       }
       const out = new Float32Array(parts.reduce((a, x) => a + x.length, 0));
@@ -1343,8 +1356,12 @@ async function videoAudio(file){
   }
   // 2. Let the browser open the whole file.
   if (file.size <= 600e6) {
-    try { return await to16k(await decodeAudio(await file.arrayBuffer())); } catch (e) {}
+    checkCancel();
+    setStatus($('notesStatus'), 'Getting the sound from the video… opening the whole video');
+    try { return await to16k(await decodeAudio(await file.arrayBuffer(), 90000)); } catch (e) {}
   }
+  checkCancel();
+  setStatus($('notesStatus'), 'Getting the sound from the video… playing it quietly to hear it (takes as long as the video)');
   // 3. Last resort: play the video silently to Mise and record the sound (takes as long as the video).
   return await recordWhilePlaying(file);
 }
@@ -1361,8 +1378,10 @@ async function recordWhilePlaying(file){
   try {
     await new Promise((res, rej) => {
       v.onended = res; v.onerror = () => rej(new Error('play'));
+      let lastT = -1, still = 0;
       const tick = setInterval(() => {
         if (cancelWork) { clearInterval(tick); v.pause(); rej({ code: 'cancelled' }); return; }
+        if (v.currentTime === lastT) { if (++still > 30) { clearInterval(tick); v.pause(); rej(new Error('stalled')); return; } } else { still = 0; lastT = v.currentTime; }
         if (isFinite(v.duration)) setStatus($('notesStatus'), 'Playing the video to hear it… ' + fmtTime(v.currentTime) + ' of ' + fmtTime(v.duration) + '. Keep Mise open.');
       }, 500);
       v.addEventListener('ended', () => clearInterval(tick));
@@ -3239,7 +3258,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'c7055e39b4';
+  var VERSION = '6ca5ccc78a';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
