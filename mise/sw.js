@@ -1,12 +1,12 @@
-// Offline support for the installable Mise app (version e5095d8bba).
+// Offline support for the installable Mise app (version b71ccf6f1e).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-e5095d8bba';
+const CACHE = 'mise-b71ccf6f1e';
 const FONT_CACHE = 'mise-fonts';
 // Big, rarely-changing files for Video → Method, kept across app updates:
 // the speech engine (vendor/asr) and the model the library saves itself.
 const ASR_CACHE = 'mise-asr-3.8.1';
 const KEEP = [FONT_CACHE, ASR_CACHE, 'transformers-cache', 'mise-share'];
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/Sortable.min.js', 'vendor/party.js'];
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/Sortable.min.js', 'vendor/party.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
