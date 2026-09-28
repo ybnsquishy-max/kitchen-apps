@@ -1217,12 +1217,21 @@ const PRINT_CSS = '#printSheet{font-family:Arial,Helvetica,sans-serif;color:#000
   + '#printSheet .t{font-weight:bold;display:block}#printSheet .d{white-space:pre-wrap}'
   + '#printSheet .ps-notes{margin-top:14px;font-size:10pt;break-inside:avoid}#printSheet .ps-line{border-bottom:1px solid #000;height:22px}'
   + '@page{margin:12mm}';
+// When the notes begin with the step name (as read from a photo), print it
+// once with the name in bold instead of twice.
+function stepCell(s){
+  const title = String(s.title || '').trim(), detail = String(s.detail || '');
+  const d = t => esc(t).replace(/^([^\n]{1,45}:)$/gm, '<b>$1</b>');
+  if (title && detail.toLowerCase().startsWith(title.toLowerCase()))
+    return `<span class="d"><b>${esc(detail.slice(0, title.length))}</b>${d(detail.slice(title.length))}</span>`;
+  return `<span class="t">${esc(title || 'Step')}</span>${detail ? `<span class="d">${d(detail)}</span>` : ''}`;
+}
 function workflowSheet(){
   const title = book.methodTitle || 'Method';
   const all = [];
   book.steps.forEach(s => String(s.allergens || '').split(/[,;/]/).map(a => a.trim().toLowerCase()).filter(Boolean).forEach(a => { if (!all.includes(a)) all.push(a); }));
   const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  const rows = book.steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td><span class="t">${esc(s.title || 'Step')}</span>${s.detail ? `<span class="d">${esc(s.detail).replace(/^([^\n]{1,45}:)$/gm, '<b>$1</b>')}</span>` : ''}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
+  const rows = book.steps.map((s, i) => `<tr><td class="c-tick"><span class="box"></span></td><td class="c-no">${i + 1}</td><td>${stepCell(s)}</td><td class="c-temp">${esc(s.temp)}</td><td class="c-all">${esc(s.allergens)}</td></tr>`).join('');
   const html = `<div class="ps-head"><h1>${esc(title)}</h1><div class="ps-meta">${book.steps.length} step${book.steps.length === 1 ? '' : 's'} · ${esc(date)}<br>Cook: ____________________</div></div>`
     + `<div class="ps-allerg"><b>Allergens:</b> ${all.length ? esc(all.join(', ')) : 'none noted. Check every label.'}</div>`
     + `<table><thead><tr><th>✓</th><th>#</th><th>Step</th><th>Temp / time</th><th>Allergens</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -2405,7 +2414,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '8ec196c4c6';
+  var VERSION = 'a01c33dec7';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
