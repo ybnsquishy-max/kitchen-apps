@@ -107,7 +107,7 @@ main{max-width:640px;margin:0 auto;padding-inline:18px;padding-block:22px calc(1
 .status.warn{color:var(--danger);}
 
 /* Notes */
-#photoInput,#libraryInput,#restoreInput{display:none;}
+#photoInput,#libraryInput,#videoInput,#restoreInput{display:none;}
 .note-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;}
 .note-card{background:var(--raised);border-radius:6px;overflow:hidden;position:relative;}
 .note-card img{width:100%;max-width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:var(--line);}
@@ -406,6 +406,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
     <div class="row edit-only">
       <button class="btn" id="takePhotoBtn">Take photo</button>
       <button class="btn secondary" id="addPhotoBtn">Add from library</button>
+      <button class="btn secondary" id="videoBtn" hidden>Video → Method</button>
     </div>
     <div class="row">
       <button class="btn accent edit-only" id="convertBtn" disabled>Selected → Method</button>
@@ -415,6 +416,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
     <p class="status" id="notesStatus" hidden></p>
     <input type="file" accept="image/*" capture="environment" id="photoInput">
     <input type="file" accept="image/*" id="libraryInput" multiple>
+    <input type="file" accept="video/*" id="videoInput">
     <p class="hint edit-only" id="notesDragHint" hidden>Drag ⠿ to put your photos in order.</p>
     <div class="note-grid" id="noteGrid"></div>
     <p class="hint" id="notesEmpty">No notes yet. Photograph your class notes or a recipe to start.</p>
@@ -425,7 +427,7 @@ button.member{cursor:pointer;font:inherit;color:inherit;}
     </details>
     <details class="typed keybox edit-only" id="keyBox" hidden>
       <summary>Handwriting &amp; whiteboards (optional Claude key)</summary>
-      <p class="hint">Printed recipe books are read on this phone for free. Handwriting and whiteboards need Claude. To use it, paste your own API key from console.anthropic.com. Each photo costs about 2–5 cents on your Anthropic account. The key is kept only on this phone, and is only ever sent to Anthropic.</p>
+      <p class="hint">Printed recipe books are read on this phone for free. Handwriting and whiteboards need Claude. To use it, paste your own API key from console.anthropic.com. Each photo costs about 2–5 cents on your Anthropic account. With a key, Claude also watches videos (about 5–10 cents each), which reads them better and works for videos with no talking. The key is kept only on this phone, and is only ever sent to Anthropic.</p>
       <div class="keyrow" id="keyForm">
         <input type="password" id="keyInput" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Claude API key">
         <button class="btn secondary small" id="keySaveBtn">Save key</button>
@@ -769,6 +771,7 @@ function updateNoteButtons(){
   $('convertBtn').disabled = converting || !any || (!homeApp && (!sampleFn || aiOff || !maxImages));
   $('copyNotesBtn').disabled = !any;
   $('convertTextBtn').disabled = converting;
+  $('videoBtn').hidden = !homeApp; $('videoBtn').disabled = converting;
 }
 
 // Claude reads notes on the viewer's own plan: no API key.
@@ -786,15 +789,15 @@ function aiError(e){
     default: return "Couldn't reach Claude just now. Try again, or add steps by hand.";
   }
 }
-async function convert({ notes = [], text = '' }){
+async function convert({ notes = [], text = '', video = null }){
   if (converting || (!homeApp && (!sampleFn || aiOff))) return;
-  if (!notes.length && !text.trim()) return;
+  if (!notes.length && !text.trim() && !video) return;
   converting = true; updateNoteButtons();
   setStatus($('notesStatus'), 'Reading notes… this can take up to a minute.');
   try {
     let res = { title: '', steps: [], note: '' };
     if (homeApp) {
-      res = readWith() === 'claude' ? await readWithClaude(notes, text) : await readOnPhone(notes, text);
+      res = video ? await readVideo(video) : readWith() === 'claude' ? await readWithClaude(notes, text) : await readOnPhone(notes, text);
     } else if (notes.length) {
       for (let i = 0; i < notes.length; i += maxImages) {
         const batch = notes.slice(i, i + maxImages);
@@ -808,7 +811,7 @@ async function convert({ notes = [], text = '' }){
     const steps = res.steps;
     if (!steps.length) throw { code: 'empty' };
     // Each recipe read gets its own tab (or fills the open tab if it's empty).
-    const name = res.title || (notes[0] && notes[0].title) || 'Untitled method';
+    const name = res.title || (notes[0] && notes[0].title) || (video ? 'Video method' : 'Untitled method');
     let m = current();
     if (m && !curSteps().length) { m = realMethod(); if (!m.title) m.title = name; }
     else m = newMethod(name);
@@ -817,7 +820,7 @@ async function convert({ notes = [], text = '' }){
     book.steps = book.steps.concat(steps);
     persist();
     setStatus($('notesStatus'), 'Added “' + m.title + '” (' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + ') to Method.' + (res.note ? ' ' + res.note : ''));
-    if (text) $('typedNotes').value = '';
+    if (text && !video) $('typedNotes').value = '';
     tab = 'method'; store(LS_TAB, tab);
   } catch (e) {
     if (!e || e.code !== 'cancelled') setStatus($('notesStatus'), e && e.msg ? e.msg : aiError(e), true);
@@ -840,8 +843,8 @@ function renderKeyBox(){
   $('keyForm').hidden = has; $('keySaved').hidden = !has;
   $('readWith').value = readWith();
   $('readHint').textContent = readWith() === 'claude'
-    ? 'Select photos, then tap Selected → Method. Claude reads handwriting, whiteboards and books (a few cents a photo).'
-    : 'Select photos of a printed recipe, then tap Selected → Method. Your phone reads it for free.' + (has ? '' : ' For handwriting or a whiteboard, see the Claude key option below.');
+    ? 'Select photos, then tap Selected → Method, or tap Video → Method. Claude reads handwriting, whiteboards and books, and watches videos (a few cents each).'
+    : 'Select photos of a printed recipe, then tap Selected → Method, or tap Video → Method for a cooking video. Your phone reads and listens for free.' + (has ? '' : ' For handwriting or a whiteboard, see the Claude key option below.');
 }
 $('keySaveBtn').onclick = () => {
   const k = $('keyInput').value.trim();
@@ -1116,6 +1119,188 @@ function textToMethod(raw, titleHint){
   return { title: title.slice(0, 120), steps, note: '' };
 }
 
+// ----- Video → Method -----
+// The phone listens to the video with Whisper (a small speech-to-text model,
+// run in the browser: free, and offline once downloaded), then the same rules
+// as typed notes turn what was said into steps. With a Claude key, Claude gets
+// the words plus a few frames from the video and writes the method instead.
+const ASR_BASE = 'vendor/asr/', ASR_MODEL = 'Xenova/whisper-tiny';
+let asrPipe = null;
+function getAsr(){
+  if (!asrPipe) {
+    asrPipe = (async () => {
+      const T = await import(new URL(ASR_BASE + 'transformers.min.js', location.href).href);
+      T.env.allowLocalModels = false;
+      T.env.backends.onnx.wasm.wasmPaths = new URL(ASR_BASE, location.href).href;
+      const got = {};
+      return T.pipeline('automatic-speech-recognition', ASR_MODEL, {
+        dtype: 'q8', device: 'wasm',
+        progress_callback: p => {
+          if (!p || p.status !== 'progress' || !p.total) return;
+          got[p.file] = [p.loaded, p.total];
+          const all = Object.values(got), mb = all.reduce((a, x) => a + x[0], 0) / 1e6, tot = all.reduce((a, x) => a + x[1], 0) / 1e6;
+          if (tot > 5) setStatus($('notesStatus'), 'Getting the listening model (first time only): ' + Math.round(mb) + ' of ' + Math.round(tot) + ' MB…');
+        },
+      });
+    })();
+    asrPipe.catch(() => { asrPipe = null; });
+  }
+  return asrPipe;
+}
+// The video's sound as 16 kHz mono, which is what Whisper listens to.
+async function videoAudio(file){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+  let audio;
+  try { audio = await ctx.decodeAudioData(await file.arrayBuffer()); }
+  finally { try { ctx.close(); } catch (e) {} }
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * 16000)), 16000);
+  const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+  return (await off.startRendering()).getChannelData(0);
+}
+// Cut into pieces of up to 30 s, at the quietest moment near the end of each, so words aren't split.
+function audioPieces(a){
+  const R = 16000, out = [];
+  for (let s = 0; s < a.length;) {
+    let e = Math.min(a.length, s + 30 * R);
+    if (e < a.length) {
+      let best = e, low = Infinity;
+      for (let t = s + 20 * R; t + 1600 <= e; t += 800) {
+        let en = 0; for (let k = t; k < t + 1600; k++) en += a[k] * a[k];
+        if (en < low) { low = en; best = t + 800; }
+      }
+      e = best;
+    }
+    out.push(a.subarray(s, e)); s = e;
+  }
+  return out;
+}
+const fmtTime = sec => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
+async function listenToVideo(file){
+  if (file.size > 600e6) throw { msg: 'That video is too big for the phone to open (' + Math.round(file.size / 1e6) + ' MB). Trim it, or save it at a lower quality, and try again.' };
+  setStatus($('notesStatus'), 'Getting the sound from the video…');
+  let audio;
+  try { audio = await videoAudio(file); }
+  catch (e) { throw { msg: "Couldn't get the sound from that video. Try a video saved on your phone (MP4 or MOV)." }; }
+  const total = audio.length / 16000;
+  if (total > 45 * 60) throw { msg: 'That video is ' + fmtTime(total) + ' long. Trim it to under 45 minutes and try again.' };
+  let pipe;
+  try { pipe = await getAsr(); } catch (e) { throw { msg: "Couldn't load the listening model. Check your internet connection for the first use, then try again." }; }
+  const pieces = audioPieces(audio), texts = [];
+  let done = 0;
+  for (const piece of pieces) {
+    setStatus($('notesStatus'), 'Listening to the video… ' + fmtTime(done) + ' of ' + fmtTime(total) + '. Keep Mise open.');
+    // Skip near-silent pieces: Whisper invents words ("Thank you.") in silence.
+    let en = 0; for (let k = 0; k < piece.length; k += 4) en += piece[k] * piece[k];
+    if (en / (piece.length / 4) > 1e-5) {
+      const r = await pipe(piece, { language: 'english', task: 'transcribe' });
+      texts.push(String((r && r.text) || '').trim());
+    }
+    done += piece.length / 16000;
+  }
+  const words = texts.join(' ').replace(/\s*[\[(](music|applause|laughter|silence|blank_audio|inaudible|[a-z ]*music[a-z ]*)[\])]\s*/gi, ' ').replace(/\s+/g, ' ').trim();
+  return { words, seconds: total };
+}
+// A few still frames spread through the video, for Claude to look at.
+function videoFrames(file, n, knownDuration){
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file), v = document.createElement('video'), out = [];
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+    const finish = () => { URL.revokeObjectURL(url); resolve(out); };
+    const timer = setTimeout(finish, 30000);
+    v.onerror = () => { clearTimeout(timer); finish(); };
+    v.onloadedmetadata = async () => {
+      let d = v.duration;
+      if (!isFinite(d) || !d) {   // some recorders don't store the length; seeking far makes the browser find it
+        await new Promise(r => { v.ondurationchange = r; v.currentTime = 1e9; setTimeout(r, 3000); });
+        d = isFinite(v.duration) && v.duration ? v.duration : knownDuration;
+      }
+      if (!d) { clearTimeout(timer); finish(); return; }
+      for (let i = 0; i < n; i++) {
+        await new Promise(r => { v.onseeked = r; v.currentTime = d * (i + 0.5) / n; });
+        const k = Math.min(1, 768 / Math.max(v.videoWidth, v.videoHeight) || 1);
+        const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+        if (!c.width || !c.height) break;
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+        out.push({ t: v.currentTime, data: c.toDataURL('image/jpeg', 0.7).split(',')[1] });
+      }
+      clearTimeout(timer); finish();
+    };
+  });
+}
+async function readVideo(file){
+  const { words, seconds } = await listenToVideo(file);
+  // The words go in the typed-notes box too, so they can be fixed and read again.
+  if (words) { $('typedNotes').value = words; $('typedBox').open = true; }
+  const nameGuess = videoTitleFromName(file.name);
+  if (readWith() === 'claude') {
+    setStatus($('notesStatus'), 'Picking frames from the video…');
+    const frames = await videoFrames(file, 8, seconds);
+    if (!frames.length && words.split(' ').length < 8) throw { msg: "Couldn't get any sound or pictures from that video." };
+    setStatus($('notesStatus'), 'Sending the video frames and words to Claude… this can take up to a minute.');
+    const content = frames.map(f => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: f.data } }));
+    content.push({ type: 'text', text: (frames.length ? 'The attached ' + frames.length + ' images are frames taken in order from a cooking video (at ' + frames.map(f => fmtTime(f.t)).join(', ') + '). ' : '') +
+      (words ? 'Below is an automatic transcript of what is said in the video; it may mishear words, so use the frames and cooking sense to correct obvious mistakes. ' : 'The video has no speech. ') +
+      'Turn the video into a clear step-by-step kitchen workflow that a cook can print and follow, keeping the order it is done in. Leave out chat, greetings and requests to like or subscribe. ' + CLAUDE_SHAPE +
+      (words ? '\n\nTranscript:\n' + words.slice(0, 40000) : '') });
+    const { parsed, cost } = await askClaude(content, 'That video is too long to read in one go. Try a shorter video.');
+    return { title: String(parsed.title || nameGuess || '').slice(0, 120), steps: cleanSteps(parsed.steps), note: cost ? 'About ' + Math.max(1, Math.round(cost * 100)) + '¢ (US) on your Anthropic account.' : '' };
+  }
+  if (words.split(' ').length < 12) throw { msg: "Couldn't hear anyone explaining the recipe in that video." + (claudeKey() ? ' With "Read photos with" set to Claude, Claude can watch videos without talking.' : ' Videos without talking need a Claude key (see below).') };
+  const res = spokenToMethod(words);
+  if (!res.title) res.title = nameGuess;
+  res.note = 'Made from what was said, so check the steps. The words it heard are in "Or paste typed notes" below.';
+  return res;
+}
+function videoTitleFromName(name){
+  const base = String(name || '').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
+  return /^(img|vid|mov|pxl|video|trim|screen ?recording|rpreplay|\d)/i.test(base) || !/[a-z]{3}/i.test(base) ? '' : base.slice(0, 80);
+}
+// Turn what someone said while cooking into steps: drop the chat, split where
+// they move on ("then", "next", "now"...), and gather the amounts mentioned.
+const CHATTER = /\b(subscribe|like (and|this video)|comment below|notification|bell|welcome (back )?to (my|the) channel|hey (guys|everyone)|hi (guys|everyone)|thanks for watching|see you (next|in the)|link (is )?in the description|sponsor)\b/i;
+const CUES = /^(so )?(first(ly)?|to start|start by|then|next|now|after (that|this)|once|when|meanwhile|while|finally|lastly|last(ly)?|and then|step \d+|at this point|to finish|to serve)\b/i;
+// A sentence that starts with a cooking action ("Pour in…", "I'll leave it…") is a new step.
+const FILLER_START = /^((and|so|now|then|next|okay|ok|alright|just|first|finally)[, ]+|(i'll|we'll|you'll|i|we|you)\s+(just\s+)?(want to|need to|wanna|gonna|are going to|'re going to|am going to|'m going to|can|should|will)?\s*)+/i;
+const ACTIONS = /^(add|put|place|pour|heat|cook|bake|mix|whisk|stir|combine|crack|leave|rest|serve|season|cut|chop|slice|dice|mince|melt|bring|boil|simmer|fry|saute|sauté|roast|grill|preheat|remove|take|transfer|fold|knead|roll|spread|sprinkle|drain|blend|beat|cream|grease|line|let|allow|turn|flip|cover|chill|refrigerate|freeze|garnish|plate|taste|reduce|strain|sieve|toss|marinate|brush|shape|divide|prove|proof|sift|measure|weigh|wash|rinse|peel|grate|zest|squeeze|pipe|fill|top|finish|drizzle|scoop|spoon|ladle|set|check|repeat|keep|lower|increase|use|get|grab|start|make)\b/i;
+const LITTLE = /\b(a (?:pinch|handful|little|knob|splash|drizzle|dash|sprinkle|squeeze|bunch)(?: of)?)\s+((?:(?!(?:and|into|in|to|with|then|until|for|on|at|over|the|it)\b)[a-z][a-z-]*\s*){1,2})/gi;
+const QTY = /\b(\d+(?:[.,/]\d+)?|a half|half an?|one|two|three|four|five|six|a couple of|a pinch of|a handful of)\s*(kilograms?|kilos?|kg|grams?|g|millilit(?:re|er)s?|ml|lit(?:re|er)s?|l|cups?|tablespoons?|tbsp|teaspoons?|tsp|pinch(?:es)?|cloves?|sprigs?|eggs?|egg yolks?|slices?|bunch(?:es)?|cans?|tins?)\b(?:\s+of)?((?:\s+(?!(?:and|into|in|to|with|then|until|for|on|at|the|a|it|we|you|i|so|but|or)\b)[a-z][a-z-]*){0,3})/gi;
+function spokenToMethod(raw){
+  const text = String(raw || '').replace(/\s+/g, ' ').trim();
+  const sentences = (text.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) || []).map(x => x.trim()).filter(Boolean);
+  let title = '';
+  for (const x of sentences.slice(0, 8)) {
+    const m = x.match(/\b(?:we(?:'re| are)|i(?:'m| am)|let's|let us|i'll|we'll|gonna)\s+(?:going to |gonna )?(?:be )?(?:make|making|cook|cooking|bake|baking|prepare|preparing|show you how to (?:make|cook|bake))\s+(?:a |an |some |the |my |our |this |these )?([a-z][^.,!?]{2,45})/i)
+      || x.match(/\b(?:how to (?:make|cook|bake)|recipe for)\s+(?:a |an |the |some )?([a-z][^.,!?]{2,45})/i);
+    if (m) { title = m[1].replace(/\s+(today|now|here|with you|for you|together)\b.*$/i, '').trim(); break; }
+  }
+  if (title) title = title.replace(/\b[a-z]/g, c => c.toUpperCase());
+  const kept = sentences.filter(x => !CHATTER.test(x) && x.split(/\s+/).length >= 3 && !/^(okay|ok|alright|all right|right|so|um|uh|yeah|yes|great|perfect|beautiful|nice|and that's it)[.,!? ]*$/i.test(x));
+  const amounts = [];
+  const addAmt = t => { t = t.replace(/\s+/g, ' ').trim(); if (!amounts.some(a => a.toLowerCase() === t.toLowerCase())) amounts.push(t); };
+  for (const x of kept) {
+    x.replace(QTY, (m, n, u, what) => addAmt(n + ' ' + u + (what ? ' ' + what.trim() : '')));
+    x.replace(LITTLE, (m, q, what) => addAmt(q + ' ' + what));
+  }
+  const paras = []; let cur = '';
+  for (const x of kept) {
+    if (title && x.toLowerCase().includes(title.toLowerCase()) && x.length < title.length + 40 && !paras.length && !cur) continue;   // "Today we're making…" is the title, not a step
+    const action = ACTIONS.test(x.replace(FILLER_START, ''));
+    if (cur && (CUES.test(x) || action || cur.length > 160)) { paras.push(cur); cur = ''; }
+    cur += (cur ? ' ' : '') + x;
+  }
+  if (cur) paras.push(cur);
+  const steps = [];
+  if (amounts.length) steps.push({ id: uid(), title: 'Mise en place: amounts mentioned', detail: amounts.join('\n').slice(0, 2000), temp: '', allergens: allergensIn(amounts.join(' ')) });
+  for (const p of paras) for (const part of splitLong(p)) {
+    const clean = part.replace(/^(so|and|okay|ok|alright|now|then)[, ]+/i, '').replace(/^(i'll|we'll|you'll)\s+(just\s+)?/i, '').trim();
+    if (clean.length < 6) continue;
+    const body = clean.charAt(0).toUpperCase() + clean.slice(1);
+    steps.push({ id: uid(), title: stepTitle(body.replace(CUES, '').replace(/^[, ]+/, '') || body).slice(0, 200), detail: body.slice(0, 2000), temp: tempsAndTimes(body), allergens: allergensIn(body).slice(0, 200) });
+  }
+  return { title: title.slice(0, 120), steps, note: '' };
+}
+
 // ----- Claude with the viewer's own key -----
 const CLAUDE_MODEL = 'claude-opus-5';
 const CLAUDE_SHAPE = 'Reply with ONLY a JSON object, no other text, shaped like: {"title": "the dish or method name, or an empty string", "steps": [step objects]} where each step object is shaped like: {"title": "short step name", "detail": "method / safety notes, including amounts", "temp": "temperature or time if mentioned, else empty string", "allergens": "comma-separated allergens this step involves (gluten, egg, dairy, fish, crustacean, mollusc, peanut, tree nuts, soy, sesame, celery, mustard, lupin, sulphites), else empty string"}. If ingredients are listed, make the first step "Mise en place: gather ingredients" with the ingredients and amounts, one per line, in its detail. Keep the order the recipe gives. If a word is hard to read, give your best reading followed by [?]. If the images do not contain a recipe or cooking method at all (for example a menu brainstorm, a list of dish ideas or class notes), reply with {"title": "", "steps": [], "notRecipe": "a few words on what the photo shows instead"}.';
@@ -1140,31 +1325,37 @@ async function readWithClaude(notes, text){
       setStatus($('notesStatus'), 'Sending your notes to Claude…');
       content.push({ type: 'text', text: 'Below are typed cooking notes from a commercial cookery class. Turn them into a clear step-by-step kitchen workflow that a cook can print and follow. ' + CLAUDE_SHAPE + '\n\nNotes:\n' + text.slice(0, 20000) });
     }
-    let res, data;
-    try {
-      res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8000, messages: [{ role: 'user', content }] }),
-      });
-    } catch (e) { throw { msg: "Couldn't reach Claude. Check your internet connection and try again." }; }
-    try { data = await res.json(); } catch (e) { data = null; }
-    if (!res.ok) throw { msg: claudeHttpError(res.status, data) };
-    if (data.usage) cost += ((data.usage.input_tokens || 0) * 5 + (data.usage.output_tokens || 0) * 25) / 1e6;
-    if (data.stop_reason === 'refusal') throw { msg: 'Claude declined to read that. Try a different photo.' };
-    const txt = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
-    let parsed = null;
-    try { const a = txt.indexOf('{'), z = txt.lastIndexOf('}'); parsed = JSON.parse(txt.slice(a, z + 1)); } catch (e) {}
-    if (!parsed) {
-      try { const a = txt.indexOf('['), z = txt.lastIndexOf(']'); parsed = { steps: JSON.parse(txt.slice(a, z + 1)) }; } catch (e) {}
-    }
-    if (!parsed) throw { msg: data.stop_reason === 'max_tokens' ? 'That recipe was too long to read in one go. Select fewer photos at a time.' : "Couldn't make sense of Claude's answer. Try again." };
-    if (parsed.notRecipe && !(parsed.steps || []).length) throw { msg: "That doesn't look like a recipe" + (typeof parsed.notRecipe === 'string' ? ' (Claude says: ' + parsed.notRecipe.slice(0, 120) + ')' : '') + ', so no steps were added.' };
+    const { parsed, cost: c } = await askClaude(content, 'That recipe was too long to read in one go. Select fewer photos at a time.');
+    cost += c;
     if (!out.title && parsed.title) out.title = String(parsed.title).slice(0, 120);
     out.steps = out.steps.concat(cleanSteps(parsed.steps));
   }
   if (cost) out.note = 'About ' + Math.max(1, Math.round(cost * 100)) + '¢ (US) on your Anthropic account.';
   return out;
+}
+// One request to Claude; returns the JSON it wrote and roughly what it cost.
+async function askClaude(content, tooLong){
+  let res, data;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': claudeKey(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8000, messages: [{ role: 'user', content }] }),
+    });
+  } catch (e) { throw { msg: "Couldn't reach Claude. Check your internet connection and try again." }; }
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) throw { msg: claudeHttpError(res.status, data) };
+  const cost = data.usage ? ((data.usage.input_tokens || 0) * 5 + (data.usage.output_tokens || 0) * 25) / 1e6 : 0;
+  if (data.stop_reason === 'refusal') throw { msg: 'Claude declined to read that. Try a different photo or video.' };
+  const txt = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+  let parsed = null;
+  try { const a = txt.indexOf('{'), z = txt.lastIndexOf('}'); parsed = JSON.parse(txt.slice(a, z + 1)); } catch (e) {}
+  if (!parsed) {
+    try { const a = txt.indexOf('['), z = txt.lastIndexOf(']'); parsed = { steps: JSON.parse(txt.slice(a, z + 1)) }; } catch (e) {}
+  }
+  if (!parsed) throw { msg: data.stop_reason === 'max_tokens' ? tooLong : "Couldn't make sense of Claude's answer. Try again." };
+  if (parsed.notRecipe && !(parsed.steps || []).length) throw { msg: "That doesn't look like a recipe" + (typeof parsed.notRecipe === 'string' ? ' (Claude says: ' + parsed.notRecipe.slice(0, 120) + ')' : '') + ', so no steps were added.' };
+  return { parsed, cost };
 }
 function claudeHttpError(status, data){
   const err = (data && data.error) || {}, m = String(err.message || '');
@@ -1178,6 +1369,8 @@ function claudeHttpError(status, data){
 }
 $('convertBtn').onclick = () => convert({ notes: chosenNotes() });
 $('convertTextBtn').onclick = () => convert({ text: $('typedNotes').value });
+$('videoBtn').onclick = () => $('videoInput').click();
+$('videoInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) convert({ video: f }); };
 
 // ===== Method =====
 // Each method is a tab. Steps from before tabs existed (no m) belong to the
@@ -2503,7 +2696,7 @@ render();
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '5e6fbadc07';
+  var VERSION = 'a389cd2641';
   var offered = false;
   function hardRefresh() {
     if (busy()) {

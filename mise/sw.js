@@ -1,7 +1,11 @@
-// Offline support for the installable Mise app (version 5e6fbadc07).
+// Offline support for the installable Mise app (version a389cd2641).
 // Your lists live in the browser's storage, which updates never touch.
-const CACHE = 'mise-5e6fbadc07';
+const CACHE = 'mise-a389cd2641';
 const FONT_CACHE = 'mise-fonts';
+// Big, rarely-changing files for Video → Method, kept across app updates:
+// the speech engine (vendor/asr) and the model the library saves itself.
+const ASR_CACHE = 'mise-asr-3.8.1';
+const KEEP = [FONT_CACHE, ASR_CACHE, 'transformers-cache'];
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'vendor/Sortable.min.js', 'vendor/party.js'];
 
 self.addEventListener('install', (event) => {
@@ -9,7 +13,7 @@ self.addEventListener('install', (event) => {
 });
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== FONT_CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && !KEEP.includes(k)).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 function withTimeout(p, ms) {
@@ -32,6 +36,13 @@ self.addEventListener('fetch', (event) => {
     });
     event.waitUntil(net.catch(() => {}));
     event.respondWith(withTimeout(net, 6000).catch(() => caches.match('index.html').then((hit) => hit || net)));
+    return;
+  }
+  if (url.origin === self.location.origin && url.pathname.includes('/vendor/asr/')) {
+    event.respondWith(caches.open(ASR_CACHE).then((c) => c.match(req).then((hit) => hit || fetch(req).then((res) => {
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    }))));
     return;
   }
   if (url.origin === self.location.origin) {
