@@ -145,6 +145,14 @@ input:focus{border-color:var(--blue);outline:none;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;}
 #handPhoto{display:none;}
+.sheetbox{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--surface2);}
+.sheetrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;}
+.sheetrow select{min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:6px 8px;font-weight:700;min-width:0;}
+.sheetrow .tot{font-variant-numeric:tabular-nums;font-size:.9rem;color:var(--ink-soft);}
+.sheetrow .tot{display:flex;align-items:center;gap:6px;}
+.sheetrow input{color:var(--ink);font-weight:800;font-size:1rem;font-variant-numeric:tabular-nums;background:var(--surface);}
+.sheetrow .dl{font-weight:800;font-variant-numeric:tabular-nums;min-width:48px;text-align:right;}
+.sheetrow .dl.bad{color:var(--bad);}
 
 /* Rounds list */
 .rounds{display:flex;flex-direction:column;gap:6px;}
@@ -684,25 +692,40 @@ function draftHtml(g){
   const pot = others.reduce((s, p) => s + draftValue(p), 0);
   return `<section class="panel stack" style="margin-top:14px" aria-labelledby="draftH">
     <div class="gamehead" style="margin:0"><h2 id="draftH">Score round ${g.rounds.length + 1}</h2><button class="linkbtn" id="cancelDraft">Cancel</button></div>
-    ${draft.photos && !draft.winner ? '<p class="scannote" role="status">Tap who went out. Then tap 📷 next to each other player to score them from a photo.</p>' : ''}
+    ${photoMode() === 'phone' ? sheetHtml(g) : ''}
+    ${draft.photos && !draft.winner && !draft.sheet ? '<p class="scannote" role="status">Scan the whole score sheet, or tap who went out and then 📷 next to each other player to read their column.</p>' : ''}
     <div class="field"><label>Who went out?</label>
       <div class="chips">${g.playerIds.map(id => { const p = player(id); return `<button class="chip" data-winner="${esc(id)}" aria-pressed="${draft.winner === id}">${av(p)}${pname(p)}</button>`; }).join('')}</div>
     </div>
     ${winner ? `<div class="field"><label>Cards left in everyone else's hand</label>
       ${others.map(id => handHtml(id)).join('')}
-      ${photoMode() === 'phone' && winner ? '<p class="rules">📷 reads a written or printed score, right on your phone. Reading the cards themselves needs the Claude version of Last Card.</p>' : ''}
+      ${photoMode() === 'phone' && winner ? '<p class="rules">📷 reads handwritten scores right on your phone: photograph that player\'s column on your score sheet. It reads the newest total and works out this round\'s points. Reading the cards themselves needs the Claude version of Last Card.</p>' : ''}
       <p class="rules">Number cards count their number. Skip, Reverse and Draw Two are 20. Wild and Wild Draw Four are 50.</p>
     </div>
     <button class="btn accent wide" id="saveRound">${g.mode === 'official' ? esc(winner.name) + ' scores ' + pot : 'Save round · ' + pot + ' points handed out'}</button>` : ''}
   </section>`;
 }
 function photoMode(){ return sampleImages ? 'claude' : (!window.claude && IS_APP) ? 'phone' : null; }
+function sheetHtml(g){
+  const sh = draft.sheet;
+  const btn = `<button class="scanbtn" id="scanSheet" ${sh && sh.reading ? 'disabled' : ''}>${sh && sh.reading ? '<span class="spin" aria-hidden="true"></span> Reading the score sheet…' : '📷 Scan the whole score sheet'}</button>`;
+  if (!sh || sh.reading || !sh.cols) return btn + (sh && sh.note ? `<p class="scannote${sh.warn ? ' warn' : ''}" role="status">${esc(sh.note)}</p>` : '');
+  const t = totals(g);
+  return btn + `<div class="sheetbox" aria-label="Scores read from the sheet">
+    <p class="scannote${sh.warn ? ' warn' : ''}" role="status" style="margin:0">${esc(sh.note)}</p>
+    ${sh.cols.map((c, i) => { const d = c.pid ? c.value - t[c.pid] : null; return `<div class="sheetrow">
+      <select data-sheetcol="${i}" aria-label="Whose column is ${c.value}?">${['', ...g.playerIds].map(id => `<option value="${esc(id)}"${id === (c.pid || '') ? ' selected' : ''}>${id ? esc(player(id).name) : 'Not a player'}</option>`).join('')}</select>
+      <label class="tot">total <input type="number" inputmode="numeric" min="0" data-sheetval="${i}" value="${c.value}" aria-label="Total read from the sheet" style="width:5.2em;min-height:40px;padding:6px 8px"></label>
+      <span class="dl${d != null && d < 0 ? ' bad' : ''}">${d == null ? '' : d < 0 ? 'too low' : d === 0 ? 'no change' : '+' + d}</span></div>`; }).join('')}
+    <div class="row"><button class="btn accent small" id="useSheet">Use these scores</button><button class="btn ghost small" id="dropSheet">Cancel</button></div>
+  </div>`;
+}
 function scanHtml(pid, h){
   const mode = photoMode();
   if (!mode) return '';
   return `<button class="scanbtn" data-scan="${esc(pid)}" ${h.reading ? 'disabled' : ''}>${h.reading ? '<span class="spin" aria-hidden="true"></span> Reading the photo…' : mode === 'claude' ? '📷 Photo of their cards or score' : '📷 Photo of their written score'}</button>
     ${h.note ? `<p class="scannote${h.warn ? ' warn' : ''}" role="status">${esc(h.note)}</p>` : ''}
-    ${h.choices && h.choices.length ? `<div class="picks" role="group" aria-label="Numbers found in the photo">${h.choices.map(n => `<button data-pick="${esc(pid)}" data-val="${n}">${n}</button>`).join('')}<button data-pickall="${esc(pid)}">Add them up = ${h.choices.reduce((a, b) => a + b, 0)}</button></div>` : ''}`;
+    ${h.choices && h.choices.length ? `<div class="picks" role="group" aria-label="Numbers found in the photo">${h.choices.map(n => `<button data-pick="${esc(pid)}" data-val="${n}">${n}</button>`).join('')}${h.noSum ? '' : `<button data-pickall="${esc(pid)}">Add them up = ${h.choices.reduce((a, b) => a + b, 0)}</button>`}</div>` : ''}`;
 }
 function handHtml(pid){
   const p = player(pid), h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
@@ -869,6 +892,11 @@ function wire(){
   on('[data-openhand]', el => { draft.open = draft.open === el.dataset.openhand ? null : el.dataset.openhand; render(); });
   on('[data-key]', el => { const h = draft.hands[draft.open]; h.typed = ''; h.cards.push(+el.dataset.key); render(); });
   on('[data-rmcard]', el => { draft.hands[draft.open].cards.splice(+el.dataset.rmcard, 1); render(); });
+  if ($('scanSheet')) $('scanSheet').onclick = () => { scanFor = SHEET; $('handPhoto').value = ''; $('handPhoto').click(); };
+  if ($('dropSheet')) $('dropSheet').onclick = () => { draft.sheet = null; render(); };
+  if ($('useSheet')) $('useSheet').onclick = () => useSheet(g);
+  document.querySelectorAll('[data-sheetcol]').forEach(el => el.onchange = () => { draft.sheet.cols[+el.dataset.sheetcol].pid = el.value || null; render(); });
+  document.querySelectorAll('[data-sheetval]').forEach(el => el.onchange = () => { const v = parseInt(el.value, 10); if (v >= 0) draft.sheet.cols[+el.dataset.sheetval].value = v; render(); });
   on('[data-scan]', el => { scanFor = el.dataset.scan; $('handPhoto').value = ''; $('handPhoto').click(); if (draft.open !== scanFor) { draft.open = scanFor; render(); } });
   on('[data-pick]', el => { const h = draft.hands[el.dataset.pick]; h.cards = []; h.typed = el.dataset.val; h.choices = null; h.note = 'Using ' + el.dataset.val + '.'; h.warn = false; render(); });
   on('[data-pickall]', el => { const h = draft.hands[el.dataset.pickall]; const sum = h.choices.reduce((a, b) => a + b, 0); h.cards = []; h.typed = String(sum); h.note = 'Added them up: ' + h.choices.join(' + ') + ' = ' + sum + '.'; h.choices = null; h.warn = false; render(); });
@@ -1163,6 +1191,7 @@ $('handPhoto').onchange = async () => {
   const file = $('handPhoto').files[0], pid = scanFor;
   $('handPhoto').value = '';
   if (!file || !draft || !pid) return;
+  if (pid === SHEET) { if (photoMode() === 'phone') readSheetOnPhone(file); return; }
   if (photoMode() === 'phone') { readOnPhone(file, pid); return; }
   if (!sampler) return;
   const h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
@@ -1214,6 +1243,123 @@ $('handPhoto').onchange = async () => {
 // or editing a player, so an update never wipes what they were entering.
 window.__appBusy = () => !!(draft || newPlayer || openPlayer);
 
+// ----- Handwritten scores, read on the phone -----
+// ocr/hwread.js finds pen writing on (grid) paper and reads each digit with a
+// small network trained on handwritten numbers. No account, works offline.
+const SHEET = '__sheet__';
+let hwReady = null;
+function getHandwriting(){
+  if (!hwReady) {
+    hwReady = (async () => {
+      if (!window.HandwrittenScores) await loadScript('ocr/hwread.js');
+      const model = await (await fetch('ocr/hwdigits.json')).json();
+      window.HandwrittenScores.setModel(model);
+      return window.HandwrittenScores;
+    })();
+    hwReady.catch(() => { hwReady = null; });
+  }
+  return hwReady;
+}
+function photoPixels(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      // The reader works best at about 1400px; big phone photos shrink, small ones grow.
+      const k = Math.min(3, 1400 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve({ rgba: ctx.getImageData(0, 0, c.width, c.height).data, W: c.width, H: c.height });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+// One player's column: the newest (lowest) number is their running total.
+async function readOnPhone(file, pid){
+  const h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
+  h.reading = true; h.choices = null; h.noSum = false; h.warn = false; h.note = ''; render();
+  let found = null;
+  try {
+    const [hw, px] = await Promise.all([getHandwriting(), photoPixels(file)]);
+    const col = hw.readSheet(px.rgba, px.W, px.H, 1)[0];
+    if (col && col.last && col.last.value != null && col.last.digits.length <= 4) found = col.last;
+  } catch (e) {
+    if (e && e.message === 'decode') { h.reading = false; h.note = "That photo couldn't be opened. Try taking it again."; h.warn = true; render(); return; }
+  }
+  if (!draft || draft.hands[pid] !== h) return;
+  if (!found) { h.reading = false; return readPrintedOnPhone(file, pid); }
+  const g = liveGame(), name = player(pid).name, v = found.value, cur = g ? totals(g)[pid] : 0;
+  h.reading = false; h.cards = [];
+  if (g && g.mode === 'penalty' && cur > 0 && v > cur) {
+    h.typed = String(v - cur); h.choices = [v - cur, v]; h.noSum = true;
+    h.note = `Read ${v} as ${name}'s new total. They had ${cur}, so that's ${v - cur} this round. If ${v} was just this round's points, tap ${v}.`;
+  } else {
+    h.typed = String(v);
+    h.note = `Read ${v} for ${name}. Change it below if that's wrong.`;
+  }
+  if (found.conf < 0.6) { h.warn = true; h.note += ' The writing was hard to read, so please check it.'; }
+  render();
+}
+// The whole sheet: one column per player, newest total at the bottom of each.
+async function readSheetOnPhone(file){
+  const g = liveGame(); if (!g || !draft) return;
+  draft.sheet = { reading: true }; render();
+  try {
+    const [hw, px] = await Promise.all([getHandwriting(), photoPixels(file)]);
+    const cols = hw.readSheet(px.rgba, px.W, px.H, g.playerIds.length).filter(c => c.last && c.last.value != null);
+    if (!draft) return;
+    if (!cols.length) { draft.sheet = { note: "Couldn't find any numbers. Take the photo straight on, with the whole sheet in view and good light.", warn: true }; render(); return; }
+    const t = totals(g), ids = g.playerIds;
+    // Match columns to players: the number above the newest one should be the
+    // total Last Card already has for that player.
+    const fit = (c, pid) => {
+      const prev = c.lines.length > 1 ? c.lines[c.lines.length - 2].value : null, v = c.last.value;
+      return (prev === t[pid] ? 4 : 0) + (v === t[pid] ? 2 : 0) + (v >= t[pid] ? 1 : -6);
+    };
+    let best = null, bestScore = -Infinity;
+    const perm = (used, acc) => {
+      if (acc.length === cols.length) { const sc = acc.reduce((s, pid, i) => s + (pid ? fit(cols[i], pid) : -1), 0) - acc.reduce((s, pid, i) => s + (pid && pid !== ids[i] ? 0.01 : 0), 0); if (sc > bestScore) { bestScore = sc; best = acc.slice(); } return; }
+      for (const pid of ids) if (!used.has(pid)) { used.add(pid); acc.push(pid); perm(used, acc); acc.pop(); used.delete(pid); }
+      if (cols.length > ids.length - used.size) { acc.push(null); perm(used, acc); acc.pop(); }
+    };
+    perm(new Set(), []);
+    const shaky = cols.some(c => c.last.conf < 0.6);
+    draft.sheet = {
+      cols: cols.map((c, i) => ({ value: c.last.value, conf: c.last.conf, pid: best ? best[i] : ids[i] || null })),
+      note: `Read ${cols.length} column${cols.length === 1 ? '' : 's'}, left to right. Check each total and who it belongs to, then tap Use these scores.` + (shaky ? ' Some writing was hard to read.' : ''),
+      warn: shaky,
+    };
+  } catch (e) {
+    if (!draft) return;
+    draft.sheet = { note: e && e.message === 'decode' ? "That photo couldn't be opened. Try taking it again." : "The score reader couldn't start. Open Last Card once with internet so it can save the reader, then try again.", warn: true };
+  }
+  render();
+}
+function useSheet(g){
+  const sh = draft.sheet, t = totals(g);
+  const rows = sh.cols.filter(c => c.pid);
+  const dup = rows.find((c, i) => rows.findIndex(d => d.pid === c.pid) !== i);
+  if (dup) { sh.note = player(dup.pid).name + ' is picked for two columns. Choose the right player for each.'; sh.warn = true; render(); return; }
+  const low = rows.find(c => c.value < t[c.pid]);
+  if (low) { sh.note = `${low.value} is lower than ${player(low.pid).name}'s total of ${t[low.pid]}. Fix the number or the player, or cancel and score by hand.`; sh.warn = true; render(); return; }
+  const delta = {}; rows.forEach(c => { delta[c.pid] = c.value - t[c.pid]; });
+  let msg;
+  if (g.mode === 'penalty') {
+    rows.forEach(c => { draft.hands[c.pid] = { cards: [], typed: String(delta[c.pid]) }; });
+    const zero = rows.filter(c => delta[c.pid] === 0);
+    if (zero.length === 1) { draft.winner = zero[0].pid; msg = player(zero[0].pid).name + ' went out (no change on the sheet). Check the points, then save.'; }
+    else { draft.winner = null; msg = 'Points filled in. Tap who went out, then save.'; }
+  } else {
+    const up = rows.filter(c => delta[c.pid] > 0);
+    if (up.length === 1) { draft.winner = up[0].pid; msg = player(up[0].pid).name + ' went out and scored ' + delta[up[0].pid] + '. Add the cards left in everyone else\'s hand so the total matches, then save.'; }
+    else msg = 'In "Winner scores" games only the winner\'s total changes. Tap who went out.';
+  }
+  draft.sheet = null; draft.open = null;
+  toast(msg);
+  render();
+}
+
 // ----- Reading a written score on the phone (home-screen app, no Claude) -----
 // Tesseract runs on the phone itself: free, no account, works offline once
 // downloaded. It reads written or printed numbers, not the cards.
@@ -1248,7 +1394,7 @@ function ocrCanvas(blob){
     img.src = url;
   });
 }
-async function readOnPhone(file, pid){
+async function readPrintedOnPhone(file, pid){
   const h = draft.hands[pid] || (draft.hands[pid] = { cards: [], typed: '' });
   const first = !ocrWorker;
   h.reading = true; h.choices = null; h.warn = false;
@@ -1712,7 +1858,7 @@ setInterval(() => { if (party && document.visibilityState === 'visible') updateP
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '73de0c0706';
+  var VERSION = 'ed4591bc14';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
