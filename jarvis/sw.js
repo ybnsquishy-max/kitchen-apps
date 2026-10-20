@@ -1,6 +1,6 @@
-// Offline support for the JARVIS home-screen app.
+// Offline support for the JARVIS home-screen app (version ae2ef68ab9).
 // Settings and chat live in the browser's storage, which updates never touch.
-const CACHE = 'jarvis-v1';
+const CACHE = 'jarvis-ae2ef68ab9';
 const FONT_CACHE = 'jarvis-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
@@ -12,16 +12,26 @@ self.addEventListener('activate', (event) => {
     .then((keys) => Promise.all(keys.filter((k) => k.startsWith('jarvis') && k !== CACHE && k !== FONT_CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
+function withTimeout(p, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.pathname.endsWith('/version.json')) return;   // always from the network
   if (req.mode === 'navigate') {
-    // Newest page when online (so updates arrive by themselves); the saved one offline.
-    event.respondWith(fetch(req, { cache: 'no-store' }).then((res) => {
+    // Newest page from the network; on a slow connection show the saved copy
+    // but keep downloading, so the next open is up to date.
+    const net = fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('index.html', copy)); }
       return res;
-    }).catch(() => caches.match('index.html')));
+    });
+    event.waitUntil(net.catch(() => {}));
+    event.respondWith(withTimeout(net, 6000).catch(() => caches.match('index.html').then((hit) => hit || net)));
     return;
   }
   if (url.origin === self.location.origin) {

@@ -348,11 +348,20 @@
 
     <div id="brainBox" hidden>
       <h3>Brain</h3>
-      <p class="note">On your home screen, JARVIS thinks with your own Claude API key from console.anthropic.com. Each message costs about 1 US cent on your Anthropic account, a little more with photos. The key is kept only on this phone and is only ever sent to Anthropic.</p>
-      <label for="setKey">Claude API key</label>
+      <label for="setProvider">What JARVIS thinks with</label>
+      <select id="setProvider">
+        <option value="gemini">Gemini by Google (free)</option>
+        <option value="claude">Claude (paid API key)</option>
+      </select>
+      <p class="note" id="providerNote"></p>
+      <label for="setKey" id="keyLabel">API key</label>
       <input id="setKey" type="password" placeholder="sk-ant-..." autocomplete="off" autocapitalize="off" spellcheck="false">
       <p class="note" id="keyState"></p>
-      <div class="drawer-actions"><button type="button" id="removeKey" class="danger">REMOVE KEY</button></div>
+      <div class="drawer-actions">
+        <button type="button" id="removeKey" class="danger">REMOVE KEY</button>
+        <button type="button" id="openFreeClaude">OPEN FREE CLAUDE VERSION</button>
+      </div>
+      <p class="note">The free Claude version runs inside the Claude app or website with your Claude plan, so it needs no key.</p>
     </div>
 
     <h3>Protocols</h3>
@@ -606,9 +615,17 @@
   // directly with a key kept in this browser only.
   const inClaude = !!window.claude;
   const KEY_STORE = 'jarvis:claude-key';
+  const GEMINI_KEY_STORE = 'jarvis:gemini-key';
+  const GEMINI_MODEL_STORE = 'jarvis:gemini-model';
+  const PROVIDER_STORE = 'jarvis:provider';
+  const FREE_CLAUDE_URL = 'https://claude.ai/artifact/PDsyvatwUJx2UhHiTRGwx6';
   const API_MODEL = 'claude-opus-5';
-  let brainKind = null;   // 'claude' | 'api' | null
-  function apiKey() { try { return localStorage.getItem(KEY_STORE) || ''; } catch (e) { return ''; } }
+  let brainKind = null;   // 'claude' (inside Claude) | 'api' (a key on this phone) | null
+  function stored(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  // Which key-based brain: Gemini (free key from Google) or Claude (paid API key).
+  function provider() { return stored(PROVIDER_STORE) || (stored(KEY_STORE) ? 'claude' : 'gemini'); }
+  function keyFor(p) { return stored(p === 'gemini' ? GEMINI_KEY_STORE : KEY_STORE); }
+  function apiKey() { return keyFor(provider()); }
   // Phone photos are big: send a JPEG no larger than 1568px on its long side.
   async function photoForApi(blob) {
     const url = URL.createObjectURL(blob);
@@ -634,7 +651,7 @@
     try {
       res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': apiKey(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        headers: { 'content-type': 'application/json', 'x-api-key': keyFor('claude'), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model: API_MODEL, max_tokens: 400, system, messages }),
       });
     } catch (e) { throw { code: 'offline' }; }
@@ -645,6 +662,60 @@
     }
     if (data.stop_reason === 'refusal') throw { code: 'refused' };
     return { text: (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(' ') };
+  }
+  // ---- Gemini (Google's free tier). JARVIS picks Google's newest "flash"
+  // model by itself, so he keeps working when Google renames its models.
+  const GEMINI = 'https://generativelanguage.googleapis.com/v1beta/';
+  function geminiProblem(status, data) {
+    const e = (data && data.error) || {}, m = String(e.message || ''), all = m + ' ' + JSON.stringify(e.details || '');
+    if (/API_KEY_INVALID|API key not valid|API_KEY/i.test(all)) return { code: 'bad_key' };
+    if (/location is not supported|user location/i.test(m)) return { code: 'gemini_region' };
+    if (status === 429) return { code: 'free_limit' };
+    if (status === 403) return { code: 'gemini_denied', message: m };
+    if (status >= 500) return { code: 'busy' };
+    return { code: 'api_error', message: m };
+  }
+  async function geminiModel(key, fresh) {
+    if (!fresh && stored(GEMINI_MODEL_STORE)) return stored(GEMINI_MODEL_STORE);
+    let res, data;
+    try { res = await fetch(GEMINI + 'models?pageSize=200', { headers: { 'x-goog-api-key': key } }); } catch (e) { throw { code: 'offline' }; }
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) throw geminiProblem(res.status, data);
+    const score = (name) => {
+      const v = /gemini-(\d+(?:\.\d+)?)/.exec(name);
+      return (v ? Number(v[1]) : 0) - (/lite/.test(name) ? 0.05 : 0) - (/preview|exp/.test(name) ? 0.5 : 0);
+    };
+    const usable = ((data && data.models) || []).map((m) => m.name).filter((n, i) => {
+      const methods = (data.models[i].supportedGenerationMethods || []);
+      return /gemini/.test(n) && /flash/.test(n) && methods.includes('generateContent') && !/image|tts|audio|live|embed|thinking/.test(n);
+    }).sort((a, b) => score(b) - score(a));
+    const pick = usable[0] || 'models/gemini-2.5-flash';
+    try { localStorage.setItem(GEMINI_MODEL_STORE, pick); } catch (e) { /* ignore */ }
+    return pick;
+  }
+  async function askGemini(system, turns, images) {
+    const key = keyFor('gemini');
+    const contents = turns.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+    if (images && images.length) {
+      const last = contents[contents.length - 1];
+      for (const b of images) last.parts.unshift({ inline_data: { mime_type: 'image/jpeg', data: await photoForApi(b) } });
+    }
+    const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { maxOutputTokens: 2048 } });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const model = await geminiModel(key, attempt > 0);
+      let res, data;
+      try { res = await fetch(GEMINI + model + ':generateContent', { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body }); }
+      catch (e) { throw { code: 'offline' }; }
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (res.status === 404 && attempt === 0) continue;   // that model was retired: pick again
+      if (!res.ok) throw geminiProblem(res.status, data);
+      if (data.promptFeedback && data.promptFeedback.blockReason) throw { code: 'refused' };
+      const c = (data.candidates || [])[0];
+      const text = c ? ((c.content || {}).parts || []).map((p) => p.text || '').join(' ').trim() : '';
+      if (!text && c && /SAFETY|PROHIBITED|BLOCKLIST|SPII|RECITATION/.test(c.finishReason || '')) throw { code: 'refused' };
+      return { text };
+    }
+    throw { code: 'api_error' };
   }
   function syncBrain() {
     if (brainKind !== 'claude') brainKind = apiKey() ? 'api' : null;
@@ -665,7 +736,7 @@
     if (!brain && brainKind !== 'api') throw { code: 'no_brain' };
     const turns = history.concat([{ role: 'user', content: text }]);
     if (brainKind === 'api') {
-      const result = await askApi(personaPrompt(), turns, image);
+      const result = provider() === 'gemini' ? await askGemini(personaPrompt(), turns, image) : await askApi(personaPrompt(), turns, image);
       const reply = String(result && result.text || '').replace(/\s+/g, ' ').trim() || ('I’m not sure what to say to that, ' + (settings.calls || 'sir') + '.');
       history.push({ role: 'user', content: image ? text + ' (the user showed ' + (image.length > 1 ? image.length + ' photos' : 'a photo') + ')' : text }, { role: 'assistant', content: reply });
       history = history.slice(-24);
@@ -689,9 +760,12 @@
   function brainProblem(err) {
     const title = settings.calls || 'sir';
     const code = err && err.code;
-    if (code === 'no_brain' || code === 'not_granted') return inClaude ? 'My brain isn’t connected, ' + title + '. Reload the page and allow it to ask Claude when prompted.' : 'My brain isn’t connected, ' + title + '. Add your Claude API key in Settings.';
-    if (code === 'bad_key') return 'Claude didn’t accept that API key, ' + title + '. Check it in Settings.';
-    if (code === 'no_credit') return 'Your Anthropic account is out of credit, ' + title + '. Top it up at console.anthropic.com.';
+    if (code === 'no_brain' || code === 'not_granted') return inClaude ? 'My brain isn’t connected, ' + title + '. Reload the page and allow it to ask Claude when prompted.' : 'My brain isn’t connected, ' + title + '. Add a free Gemini key in Settings.';
+    if (code === 'bad_key') return (provider() === 'gemini' ? 'Google' : 'Claude') + ' didn’t accept that API key, ' + title + '. Check it in Settings.';
+    if (code === 'no_credit') return 'Your Anthropic account is out of credit, ' + title + '. Switch me to the free Gemini brain in Settings, or top up at console.anthropic.com.';
+    if (code === 'free_limit') return 'We’ve used up the free allowance for now, ' + title + '. Give it a minute, or try again tomorrow.';
+    if (code === 'gemini_region') return 'Google’s free brain isn’t available in your country, ' + title + '. The free Claude version in Settings will still work.';
+    if (code === 'gemini_denied') return 'Google refused that key, ' + title + '. Make a new one at aistudio.google.com.';
     if (code === 'offline') return 'I can’t reach my brain, ' + title + '. Check your internet connection.';
     if (code === 'busy') return 'Claude is a little busy right now, ' + title + '. Try again in a moment.';
     if (code === 'refused') return 'I’d rather not answer that one, ' + title + '.';
@@ -880,8 +954,8 @@
   }
   function openDrawer() {
     $('brainBox').hidden = inClaude;
-    $('setKey').value = '';
-    $('keyState').textContent = apiKey() ? 'A key is saved on this phone. Paste a new one to replace it.' : 'No key yet, so JARVIS can only run protocols.';
+    $('setProvider').value = provider();
+    showProvider();
     $('setCalls').value = settings.calls || '';
     $('setRate').value = settings.rate || 0.95;
     $('setPitch').value = settings.pitch || 0.88;
@@ -900,18 +974,37 @@
   $('scrim').addEventListener('click', closeDrawer);
   $('addProto').addEventListener('click', () => { draft.push({ say: '', mode: '', reply: 'Right away, {you}.', open: [] }); renderProtocols(); });
   $('resetProtos').addEventListener('click', () => { draft = DEFAULT_PROTOCOLS.map((p) => ({ ...p, open: [...p.open] })); renderProtocols(); });
+  const PROVIDER_NOTES = {
+    gemini: 'Free. On this phone go to aistudio.google.com, sign in with Google, tap Get API key, then Create API key, and copy it (it starts with AIza). Free keys have a daily limit, and Google may use what you send, photos included, to improve its products, so don’t send anything private. With this brain, JARVIS’s answers come from Google’s Gemini, not Claude.',
+    claude: 'Your own key from console.anthropic.com. It needs credit added under Billing; each message costs about 1 US cent, a little more with photos.',
+  };
+  function showProvider() {
+    const p = $('setProvider').value;
+    $('providerNote').textContent = PROVIDER_NOTES[p];
+    $('keyLabel').textContent = p === 'gemini' ? 'Gemini API key' : 'Claude API key';
+    $('setKey').placeholder = p === 'gemini' ? 'AIza...' : 'sk-ant-...';
+    $('setKey').value = '';
+    $('keyState').textContent = keyFor(p) ? 'A key is saved on this phone. Paste a new one to replace it. Keys stay on this phone and only go to ' + (p === 'gemini' ? 'Google.' : 'Anthropic.') : 'No key yet.';
+  }
+  $('setProvider').addEventListener('change', showProvider);
+  $('openFreeClaude').addEventListener('click', () => openSites([FREE_CLAUDE_URL]));
   $('removeKey').addEventListener('click', () => {
-    try { localStorage.removeItem(KEY_STORE); } catch (e) { /* ignore */ }
+    const p = $('setProvider').value;
+    try { localStorage.removeItem(p === 'gemini' ? GEMINI_KEY_STORE : KEY_STORE); if (p === 'gemini') localStorage.removeItem(GEMINI_MODEL_STORE); } catch (e) { /* ignore */ }
     $('keyState').textContent = 'Key removed from this phone.';
     syncBrain();
   });
   $('saveSettings').addEventListener('click', () => {
-    const newKey = $('setKey').value.trim();
+    const newKey = $('setKey').value.trim(), p = $('setProvider').value;
     if (newKey) {
-      if (!/^sk-ant-[\w-]{20,}$/.test(newKey)) { toast('That doesn’t look like a Claude API key. It starts with sk-ant-.'); return; }
-      try { localStorage.setItem(KEY_STORE, newKey); } catch (e) { toast('Couldn’t save the key on this phone.'); return; }
-      syncBrain();
+      if (p === 'gemini' && !/^AIza[\w-]{30,}$/.test(newKey)) { toast('That doesn’t look like a Gemini API key. It starts with AIza.'); return; }
+      if (p === 'claude' && !/^sk-ant-[\w-]{20,}$/.test(newKey)) { toast('That doesn’t look like a Claude API key. It starts with sk-ant-.'); return; }
+      try {
+        localStorage.setItem(p === 'gemini' ? GEMINI_KEY_STORE : KEY_STORE, newKey);
+        if (p === 'gemini') localStorage.removeItem(GEMINI_MODEL_STORE);
+      } catch (e) { toast('Couldn’t save the key on this phone.'); return; }
     }
+    if (!inClaude) { try { localStorage.setItem(PROVIDER_STORE, p); } catch (e) { /* ignore */ } syncBrain(); }
     settings.calls = $('setCalls').value.trim() || 'sir';
     settings.voiceName = $('setVoice').value;
     settings.rate = Number($('setRate').value) || 0.95;
@@ -1125,7 +1218,8 @@
     if (brain) brainKind = 'claude';
     syncBrain();
     if (!brain && brainKind !== 'api') {
-      toast(inClaude ? 'The Claude brain isn’t available here, so JARVIS can only run protocols. Open the published link while signed in to claude.ai.' : 'Add your Claude API key in Settings so JARVIS can think. Protocols work without it.');
+      if (inClaude) toast('The Claude brain isn’t available here, so JARVIS can only run protocols. Open the published link while signed in to claude.ai.');
+      else toast('Add a free Gemini key in Settings so JARVIS can think, or use the free Claude version:', [FREE_CLAUDE_URL]);
     } else if (brain) {
       // a tiny first call, so the permission prompt appears now instead of on your first message
       brain('Reply with the single word: ready', { cache: false, modelTier: 'quick' }).then(() => {
@@ -1155,6 +1249,8 @@
   $('wake').addEventListener('click', wake);
   $('wake').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); wake(); } });
   $('dotBrain').className = 'dot';
+  // The updater waits while he's listening, thinking, speaking or in hands-free.
+  window.__appBusy = () => busy || listening || speaking || hf || currentState() !== 'idle';
   if (inClaude) {
     $('wakeTitle').textContent = 'CLICK TO WAKE J.A.R.V.I.S.';
     $('wakeNote').textContent = 'Your browser needs one click before he can speak. You’ll also be asked to let this page ask Claude questions, which is JARVIS’s brain.';
@@ -1162,10 +1258,100 @@
 })();
 </script>
 <script>
-// Home-screen app: works offline once opened, and picks up new versions.
-if ('serviceWorker' in navigator && !window.claude && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(function () {});
-}
+// Home-screen app: works offline once opened, and updates itself like the other apps.
+(function () {
+  if (window.claude || !('serviceWorker' in navigator)) return;
+  var KEY = 'jarvis_just_updated';
+  // What's new, shown once after an update.
+  var NEWS = 'JARVIS updated: he can now think with a free Gemini key from Google (Settings → Brain), and updates himself.';
+  function banner(text, action, label, ms) {
+    if ([].some.call(document.querySelectorAll('[data-jarvis-banner]'), function (x) { return x.dataset.text === text; })) return;   // already showing
+    var b = document.createElement('div');
+    b.setAttribute('data-jarvis-banner', ''); b.dataset.text = text;
+    b.setAttribute('role', 'status');
+    b.style.cssText = 'position:fixed;left:16px;right:16px;margin:0 auto;width:fit-content;box-sizing:border-box;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:99;background:#08202f;color:#d9f6ff;border:1px solid rgba(63,216,255,.45);font:600 15px Rajdhani,system-ui,sans-serif;letter-spacing:.03em;padding:10px 14px;border-radius:10px;box-shadow:0 0 18px rgba(63,216,255,.25);display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)';
+    b.appendChild(document.createTextNode(text));
+    if (action) { var btn = document.createElement('button'); btn.textContent = label; btn.style.cssText = 'background:none;border:0;color:#3fd8ff;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:0'; btn.onclick = action; b.appendChild(btn); }
+    document.body.appendChild(b);
+    if (!action) setTimeout(function () { b.remove(); }, ms || 3500);
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  try { if (sessionStorage.getItem(KEY)) { sessionStorage.removeItem(KEY); setTimeout(function () { banner(NEWS, null, null, 9000); }, 300); } } catch (e) {}
+  var hadController = !!navigator.serviceWorker.controller, reloading = false;
+  // Don't reload under someone mid-task: typing, or JARVIS listening, thinking or speaking.
+  function busy() {
+    var el = document.activeElement, typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    var working = false; try { working = !!(window.__appBusy && window.__appBusy()); } catch (e) {}
+    return document.visibilityState === 'visible' && (typing || working);
+  }
+  function reloadNow() { if (reloading) return; reloading = true; try { sessionStorage.setItem(KEY, '1'); } catch (e) {} location.reload(); }
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadController) return;
+    if (busy()) banner('A new version of JARVIS is ready.', reloadNow, 'Update');
+    else reloadNow();
+  });
+  // Ask the website which version is newest (never cached), so a phone that
+  // resumed an old copy, or saw a slow connection, still catches up.
+  var VERSION = 'ae2ef68ab9';
+  var offered = false;
+  function hardRefresh() {
+    if (busy()) {
+      // Offer it once, then update by itself as soon as he's finished.
+      if (!offered) { offered = true; banner('A new version of JARVIS is ready.', hardRefresh2, 'Update'); }
+      var wait = setInterval(function () { if (!busy()) { clearInterval(wait); hardRefresh2(); } }, 3000);
+      return;
+    }
+    hardRefresh2();
+  }
+  function hardRefresh2() {
+    caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return /^jarvis/.test(k) && !/fonts/.test(k); }).map(function (k) { return caches.delete(k); })); })
+      .catch(function () {}).then(reloadNow);
+  }
+  var lastCheck = 0;
+  function checkVersion(manual) {
+    if (!manual && Date.now() - lastCheck < 20000) return;
+    lastCheck = Date.now();
+    setStatus();
+    return fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (!v || !v.version || v.version === VERSION) { if (manual) banner('JARVIS is up to date.'); return; }
+      navigator.serviceWorker.getRegistration().then(function (reg) { if (reg) reg.update(); }).catch(function () {});
+      // Reload automatically once per new version; if that didn't take (the
+      // site can briefly serve the old page), offer a button instead of looping.
+      var tried = null; try { tried = sessionStorage.getItem(KEY + '_tried'); } catch (e) {}
+      if (tried === v.version) { banner('A new version of JARVIS is available.', hardRefresh2, 'Update'); return; }
+      try { sessionStorage.setItem(KEY + '_tried', v.version); } catch (e) {}
+      setStatus('Downloading the new version…');
+      setTimeout(function () { if (!reloading) hardRefresh(); }, 4000);
+    }).catch(function () { if (manual) banner("Couldn't check for updates. Are you online?"); });
+  }
+  window.__checkForUpdates = function () { return checkVersion(true); };
+  navigator.serviceWorker.register('sw.js').then(function (reg) {
+    if (!reg) return;
+    function check() { reg.update().catch(function () {}); checkVersion(false); }
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
+    window.addEventListener('pageshow', check);
+    window.addEventListener('focus', check);
+    setInterval(check, 5 * 60 * 1000);   // every 5 minutes while open
+    check();
+  }).catch(function () {});
+  // "Auto-updates on · version … · Check now" at the bottom of Settings.
+  var drawer = document.getElementById('drawer');
+  if (drawer) {
+    var p = document.createElement('p');
+    p.className = 'note';
+    p.style.marginTop = '18px';
+    p.innerHTML = '<span data-update-status></span> · <button type="button" style="background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;letter-spacing:inherit">Check now</button>';
+    p.querySelector('button').onclick = function () { checkVersion(true); };
+    drawer.appendChild(p);
+    setStatus();
+  }
+  function setStatus(msg) {
+    var el = document.querySelector('[data-update-status]');
+    if (!el) return;
+    var when = lastCheck ? new Date(lastCheck).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    el.textContent = msg || ('Auto-updates on · version ' + VERSION.slice(0, 7) + (when ? ' · checked ' + when : ''));
+  }
+})();
 </script>
 </body>
 </html>
