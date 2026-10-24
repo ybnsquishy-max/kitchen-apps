@@ -148,6 +148,26 @@ a{color:inherit;text-decoration:none}
 .copy-row span{flex:1}
 .copy-row button{flex:none;border:0;background:var(--card2);color:var(--ink);border-radius:10px;min-height:38px;padding:0 12px;font-weight:700}
 .sp-on{display:flex;align-items:center;gap:10px;color:#1ED760;font-weight:700;margin:10px 0}
+.sheet.tall{display:flex;flex-direction:column;max-height:calc(100% - 8px);padding:18px}
+.sheet.tall h3{margin-bottom:10px}
+.c-list{flex:1;overflow-y:auto;margin:10px -6px;min-height:120px;-webkit-overflow-scrolling:touch}
+.c-row{display:flex;align-items:center;gap:10px;width:100%;min-height:68px;padding:6px;border:0;background:none;text-align:left;border-radius:14px}
+.c-row+.c-row{border-top:1px solid var(--line)}
+.c-row[aria-pressed="true"]{background:rgba(61,220,151,.10)}
+.c-row[disabled]{opacity:.45}
+.tick{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;color:transparent}
+.tick .ic{width:18px;height:18px;stroke-width:3}
+.c-row[aria-pressed="true"] .tick{background:var(--accent);border-color:var(--accent);color:#04261A}
+.c-txt{flex:1;min-width:0}
+.c-txt b,.c-txt span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-txt b{font-size:17px}
+.c-txt span{font-size:13.5px;color:var(--dim);margin-top:2px}
+.c-num{flex:none;border:0;background:var(--card2);color:var(--dim);border-radius:10px;min-height:38px;padding:0 8px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:3px}
+.c-num .ic{width:14px;height:14px}
+.c-foot{display:flex;gap:8px}
+.c-foot .btn{flex:1}
+.c-count{color:var(--dim);font-size:14px;font-weight:600;text-align:center;padding:6px 0 2px}
+.c-all{border:0;background:none;color:var(--accent);font-weight:700;font-size:14px;padding:6px}
 @media (orientation:landscape){
   .npf-in{max-width:none}
   .npf-main{flex-direction:row;align-items:center;gap:36px;padding-top:2px}
@@ -294,8 +314,8 @@ a{color:inherit;text-decoration:none}
 .favs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .fav{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;background:var(--card);min-height:84px;min-width:0}
 .fav div{min-width:0}
-.fav div b,.fav div span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fav div b{font-size:18px}
+.fav div span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav div b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:18px;line-height:1.2}
 .fav div span{font-size:13px;color:var(--dim);margin-top:2px}
 .fav.add{border:2px dashed var(--line);background:none;color:var(--dim);justify-content:center;font-weight:700;width:100%}
 .dial{display:flex;flex-direction:column;align-items:center;max-width:380px;margin:0 auto}
@@ -487,6 +507,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
           <h2><span>My songs</span><span id="songCount"></span><span class="grow"></span><button type="button" id="addSongs"></button></h2>
           <div id="songList"></div>
           <input type="file" id="songFile" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus" multiple hidden>
+          <input type="file" id="cardFile" accept=".vcf,.vcard,text/vcard,text/x-vcard,text/directory" multiple hidden>
         </div>
       </div>
     </section>
@@ -576,6 +597,19 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
   </div>
 </div>
 
+<div class="overlay" id="contactSheet" hidden>
+  <div class="sheet tall">
+    <h3 id="cTitle">Choose contacts</h3>
+    <input class="field" id="cSearch" placeholder="Search names" aria-label="Search names" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:0">
+    <div class="c-list" id="cList"></div>
+    <div class="c-count"><span id="cCount"></span> · <button type="button" class="c-all" id="cAll">Select all</button></div>
+    <div class="c-foot">
+      <button type="button" class="btn" id="cCancel">Cancel</button>
+      <button type="button" class="btn primary" id="cAdd">Add</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="voiceSheet" hidden>
   <div class="sheet voice-sheet">
     <button type="button" class="vs-mic" id="vsMic" aria-label="Listen again"></button>
@@ -631,6 +665,9 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   car: '<path d="M3 17v-4l2.2-5.6A2 2 0 0 1 7.1 6h9.8a2 2 0 0 1 1.9 1.4L21 13v4z"/><path d="M3 13h18"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
+  tick: '<path d="M20 6L9 17l-5-5"/>',
+  people: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  swap: '<path d="M7 4v13M4 14l3 3 3-3M17 20V7M14 10l3-3 3 3"/>',
   speaker: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>'
 };
 const FILLED = ['nav', 'play', 'pause', 'next', 'prev'];
@@ -1893,7 +1930,9 @@ function renderSettings() {
         <input class="field" name="fnum" type="tel" placeholder="Phone number" aria-label="Phone number" autocomplete="off">
         <button class="btn primary" type="submit">Add</button>
       </form>
-      ${canPick ? `<button type="button" class="btn block" style="margin-top:10px" data-act="pickContacts">Pick from contacts</button>` : ''}
+      ${canPick ? `<button type="button" class="btn primary block" style="margin-top:10px" data-act="pickContacts">${ic('people')} Pick from my contacts</button>` : ''}
+      <button type="button" class="btn${canPick ? '' : ' primary'} block" style="margin-top:8px" data-act="cardFile">${ic('people')} Add from a contact file</button>
+      <p class="empty" style="margin-top:10px">${isIOS ? 'iPhones don’t let apps read your contacts, so share them to Dash instead: open <b>Contacts</b>, tap a person, scroll down and tap <b>Share Contact</b> → <b>Save to Files</b>. Do that for everyone you want, then tap the button above and pick the files (you can pick several at once).' : 'Share a contact from your phone’s Contacts app as a file (a <b>.vcf</b>), then pick it here. You can pick several at once.'}</p>
     </div>
     <div class="set-card"><h3>Move Dash</h3>
       <p class="empty" style="margin-top:8px">Adding Dash to your home screen again (for example, to get the new logo)? Copy your setup here first, then paste it into the new Dash. Places, favourites, messages and Spotify playlists come with it; songs and the Spotify connection don’t.</p>
@@ -1937,11 +1976,151 @@ function addFav(name, num) {
 async function pickContacts() {
   try {
     const list = await navigator.contacts.select(['name', 'tel'], { multiple: true });
-    let n = 0;
-    for (const c of list || []) { const num = (c.tel || [])[0]; if (num && addFav((c.name || [])[0], num)) n++; }
-    if (n) toast('Added ' + n + (n === 1 ? ' favourite' : ' favourites'));
-    renderSettings();
+    const people = (list || []).map((c) => ({ name: ((c.name || [])[0] || '').trim(), nums: (c.tel || []).filter(Boolean).map((t) => ({ num: String(t).trim(), label: '' })) })).filter((c) => c.nums.length);
+    if (!people.length) return;
+    if (people.length === 1 && people[0].nums.length === 1) {
+      if (addFav(people[0].name, people[0].nums[0].num)) { toast('Added ' + (people[0].name || 'favourite')); renderSettings(); }
+      return;
+    }
+    openContacts(people, 'Choose who to add');
   } catch (e) {}
+}
+
+/* ---------- Contacts from a shared contact file (.vcf), which is how iPhones share them ---------- */
+function vcardLines(text) {
+  const raw = text.replace(/\r\n?/g, '\n').split('\n'), out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const line = raw[i];
+    if (/^[ \t]/.test(line) && out.length) { out[out.length - 1] += line.slice(1); continue; }   // folded onto the next line
+    out.push(line);
+    // Quoted-printable values carry on while the line ends with "="
+    while (out.length && /encoding=quoted-printable/i.test(out[out.length - 1]) && /=$/.test(out[out.length - 1]) && i + 1 < raw.length) {
+      out[out.length - 1] = out[out.length - 1].slice(0, -1) + raw[++i];
+    }
+  }
+  return out;
+}
+function vcardProp(line) {
+  let i = 0, quoted = false;
+  for (; i < line.length; i++) { const c = line[i]; if (c === '"') quoted = !quoted; else if (c === ':' && !quoted) break; }
+  if (i >= line.length) return null;
+  const parts = line.slice(0, i).split(';'), params = {}, types = [];
+  for (const prm of parts.slice(1)) {
+    const eq = prm.indexOf('=');
+    if (eq < 0) types.push(prm.toUpperCase());                       // older phones write ;CELL with no TYPE=
+    else {
+      const k = prm.slice(0, eq).toUpperCase(), v = prm.slice(eq + 1).replace(/"/g, '');
+      if (k === 'TYPE') v.split(',').forEach((x) => types.push(x.toUpperCase()));
+      else params[k] = v.toUpperCase();
+    }
+  }
+  return { name: parts[0].split('.').pop().toUpperCase(), params, types, value: line.slice(i + 1) };
+}
+function qpDecode(v, charset) {
+  const bytes = [];
+  for (let i = 0; i < v.length; i++) {
+    if (v[i] === '=' && /^[0-9a-f]{2}$/i.test(v.substr(i + 1, 2))) { bytes.push(parseInt(v.substr(i + 1, 2), 16)); i += 2; }
+    else bytes.push(v.charCodeAt(i) & 0xff);
+  }
+  try { return new TextDecoder(charset || 'utf-8').decode(new Uint8Array(bytes)); } catch (e) { return v; }
+}
+function vcardValue(pr) {
+  let v = pr.value;
+  if (/quoted-printable/i.test(pr.params.ENCODING || '')) v = qpDecode(v, (pr.params.CHARSET || '').toLowerCase());
+  return v.replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+}
+const splitEsc = (v) => v.split(/(?<!\\);/).map((x) => x.replace(/\\([,;\\])/g, '$1').trim());
+const TEL_LABEL = { CELL: 'mobile', MOBILE: 'mobile', IPHONE: 'mobile', HOME: 'home', WORK: 'work', MAIN: 'main', FAX: 'fax', OTHER: '' };
+const TEL_RANK = { mobile: 0, main: 1, work: 2, home: 3, '': 4, fax: 9 };
+function parseVcards(text) {
+  const people = [];
+  let cur = null;
+  for (const line of vcardLines(text)) {
+    if (/^BEGIN:VCARD/i.test(line)) { cur = { name: '', nName: '', nums: [] }; continue; }
+    if (/^END:VCARD/i.test(line)) {
+      if (cur) {
+        cur.name = cur.name || cur.nName;
+        cur.nums.sort((a, b) => (b.pref - a.pref) || (TEL_RANK[a.label] - TEL_RANK[b.label]));
+        const seen = new Set();
+        cur.nums = cur.nums.filter((t) => { const k = telNum(t.num); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+        if (cur.nums.length) people.push({ name: cur.name || cur.nums[0].num, nums: cur.nums });
+      }
+      cur = null; continue;
+    }
+    if (!cur) continue;
+    const pr = vcardProp(line);
+    if (!pr) continue;
+    if (pr.name === 'FN') cur.name = vcardValue(pr);
+    else if (pr.name === 'N' && !cur.nName) {
+      const n = splitEsc(vcardValue(pr));
+      cur.nName = [n[3], n[1], n[2], n[0]].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    } else if (pr.name === 'TEL') {
+      const num = vcardValue(pr).replace(/[^\d+*#() -]/g, '').trim();
+      if (telNum(num).length >= 3) {
+        let label = '';
+        for (const t of pr.types) if (TEL_LABEL[t] !== undefined && (!label || label === 'fax')) label = TEL_LABEL[t];
+        cur.nums.push({ num, label, pref: pr.types.includes('PREF') || pr.params.PREF === '1' ? 1 : 0 });
+      }
+    }
+  }
+  return people;
+}
+async function readCardFiles(files) {
+  let people = [], bad = 0;
+  for (const f of files) {
+    try {
+      const text = await f.text();
+      const got = parseVcards(text);
+      if (got.length) people = people.concat(got); else bad++;
+    } catch (e) { bad++; }
+  }
+  // One card per person, even if the same person came in twice.
+  const seen = new Set();
+  people = people.filter((c) => { const k = c.name.toLowerCase() + '|' + telNum(c.nums[0].num); if (seen.has(k)) return false; seen.add(k); return true; });
+  people.sort((a, b) => a.name.localeCompare(b.name));
+  if (!people.length) {
+    toast(bad ? "That file had no phone numbers in it. In Contacts use Share Contact → Save to Files." : 'No contacts found in that file.', 5500);
+    return;
+  }
+  openContacts(people, people.length === 1 ? 'Add this contact' : 'Choose contacts to add');
+}
+
+let cPeople = [], cPick = [], cWhich = [];
+function openContacts(people, title) {
+  cPeople = people.slice(0, 2000);
+  cPick = cPeople.map((c) => cPeople.length === 1 && !favHas(c.nums[0].num));
+  cWhich = cPeople.map(() => 0);
+  $('#cTitle').textContent = title || 'Choose contacts';
+  $('#cSearch').value = '';
+  $('#cSearch').hidden = cPeople.length < 8;
+  $('#contactSheet').hidden = false;
+  renderContacts();
+}
+function closeContacts() { $('#contactSheet').hidden = true; cPeople = []; }
+const favHas = (num) => S.favs.some((f) => telNum(f.num) === telNum(num));
+function renderContacts() {
+  const q = $('#cSearch').value.trim().toLowerCase();
+  const rows = cPeople.map((c, i) => [c, i]).filter(([c]) => !q || c.name.toLowerCase().includes(q) || telNum(c.nums.join ? '' : '').includes(q) || c.nums.some((t) => telNum(t.num).includes(q.replace(/\D/g, ''))));
+  $('#cList').innerHTML = rows.slice(0, 300).map(([c, i]) => {
+    const t = c.nums[cWhich[i]], had = favHas(t.num), more = c.nums.length > 1;
+    return `<button type="button" class="c-row" data-ct="${i}" aria-pressed="${!!cPick[i]}"${had ? ' disabled' : ''}>
+      <span class="tick">${ic('tick')}</span>${avatar(c.name)}
+      <span class="c-txt"><b>${esc(c.name)}</b><span>${esc(t.num)}${t.label ? ' · ' + t.label : ''}${had ? ' · already added' : ''}</span></span>
+      ${more && !had ? `<span class="c-num" data-cnum="${i}" role="button" tabindex="0">${ic('swap')}${c.nums.length}</span>` : ''}
+    </button>`;
+  }).join('') + (rows.length > 300 ? '<p class="empty">Showing the first 300. Search to find someone else.</p>' : '') +
+    (rows.length ? '' : '<p class="empty">No one matches that.</p>');
+  const n = cPick.filter(Boolean).length;
+  $('#cCount').textContent = n ? n + (n === 1 ? ' chosen' : ' chosen') : cPeople.length + (cPeople.length === 1 ? ' contact' : ' contacts');
+  $('#cAll').textContent = n >= rows.filter(([c, i]) => !favHas(c.nums[cWhich[i]].num)).length && n ? 'Clear' : 'Select all';
+  $('#cAdd').textContent = n ? 'Add ' + n : 'Add';
+  $('#cAdd').disabled = !n;
+}
+function addPicked() {
+  let n = 0;
+  cPeople.forEach((c, i) => { if (cPick[i] && addFav(c.name, c.nums[cWhich[i]].num)) n++; });
+  closeContacts();
+  if (n) { toast('Added ' + n + (n === 1 ? ' favourite' : ' favourites')); renderSettings(); renderHome(); if (panel === 'phone') renderPhone(); if (panel === 'msgs') renderMsgs(); }
 }
 
 /* ---------- Taps ---------- */
@@ -1985,6 +2164,7 @@ document.addEventListener('click', (e) => {
     case 'clearCalls': S.calls = []; save(); renderPhone(); break;
     case 'clearRecents': S.recents = []; save(); renderSettings(); renderChips(); break;
     case 'pickContacts': pickContacts(); break;
+    case 'cardFile': $('#cardFile').click(); break;
     case 'addSpot': addSpotify(); break;
     case 'openNow': openNow(); break;
     case 'closeNow': closeNow(); break;
@@ -2075,6 +2255,24 @@ $('#addSongs').addEventListener('click', () => $('#songFile').click());
 $('#songFile').addEventListener('change', (e) => { const files = [...e.target.files]; e.target.value = ''; addSongs(files); });
 $('#passengerBtn').addEventListener('click', () => { passenger = true; $('#lockSheet').hidden = true; toast('Typing is on for this trip'); });
 $('#lockOk').addEventListener('click', () => { $('#lockSheet').hidden = true; });
+$('#cardFile').addEventListener('change', (e) => { const files = [...e.target.files]; e.target.value = ''; if (files.length) readCardFiles(files); });
+$('#cSearch').addEventListener('input', renderContacts);
+$('#cCancel').addEventListener('click', closeContacts);
+$('#cAdd').addEventListener('click', addPicked);
+$('#cAll').addEventListener('click', () => {
+  const on = $('#cAll').textContent === 'Select all';
+  cPeople.forEach((c, i) => { cPick[i] = on && !favHas(c.nums[cWhich[i]].num); });
+  renderContacts();
+});
+$('#cList').addEventListener('click', (e) => {
+  const swap = e.target.closest('[data-cnum]');
+  if (swap) { const i = +swap.dataset.cnum; cWhich[i] = (cWhich[i] + 1) % cPeople[i].nums.length; renderContacts(); return; }
+  const row = e.target.closest('[data-ct]');
+  if (!row || row.disabled) return;
+  const i = +row.dataset.ct;
+  cPick[i] = !cPick[i];
+  renderContacts();
+});
 $('#voiceBtn').addEventListener('click', heyDash);
 $('#vsMic').addEventListener('click', heyDash);
 $('#vsClose').addEventListener('click', closeVoice);
@@ -2138,7 +2336,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated: it can now show what Spotify is playing (connect it in Settings).' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
+  var NEWS = 'Dash updated: add favourites straight from your contacts (Settings → Favourites).' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -2166,7 +2364,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '1e7422fae7';
+  var VERSION = 'f16e6a28b3';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
