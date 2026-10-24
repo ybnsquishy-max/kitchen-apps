@@ -104,7 +104,49 @@ a{color:inherit;text-decoration:none}
 .go-s{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--accent);color:#04261A;font-weight:800;font-size:17px;border-radius:14px;height:54px;margin-top:10px;white-space:nowrap;overflow:hidden}
 .x-s{width:44px;height:44px;border:0;background:none;color:#9FD9BF;display:grid;place-items:center;flex:none}
 .c-play{grid-area:play;display:flex;flex-direction:column;justify-content:center}
-@media (orientation:portrait) and (max-width:440px){.np-mini .art{display:none}}
+@media (orientation:portrait) and (max-width:440px){.np-mini .art{width:52px;height:52px;border-radius:10px}.np-mini [data-act="prev"]{display:none}}
+.np-open{display:flex;align-items:center;gap:14px;flex:1;min-width:0;background:none;border:0;padding:0;text-align:left}
+.art{overflow:hidden}
+.art img{width:100%;height:100%;object-fit:cover;display:block}
+.mini-bar{position:absolute;left:14px;right:14px;bottom:0;height:3px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+.mini-bar i{display:block;height:100%;width:0;background:#fff}
+.s-art{width:46px;height:46px;border-radius:6px;overflow:hidden;flex:none;display:grid;place-items:center;color:rgba(255,255,255,.9);position:relative}
+.s-art img{width:100%;height:100%;object-fit:cover;display:block}
+.s-art .ic{width:22px;height:22px}
+.song.cur .s-art::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.s-eq{position:absolute;inset:0;display:grid;place-items:center;color:#1ED760;z-index:1}
+.song.cur b{color:#1ED760}
+.npf{position:fixed;inset:0;z-index:1500;background:linear-gradient(180deg,var(--npc,#2A3742) 0%,#121212 80%);overflow-y:auto;color:#fff}
+.npf-in{min-height:100%;display:flex;flex-direction:column;padding:calc(10px + var(--st)) calc(22px + var(--sr)) calc(20px + var(--sb)) calc(22px + var(--sl));max-width:560px;margin:0 auto}
+.npf-top{display:flex;align-items:center;justify-content:space-between}
+.npf-x{width:48px;height:48px;border:0;background:none;color:#fff;display:grid;place-items:center;flex:none}
+.npf-x .ic{width:32px;height:32px}
+.npf-from{text-align:center;min-width:0}
+.npf-from small{display:block;font-size:11px;letter-spacing:.12em;font-weight:700;opacity:.8}
+.npf-from b{font-size:14px}
+.npf-main{flex:1;display:flex;flex-direction:column;justify-content:center;gap:22px;padding-top:14px}
+.npf-art{width:min(100%,50vh);aspect-ratio:1;margin:0 auto;border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.55);display:grid;place-items:center;color:rgba(255,255,255,.85);flex:none}
+.npf-art img{width:100%;height:100%;object-fit:cover;display:block}
+.npf-art .ic{width:34%;height:34%;stroke-width:1.4}
+.npf-meta b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:25px;font-weight:800;line-height:1.2}
+.npf-meta span{display:block;font-size:17px;color:rgba(255,255,255,.72);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.npf-seek{width:100%;margin:12px 0 0;accent-color:#fff;height:28px}
+.npf .times{color:rgba(255,255,255,.7)}
+.npf-ctl{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.npf-ctl button{width:60px;height:60px;border:0;background:none;color:#fff;display:grid;place-items:center}
+.npf-ctl .ic{width:34px;height:34px}
+.npf-ctl .pp{width:82px;height:82px;border-radius:50%;background:#fff;color:#121212}
+.npf-ctl .mode{color:rgba(255,255,255,.75)}
+.npf-ctl .mode .ic{width:26px;height:26px}
+.npf-ctl .mode[aria-pressed="true"]{color:#1ED760}
+.npf-up{font-size:14px;color:rgba(255,255,255,.7);margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.npf-up b{color:#fff}
+@media (orientation:landscape){
+  .npf-in{max-width:none}
+  .npf-main{flex-direction:row;align-items:center;gap:36px;padding-top:2px}
+  .npf-art{width:min(40vw,calc(100vh - 100px));margin:0}
+  .npf-side{flex:1;min-width:0}
+}
 .np-mini{display:flex;align-items:center;gap:14px}
 .art{width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#2BB6F0,#3DDC97);display:grid;place-items:center;color:#062230;flex:none}
 .art .ic{width:30px;height:30px}
@@ -420,10 +462,10 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
         <div class="apps" id="musicApps"></div>
         <div class="card spot" id="spotCard"></div>
         <div class="card np" id="np">
-          <div class="np-top">
-            <div class="art" id="npArt"></div>
-            <div class="pm"><b id="npTitle">Nothing playing</b><span id="npArtist">Add songs from your phone below</span></div>
-          </div>
+          <button type="button" class="np-top np-open" data-act="openNow" aria-label="Open Now Playing">
+            <span class="art" id="npArt"></span>
+            <span class="pm"><b id="npTitle">Nothing playing</b><span id="npArtist">Add songs from your phone below</span></span>
+          </button>
           <input class="seek" id="npSeek" type="range" min="0" max="1000" value="0" aria-label="Song position">
           <div class="times"><span id="npCur">0:00</span><span id="npDur">0:00</span></div>
           <div class="np-ctl">
@@ -501,6 +543,32 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
   </div>
 </div>
 
+<div class="npf" id="npFull" hidden role="dialog" aria-label="Now Playing">
+  <div class="npf-in">
+    <div class="npf-top">
+      <button type="button" class="npf-x" data-act="closeNow" aria-label="Close Now Playing"></button>
+      <div class="npf-from"><small>PLAYING FROM</small><b>My songs</b></div>
+      <span class="npf-x"></span>
+    </div>
+    <div class="npf-main">
+      <div class="npf-art" id="npfArt"></div>
+      <div class="npf-side">
+        <div class="npf-meta"><b id="npfTitle"></b><span id="npfArtist"></span></div>
+        <input class="npf-seek" id="npfSeek" type="range" min="0" max="1000" value="0" aria-label="Song position">
+        <div class="times"><span id="npfCur">0:00</span><span id="npfDur">0:00</span></div>
+        <div class="npf-ctl">
+          <button type="button" class="mode" data-act="shuffle" aria-label="Shuffle"></button>
+          <button type="button" data-act="prev" aria-label="Previous song"></button>
+          <button type="button" class="pp" data-act="play" id="npfPlay" aria-label="Play"></button>
+          <button type="button" data-act="next" aria-label="Next song"></button>
+          <button type="button" class="mode" data-act="repeat" aria-label="Repeat"></button>
+        </div>
+        <div class="npf-up" id="npfUp"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="voiceSheet" hidden>
   <div class="sheet voice-sheet">
     <button type="button" class="vs-mic" id="vsMic" aria-label="Listen again"></button>
@@ -555,6 +623,7 @@ const ICONS = {
   prev: '<path d="M20 5.5v13a1 1 0 0 1-1.6.8l-8.6-6.5a1 1 0 0 1 0-1.6l8.6-6.5A1 1 0 0 1 20 5.5z"/><rect x="4.5" y="4" width="3.5" height="16" rx="1"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   car: '<path d="M3 17v-4l2.2-5.6A2 2 0 0 1 7.1 6h9.8a2 2 0 0 1 1.9 1.4L21 13v4z"/><path d="M3 13h18"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
   speaker: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>'
 };
 const FILLED = ['nav', 'play', 'pause', 'next', 'prev'];
@@ -864,9 +933,10 @@ function renderHomePlay() {
     return;
   }
   const s = curSong() || songs.find((x) => x.id === S.lastSong) || songs[0];
-  box.innerHTML = `<div class="np-mini"><div class="art">${ic('music')}</div><div class="pm"><b>${esc(s.title)}</b><span>${esc(s.artist || 'My songs')}</span></div>
+  box.innerHTML = `<div class="np-mini"><button type="button" class="np-open" data-act="openNow" aria-label="Open Now Playing">${artBox(s, 'art')}<span class="pm"><b>${esc(s.title)}</b><span>${esc(s.artist || 'My songs')}</span></span></button>
     <div class="ctl"><button type="button" data-act="prev" aria-label="Previous song">${ic('prev')}</button><button type="button" class="pp" data-act="play" aria-label="${playing() ? 'Pause' : 'Play'}">${ic(playing() ? 'pause' : 'play')}</button><button type="button" data-act="next" aria-label="Next song">${ic('next')}</button></div></div>` +
-    (S.spotify.length ? `<div class="app-mini">${spotMini(1)}</div>` : '');
+    (S.spotify.length ? `<div class="app-mini">${spotMini(1)}</div>` : '') + '<div class="mini-bar"><i id="miniProg"></i></div>';
+  renderTime();
 }
 function renderSpotify() {
   $('#spotCard').innerHTML = `<h2><span>Spotify</span><span class="grow"></span><button type="button" data-act="addSpot">${ic('plus')} Add</button></h2>
@@ -1309,14 +1379,91 @@ async function tx(mode, fn) {
 async function loadSongs() {
   try { songs = (await tx('readonly', (s) => s.getAll())) || []; } catch (e) { songs = []; }
   songs.sort((a, b) => a.added - b.added);
-  renderSongs(); renderHomePlay();
+  renderSongs(); renderHomePlay(); renderNow();
+  // Songs added before Dash read album covers: look for theirs once.
+  let found = false;
+  for (const s of songs.filter((x) => !x.artChecked)) {
+    try {
+      const tags = id3(await s.blob.arrayBuffer()) || {};
+      s.artChecked = true;
+      if (tags.pic) { s.art = new Blob([tags.pic.data], { type: tags.pic.mime }); found = true; }
+      await tx('readwrite', (st) => st.put(s));
+    } catch (e) {}
+  }
+  if (found) { renderSongs(); renderHomePlay(); renderNow(); }
 }
+
+/* Album covers: the song's own picture, else a colourful tile. */
+const artUrls = new Map(), artTints = new Map();
+const ART_COLORS = [['#2BB6F0', '#3DDC97'], ['#E0578B', '#8B63D9'], ['#FF9F43', '#E5304A'], ['#3DDC97', '#1A6B8F'], ['#8B63D9', '#2B8FD6'], ['#C6F432', '#2EAD7A']];
+function artPal(s) { let h = 0; for (const ch of String(s.title)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return ART_COLORS[h % ART_COLORS.length]; }
+function artUrl(s) {
+  if (!s || !s.art) return null;
+  if (!artUrls.has(s.id)) artUrls.set(s.id, URL.createObjectURL(s.art));
+  return artUrls.get(s.id);
+}
+function artInner(s) { const u = artUrl(s); return u ? `<img src="${u}" alt="">` : ic('music'); }
+function artStyle(s) { if (artUrl(s)) return ''; const c = artPal(s); return `background:linear-gradient(135deg,${c[0]},${c[1]})`; }
+const artBox = (s, cls) => `<span class="${cls}" style="${artStyle(s)}">${artInner(s)}</span>`;
+function paintArt(el, s) { el.innerHTML = s ? artInner(s) : ic('music'); el.setAttribute('style', s ? artStyle(s) : ''); }
+// The Now Playing background takes its colour from the cover, darkened so white text stays readable.
+function tintFor(s, cb) {
+  if (artTints.has(s.id)) return cb(artTints.get(s.id));
+  const set = (c) => { artTints.set(s.id, c); cb(c); };
+  if (!artUrl(s)) return set(artPal(s)[0]);
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 12;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0, 12, 12);
+      const d = g.getImageData(0, 0, 12, 12).data;
+      let r = 0, gr = 0, b = 0;
+      for (let i = 0; i < d.length; i += 4) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
+      const n = d.length / 4, col = [r / n, gr / n, b / n], top = Math.max(...col, 1), k = Math.min(1, 140 / top);
+      set('rgb(' + col.map((v) => Math.round(v * k)).join(',') + ')');
+    } catch (e) { set('#2A3742'); }
+  };
+  img.onerror = () => set('#2A3742');
+  img.src = artUrl(s);
+}
+const nowSong = () => curSong() || (songs.length ? songs.find((x) => x.id === S.lastSong) || songs[0] : null);
+function openNow() {
+  if (!nowSong()) { show('music'); toast('Add some songs first.'); return; }
+  $('#npFull').hidden = false; renderFull();
+}
+function closeNow() { $('#npFull').hidden = true; }
+function renderFull() {
+  const box = $('#npFull');
+  if (box.hidden) return;
+  const s = nowSong();
+  if (!s) { closeNow(); return; }
+  paintArt($('#npfArt'), s);
+  $('#npfTitle').textContent = s.title;
+  $('#npfArtist').textContent = s.artist || 'Unknown artist';
+  const pb = $('#npfPlay');
+  pb.innerHTML = ic(playing() ? 'pause' : 'play');
+  pb.setAttribute('aria-label', playing() ? 'Pause' : 'Play');
+  const sh = box.querySelector('[data-act="shuffle"]'), rp = box.querySelector('[data-act="repeat"]');
+  sh.innerHTML = ic('shuffle'); sh.setAttribute('aria-pressed', String(!!S.shuffle));
+  rp.innerHTML = ic(S.repeat === 'one' ? 'repeat1' : 'repeat'); rp.setAttribute('aria-pressed', String(S.repeat !== 'off'));
+  box.querySelector('[data-act="prev"]').innerHTML = ic('prev');
+  box.querySelector('[data-act="next"]').innerHTML = ic('next');
+  box.querySelector('[data-act="closeNow"]').innerHTML = ic('down');
+  const i = order.indexOf(s.id), nx = i >= 0 && order.length > 1 ? songs.find((x) => x.id === order[(i + 1) % order.length]) : null;
+  $('#npfUp').innerHTML = nx && (i < order.length - 1 || S.repeat === 'all') ? 'Next: <b>' + esc(nx.title) + '</b>' + (nx.artist ? ' · ' + esc(nx.artist) : '') : '';
+  tintFor(s, (c) => { if (nowSong() === s) box.style.setProperty('--npc', c); });
+  renderTime();
+}
+function toggleShuffle() { S.shuffle = !S.shuffle; save(); if (cur) order = buildOrder(cur); renderNow(); toast(S.shuffle ? 'Shuffle on' : 'Shuffle off', 1500); }
+function cycleRepeat() { S.repeat = S.repeat === 'off' ? 'all' : S.repeat === 'all' ? 'one' : 'off'; save(); renderNow(); toast({ off: 'Repeat off', all: 'Repeat all', one: 'Repeat this song' }[S.repeat], 1500); }
 // Song names from the file's ID3 tags (MP3), else from the file name.
 function id3(buf) {
-  const b = new Uint8Array(buf, 0, Math.min(buf.byteLength, 512 * 1024));
-  if (b.length < 10 || b[0] !== 0x49 || b[1] !== 0x44 || b[2] !== 0x33) return null;
+  const h = new Uint8Array(buf, 0, Math.min(buf.byteLength, 10));
+  if (h.length < 10 || h[0] !== 0x49 || h[1] !== 0x44 || h[2] !== 0x33) return null;
+  const tagSize = ((h[6] & 0x7f) << 21) | ((h[7] & 0x7f) << 14) | ((h[8] & 0x7f) << 7) | (h[9] & 0x7f);
+  const b = new Uint8Array(buf, 0, Math.min(buf.byteLength, 10 + tagSize, 12 * 1024 * 1024));
   const ver = b[3], syncsafe = (i) => ((b[i] & 0x7f) << 21) | ((b[i + 1] & 0x7f) << 14) | ((b[i + 2] & 0x7f) << 7) | (b[i + 3] & 0x7f);
-  const end = Math.min(b.length, 10 + syncsafe(6)), out = {};
+  const end = b.length, out = {};
   let i = 10;
   if (b[5] & 0x40) i += ver === 4 ? syncsafe(10) : ((b[10] << 24) | (b[11] << 16) | (b[12] << 8) | b[13]) + 4;
   const want = ver < 3 ? { TT2: 'title', TP1: 'artist' } : { TIT2: 'title', TPE1: 'artist' };
@@ -1327,9 +1474,30 @@ function id3(buf) {
     const sz = ver < 3 ? (b[i + 3] << 16) | (b[i + 4] << 8) | b[i + 5] : ver === 4 ? syncsafe(i + 4) : ((b[i + 4] << 24) | (b[i + 5] << 16) | (b[i + 6] << 8) | b[i + 7]) >>> 0;
     if (!sz) break;
     if (want[id] && i + head + sz <= b.length) out[want[id]] = id3Text(b.subarray(i + head, i + head + sz));
+    if ((id === 'APIC' || id === 'PIC') && i + head + sz <= b.length) {
+      const pic = id3Pic(b.subarray(i + head, i + head + sz), ver);
+      if (pic && (!out.pic || (pic.type === 3 && out.pic.type !== 3))) out.pic = pic;   // prefer the front cover
+    }
     i += head + sz;
   }
   return out;
+}
+function id3Pic(d, ver) {
+  const enc = d[0];
+  let i, mime;
+  if (ver < 3) { mime = String.fromCharCode(d[1], d[2], d[3]).toUpperCase() === 'PNG' ? 'image/png' : 'image/jpeg'; i = 4; }
+  else {
+    const z = d.indexOf(0, 1);
+    if (z < 0) return null;
+    mime = String.fromCharCode.apply(null, d.subarray(1, z)).toLowerCase();
+    if (!mime.includes('/')) mime = 'image/' + (mime.includes('png') ? 'png' : 'jpeg');
+    if (mime === 'image/jpg') mime = 'image/jpeg';
+    i = z + 1;
+  }
+  const type = d[i++];
+  if (enc === 1 || enc === 2) { while (i + 1 < d.length && !(d[i] === 0 && d[i + 1] === 0)) i += 2; i += 2; }
+  else { while (i < d.length && d[i] !== 0) i++; i++; }
+  return i < d.length - 16 ? { mime, type, data: d.slice(i) } : null;
 }
 function id3Text(d) {
   const enc = d[0];
@@ -1351,7 +1519,8 @@ async function addSongs(files) {
     try {
       const buf = await f.arrayBuffer(), tags = id3(buf) || {}, nm = nameFromFile(f.name);
       const type = f.type || AUDIO_TYPES[(f.name.split('.').pop() || '').toLowerCase()] || 'audio/mpeg';
-      const item = { title: tags.title || nm.title, artist: tags.artist || nm.artist, type, size: f.size, added: Date.now() + added, blob: new Blob([buf], { type }) };
+      const item = { title: tags.title || nm.title, artist: tags.artist || nm.artist, type, size: f.size, added: Date.now() + added, blob: new Blob([buf], { type }), artChecked: true };
+      if (tags.pic) item.art = new Blob([tags.pic.data], { type: tags.pic.mime });
       item.id = await tx('readwrite', (s) => s.add(item));
       songs.push(item); added++;
     } catch (e) { failed++; }
@@ -1437,19 +1606,24 @@ if ('mediaSession' in navigator) {
 }
 function setMeta(s) {
   if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist || '', album: 'Dash', artwork: [{ src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' }] });
+  // The cover shows on the lock screen, and on car stereos that show pictures.
+  const u = artUrl(s);
+  navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist || '', album: 'Dash', artwork: u ? [{ src: u, sizes: '512x512', type: s.art.type || 'image/jpeg' }] : [{ src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' }] });
 }
 const mmss = (t) => (isFinite(t) ? Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') : '0:00');
 function renderTime() {
-  if (!cur) { $('#npSeek').value = 0; $('#npCur').textContent = '0:00'; $('#npDur').textContent = '0:00'; return; }
-  const d = audio.duration;
-  if (!seeking) $('#npSeek').value = isFinite(d) && d ? Math.round(audio.currentTime / d * 1000) : 0;
-  $('#npCur').textContent = mmss(audio.currentTime);
-  $('#npDur').textContent = mmss(d);
+  const d = cur ? audio.duration : NaN, frac = isFinite(d) && d ? audio.currentTime / d : 0;
+  const t = cur ? mmss(audio.currentTime) : '0:00', total = cur ? mmss(d) : '0:00';
+  if (!seeking) { $('#npSeek').value = Math.round(frac * 1000); $('#npfSeek').value = Math.round(frac * 1000); }
+  $('#npCur').textContent = $('#npfCur').textContent = t;
+  $('#npDur').textContent = $('#npfDur').textContent = total;
+  const mp = $('#miniProg');
+  if (mp) mp.style.width = (frac * 100).toFixed(1) + '%';
 }
 let seeking = false;
 function renderNow() {
-  const s = curSong() || (songs.length ? songs.find((x) => x.id === S.lastSong) || songs[0] : null);
+  const s = nowSong();
+  paintArt($('#npArt'), s);
   $('#npTitle').textContent = s ? s.title : 'Nothing playing';
   $('#npArtist').textContent = s ? s.artist || 'My songs' : songs.length ? 'Tap play' : 'Add songs from your phone below';
   const pb = $('#npPlay');
@@ -1460,12 +1634,12 @@ function renderNow() {
   $('#npRepeat').innerHTML = ic(S.repeat === 'one' ? 'repeat1' : 'repeat');
   $('#npRepeat').setAttribute('aria-label', S.repeat === 'one' ? 'Repeat one song' : S.repeat === 'all' ? 'Repeat all' : 'Repeat off');
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = cur ? (audio.paused ? 'paused' : 'playing') : 'none';
-  renderTime();
+  renderTime(); renderFull();
 }
 function renderSongs() {
   $('#songCount').textContent = songs.length ? '· ' + songs.length : '';
   $('#songList').innerHTML = songs.length ? songs.map((s, i) => `<div class="song${s.id === cur ? ' cur' : ''}">
-      <button type="button" class="sp" data-song="${s.id}"><span class="num">${s.id === cur && playing() ? ic('eq') : i + 1}</span><span class="d-txt"><b>${esc(s.title)}</b><span>${esc(s.artist || ' ')}</span></span></button>
+      <button type="button" class="sp" data-song="${s.id}">${artBox(s, 's-art').replace('</span>', (s.id === cur && playing() ? `<i class="s-eq">${ic('eq')}</i>` : '') + '</span>')}<span class="d-txt"><b>${esc(s.title)}</b><span>${esc(s.artist || ' ')}</span></span></button>
       <button type="button" class="del" data-del="${s.id}" aria-label="Remove ${esc(s.title)}">${ic('trash')}</button></div>`).join('')
     : `<p class="empty">Add MP3 or M4A files from your phone${isIOS ? ' (from the Files app)' : ''} and play them here. Songs from Spotify or Apple Music can't be added, so use the buttons above for those.</p>`;
 }
@@ -1611,7 +1785,7 @@ document.addEventListener('click', (e) => {
   if (d.chip != null) { const p = chipPlaces[+d.chip]; if (p) selectPlace(p); return; }
   if (d.res != null) { const p = results[+d.res]; if (p) selectPlace(p); return; }
   if (d.save) { savePlace(d.save); return; }
-  if (d.song) { const id = +d.song; if (id === cur) togglePlay(); else playSong(id); return; }
+  if (d.song) { const id = +d.song; if (id === cur) togglePlay(); else playSong(id); openNow(); return; }
   if (d.del) { removeSong(+d.del); return; }
   if (d.key) { if (dial.length < 24) dial += d.key; renderDial(); return; }
   if (d.tab) { phoneTab = d.tab; renderPhone(); return; }
@@ -1633,6 +1807,10 @@ document.addEventListener('click', (e) => {
     case 'clearRecents': S.recents = []; save(); renderSettings(); renderChips(); break;
     case 'pickContacts': pickContacts(); break;
     case 'addSpot': addSpotify(); break;
+    case 'openNow': openNow(); break;
+    case 'closeNow': closeNow(); break;
+    case 'shuffle': toggleShuffle(); break;
+    case 'repeat': cycleRepeat(); break;
     case 'testSound': testSound(); break;
     case 'heyDash': heyDash(); break;
     case 'saveReplies': {
@@ -1694,10 +1872,12 @@ document.addEventListener('click', (e) => {
 $('#npPlay').addEventListener('click', togglePlay);
 $('#npPrev').addEventListener('click', () => step(-1));
 $('#npNext').addEventListener('click', () => step(1));
-$('#npShuffle').addEventListener('click', () => { S.shuffle = !S.shuffle; save(); if (cur) order = buildOrder(cur); renderNow(); toast(S.shuffle ? 'Shuffle on' : 'Shuffle off', 1500); });
-$('#npRepeat').addEventListener('click', () => { S.repeat = S.repeat === 'off' ? 'all' : S.repeat === 'all' ? 'one' : 'off'; save(); renderNow(); toast({ off: 'Repeat off', all: 'Repeat all', one: 'Repeat this song' }[S.repeat], 1500); });
-$('#npSeek').addEventListener('input', () => { seeking = true; });
-$('#npSeek').addEventListener('change', () => { seeking = false; if (cur && isFinite(audio.duration)) audio.currentTime = $('#npSeek').value / 1000 * audio.duration; });
+$('#npShuffle').addEventListener('click', toggleShuffle);
+$('#npRepeat').addEventListener('click', cycleRepeat);
+['#npSeek', '#npfSeek'].forEach((sel) => {
+  $(sel).addEventListener('input', () => { seeking = true; });
+  $(sel).addEventListener('change', () => { seeking = false; if (cur && isFinite(audio.duration)) audio.currentTime = $(sel).value / 1000 * audio.duration; renderTime(); });
+});
 $('#addSongs').addEventListener('click', () => $('#songFile').click());
 $('#songFile').addEventListener('change', (e) => { const files = [...e.target.files]; e.target.value = ''; addSongs(files); });
 $('#passengerBtn').addEventListener('click', () => { passenger = true; $('#lockSheet').hidden = true; toast('Typing is on for this trip'); });
@@ -1764,7 +1944,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated: a new logo, “Hey Dash” voice control, Spotify playlists and a car connection guide in Settings.';
+  var NEWS = 'Dash updated: a Spotify-style Now Playing screen with album covers. Tap the song that’s playing to open it.';
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -1792,7 +1972,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'e41f3a8415';
+  var VERSION = 'd849facf9d';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
