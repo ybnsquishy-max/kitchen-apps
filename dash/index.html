@@ -168,6 +168,13 @@ a{color:inherit;text-decoration:none}
 .c-foot .btn{flex:1}
 .c-count{color:var(--dim);font-size:14px;font-weight:600;text-align:center;padding:6px 0 2px}
 .c-all{border:0;background:none;color:var(--accent);font-weight:700;font-size:14px;padding:6px}
+.ways{display:grid;gap:8px;margin-top:10px}
+.way{display:flex;gap:12px;align-items:flex-start;background:var(--card2);border:0;border-radius:16px;padding:12px 14px;text-align:left;width:100%;min-height:64px}
+.way .ic{width:26px;height:26px;color:var(--accent);flex:none;margin-top:2px}
+.way span{min-width:0}
+.way>span>b{display:block;font-size:16px;margin-bottom:2px}
+.way small b{color:var(--ink)}
+.way small{display:block;font-size:13px;color:var(--dim);line-height:1.4}
 @media (orientation:landscape){
   .npf-in{max-width:none}
   .npf-main{flex-direction:row;align-items:center;gap:36px;padding-top:2px}
@@ -667,6 +674,7 @@ const ICONS = {
   down: '<path d="M6 9l6 6 6-6"/>',
   tick: '<path d="M20 6L9 17l-5-5"/>',
   people: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   swap: '<path d="M7 4v13M4 14l3 3 3-3M17 20V7M14 10l3-3 3 3"/>',
   speaker: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>'
 };
@@ -1925,14 +1933,19 @@ function renderSettings() {
     </div>
     <div class="set-card" id="favSet"><h3>Favourites</h3>
       ${S.favs.map((f, i) => `<div class="row"><span style="display:flex;align-items:center;gap:12px">${avatar(f.name)}<span><b>${esc(f.name)}</b><small>${esc(f.num)}</small></span></span><span class="acts">${i ? `<button type="button" class="mini" data-favup="${i}" aria-label="Move ${esc(f.name)} up">${ic('up')}</button>` : ''}<button type="button" class="mini danger" data-favdel="${i}" aria-label="Remove ${esc(f.name)}">${ic('trash')}</button></span></div>`).join('')}
-      <form class="fav-form" id="favForm" autocomplete="off">
-        <input class="field" name="fname" placeholder="Name" aria-label="Name" autocomplete="off">
-        <input class="field" name="fnum" type="tel" placeholder="Phone number" aria-label="Phone number" autocomplete="off">
+      <form class="fav-form" id="favForm">
+        <input class="field" name="fname" placeholder="Name" aria-label="Name" autocomplete="name">
+        <input class="field" name="fnum" type="tel" placeholder="Phone number" aria-label="Phone number" autocomplete="tel">
         <button class="btn primary" type="submit">Add</button>
       </form>
-      ${canPick ? `<button type="button" class="btn primary block" style="margin-top:10px" data-act="pickContacts">${ic('people')} Pick from my contacts</button>` : ''}
-      <button type="button" class="btn${canPick ? '' : ' primary'} block" style="margin-top:8px" data-act="cardFile">${ic('people')} Add from a contact file</button>
-      <p class="empty" style="margin-top:10px">${isIOS ? 'iPhones don’t let apps read your contacts, so share them to Dash instead: open <b>Contacts</b>, tap a person, scroll down and tap <b>Share Contact</b> → <b>Save to Files</b>. Do that for everyone you want, then tap the button above and pick the files (you can pick several at once).' : 'Share a contact from your phone’s Contacts app as a file (a <b>.vcf</b>), then pick it here. You can pick several at once.'}</p>
+      <div class="ways">
+        ${canPick ? `<button type="button" class="way" data-act="pickContacts">${ic('people')}<span><b>Pick from my contacts</b><small>Opens your phone’s contact list.</small></span></button>` : ''}
+        <button type="button" class="way" data-act="pasteNum">${ic('copy')}<span><b>Paste a number</b><small>${isIOS ? 'In Contacts, press and hold the person’s number, tap <b>Copy</b>, then come back and tap this.' : 'Copy a number or a contact anywhere on your phone, then tap this.'}</small></span></button>
+        <button type="button" class="way" data-act="cardFile">${ic('people')}<span><b>Add from a contact file</b><small>${isIOS ? 'In <b>Contacts</b>, tap a person → <b>Share Contact</b> → <b>Save to Files</b>. Then tap this and pick the files — several at once is fine.' : 'A <b>.vcf</b> file shared from your Contacts app. Several at once is fine.'}</small></span></button>
+      </div>
+      <p class="empty" style="margin-top:10px">${isIOS
+        ? 'Tip: tap the <b>Phone number</b> box above and your iPhone may offer to fill it in from your contacts.<br><br>iPhones don’t show Dash in the Share menu, and won’t let it read your contacts — Apple only allows that for apps from the App Store. The ways above are the way around it.'
+        : 'You can also share a contact straight to Dash from your phone’s Share menu.'}</p>
     </div>
     <div class="set-card"><h3>Move Dash</h3>
       <p class="empty" style="margin-top:8px">Adding Dash to your home screen again (for example, to get the new logo)? Copy your setup here first, then paste it into the new Dash. Places, favourites, messages and Spotify playlists come with it; songs and the Spotify connection don’t.</p>
@@ -2085,6 +2098,29 @@ async function readCardFiles(files) {
   openContacts(people, people.length === 1 ? 'Add this contact' : 'Choose contacts to add');
 }
 
+// A number or a whole contact copied somewhere else on the phone.
+async function pasteNum() {
+  let text = '';
+  try { if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText(); } catch (e) {}
+  if (!text.trim()) text = prompt('Paste the phone number you copied:') || '';
+  text = text.trim();
+  if (!text) return;
+  const cards = parseVcards(text);
+  if (cards.length) { openContacts(cards, cards.length === 1 ? 'Add this contact' : 'Choose contacts to add'); return; }
+  const m = text.match(/\+?[\d][\d\s()./-]{5,}\d/);
+  if (!m) { toast('That isn’t a phone number. Copy one from your Contacts app first.', 4500); return; }
+  const num = m[0].replace(/[./]/g, ' ').trim();
+  // A name is often copied with the number, on its own line.
+  const name = text.split('\n').map((l) => l.trim()).find((l) => l && l !== m[0] && !/\d{4}/.test(l) && l.length < 40) || '';
+  const f = $('#favForm');
+  if (f) {
+    f.elements.fnum.value = num;
+    f.elements.fname.value = name;
+    f.scrollIntoView({ block: 'center' });
+    if (!typingLocked()) f.elements[name ? 'fnum' : 'fname'].focus();
+    toast(name ? 'Pasted ' + name + '. Tap Add.' : 'Pasted ' + num + '. Type their name, then tap Add.', 5000);
+  }
+}
 let cPeople = [], cPick = [], cWhich = [];
 function openContacts(people, title) {
   cPeople = people.slice(0, 2000);
@@ -2165,6 +2201,7 @@ document.addEventListener('click', (e) => {
     case 'clearRecents': S.recents = []; save(); renderSettings(); renderChips(); break;
     case 'pickContacts': pickContacts(); break;
     case 'cardFile': $('#cardFile').click(); break;
+    case 'pasteNum': pasteNum(); break;
     case 'addSpot': addSpotify(); break;
     case 'openNow': openNow(); break;
     case 'closeNow': closeNow(); break;
@@ -2325,6 +2362,16 @@ setInterval(() => {
 renderWx(); renderSpeed(); renderNow(); renderHome(); renderChips(); renderAwake();
 loadSongs();
 spFinish().then(spPoll);
+// A contact shared to Dash from the phone's Share menu (Android).
+if (/[?&]shared=contact/.test(location.search)) {
+  history.replaceState(null, '', location.pathname);
+  caches.open('dash-share').then((c) => c.match('card')).then((r) => r && r.text()).then((text) => {
+    caches.open('dash-share').then((c) => c.delete('card'));
+    const cards = text ? parseVcards(text) : [];
+    if (cards.length) { show('settings'); openContacts(cards, cards.length === 1 ? 'Add this contact' : 'Choose contacts to add'); }
+    else toast("That didn't have a phone number in it.", 4500);
+  }).catch(() => {});
+}
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); keepAwake(); maybeWeather(); } });
 document.addEventListener('pointerdown', () => { if (!wakeLock) keepAwake(); }, { passive: true });
 addEventListener('resize', () => { setPlaceH(); if (map) map.invalidateSize(); });
@@ -2336,7 +2383,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated: add favourites straight from your contacts (Settings → Favourites).' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
+  var NEWS = 'Dash updated: three ways to add favourites from your contacts (Settings → Favourites).' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -2364,7 +2411,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'f16e6a28b3';
+  var VERSION = 'b9040c5391';
   var offered = false;
   function hardRefresh() {
     if (busy()) {

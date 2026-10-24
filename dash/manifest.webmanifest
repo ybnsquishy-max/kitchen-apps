@@ -34,5 +34,27 @@
       "type": "image/svg+xml",
       "purpose": "any"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./share-contact",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "card",
+          "accept": [
+            "text/vcard",
+            "text/x-vcard",
+            "text/directory",
+            ".vcf",
+            ".vcard"
+          ]
+        }
+      ]
+    }
+  }
 }

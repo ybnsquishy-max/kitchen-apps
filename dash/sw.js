@@ -1,6 +1,7 @@
-// Offline support for the installable Dash app (version f16e6a28b3).
+// Offline support for the installable Dash app (version b9040c5391).
 // Your places, favourites and songs live in the browser's storage, which updates never touch.
-const CACHE = 'dash-f16e6a28b3';
+const CACHE = 'dash-b9040c5391';
+const SHARE = 'dash-share';   // a contact handed to Dash from another app, kept across updates
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/leaflet.js', 'vendor/leaflet.css', 'icons/icon.svg', 'icons/icon-192-neon.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon-neon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', (event) => {
@@ -9,7 +10,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   // Only tidy Dash's own caches; the other apps on this site keep theirs.
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('dash-') && k !== CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('dash-') && k !== CACHE && k !== SHARE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 function withTimeout(p, ms) {
@@ -20,6 +21,21 @@ function withTimeout(p, ms) {
 }
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+  // A contact shared to Dash from another app (Android's Share menu).
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/share-contact')) {
+    event.respondWith((async () => {
+      try {
+        const form = await req.formData(), c = await caches.open(SHARE);
+        await c.delete('card');
+        const files = form.getAll('card').filter((f) => f && typeof f !== 'string');
+        let text = files.length ? (await Promise.all(files.map((f) => f.text()))).join('\n') : '';
+        if (!text) text = [form.get('text'), form.get('title')].filter(Boolean).join('\n');
+        if (text) await c.put('card', new Response(text, { headers: { 'content-type': 'text/vcard' } }));
+      } catch (e) {}
+      return Response.redirect('./?shared=contact', 303);
+    })());
+    return;
+  }
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;       // maps, search and weather go straight to the internet
