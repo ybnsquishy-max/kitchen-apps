@@ -1,15 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="db" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#1C2731"/><stop offset="1" stop-color="#0A0F13"/></radialGradient>
-    <linearGradient id="dg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2BB6F0"/><stop offset="1" stop-color="#3DDC97"/></linearGradient>
+    <radialGradient id="db" cx="55%" cy="40%" r="75%"><stop offset="0" stop-color="#18304A"/><stop offset=".55" stop-color="#0C1622"/><stop offset="1" stop-color="#05080C"/></radialGradient>
+    <linearGradient id="ng" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2BB6F0"/><stop offset=".55" stop-color="#3DDC97"/><stop offset="1" stop-color="#C6F432"/></linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
   </defs>
   <rect width="512" height="512" fill="url(#db)"/>
-  <path d="M86.3 374.0 A196 196 0 1 1 425.7 374.0" fill="none" stroke="#24313D" stroke-width="30" stroke-linecap="round"/>
-  <path d="M86.3 374.0 A196 196 0 0 1 390.2 133.1" fill="none" stroke="url(#dg)" stroke-width="30" stroke-linecap="round"/>
-  <g stroke="#E8EEF2" stroke-width="9" stroke-linecap="round" opacity=".85"><line x1="126.1" y1="351.0" x2="103.6" y2="364.0"/><line x1="96.0" y1="276.0" x2="80.0" y2="276.0"/><line x1="126.1" y1="201.0" x2="103.6" y2="188.0"/><line x1="176.0" y1="137.4" x2="168.0" y2="123.6"/><line x1="256.0" y1="126.0" x2="256.0" y2="100.0"/><line x1="336.0" y1="137.4" x2="344.0" y2="123.6"/><line x1="385.9" y1="201.0" x2="408.4" y2="188.0"/><line x1="416.0" y1="276.0" x2="432.0" y2="276.0"/><line x1="385.9" y1="351.0" x2="408.4" y2="364.0"/></g>
-  <line x1="256" y1="276" x2="346.4" y2="179.8" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
-  <circle cx="256" cy="276" r="30" fill="#3DDC97"/>
-  <circle cx="256" cy="276" r="12" fill="#0E1419"/>
-  <rect x="176" y="372" width="160" height="40" rx="20" fill="#3DDC97" opacity=".18"/>
-  <rect x="200" y="386" width="112" height="12" rx="6" fill="#3DDC97"/>
+  <g opacity=".9" stroke-linecap="round">
+    <line x1="34" y1="236" x2="110" y2="236" stroke="#2BB6F0" stroke-width="14" opacity=".55"/>
+    <line x1="58" y1="280" x2="106" y2="280" stroke="#2BB6F0" stroke-width="14" opacity=".35"/>
+    <line x1="44" y1="324" x2="112" y2="324" stroke="#2BB6F0" stroke-width="14" opacity=".2"/>
+  </g>
+  <path d="M124.8 365.0 A170 170 0 1 1 419.2 365.0" fill="none" stroke="#1A2633" stroke-width="34" stroke-linecap="round"/>
+  <path d="M124.8 365.0 A170 170 0 0 1 415.5 188.9" fill="none" stroke="url(#ng)" stroke-width="34" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M124.8 365.0 A170 170 0 0 1 415.5 188.9" fill="none" stroke="url(#ng)" stroke-width="34" stroke-linecap="round"/>
+  <g stroke="#DDE7EE" stroke-linecap="round" opacity=".8"><line x1="161.1" y1="344.0" x2="145.6" y2="353.0" stroke-width="9"/><line x1="144.0" y1="280.0" x2="132.0" y2="280.0" stroke-width="6"/><line x1="161.1" y1="216.0" x2="145.6" y2="207.0" stroke-width="9"/><line x1="208.0" y1="169.1" x2="202.0" y2="158.8" stroke-width="6"/><line x1="272.0" y1="152.0" x2="272.0" y2="134.0" stroke-width="9"/><line x1="336.0" y1="169.1" x2="342.0" y2="158.8" stroke-width="6"/><line x1="382.9" y1="216.0" x2="398.4" y2="207.0" stroke-width="9"/><line x1="400.0" y1="280.0" x2="412.0" y2="280.0" stroke-width="6"/><line x1="382.9" y1="344.0" x2="398.4" y2="353.0" stroke-width="9"/></g>
+  <line x1="250.0" y1="293.9" x2="375.0" y2="214.6" stroke="#FF4D8D" stroke-width="15" stroke-linecap="round" filter="url(#glow)"/>
+  <line x1="250.0" y1="293.9" x2="375.0" y2="214.6" stroke="#FF6FA3" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="272" cy="280" r="30" fill="#0B1117" stroke="#FFFFFF" stroke-width="9"/>
+  <text x="272" y="408" text-anchor="middle" font-family="Arial Black,Arial,Helvetica,sans-serif" font-weight="900" font-size="64" letter-spacing="6" fill="#FFFFFF">DASH</text>
 </svg>

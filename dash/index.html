@@ -37,6 +37,7 @@ a{color:inherit;text-decoration:none}
 .sbtn{width:46px;height:46px;border-radius:14px;border:0;background:none;display:grid;place-items:center;color:var(--dim)}
 .sbtn .ic{width:26px;height:26px}
 #awakeBtn.on{color:var(--accent)}
+.sbtn.voice{width:50px;height:50px;border-radius:50%;background:var(--accent);color:#04261A;margin-right:4px}
 #awakeBtn.warn{color:var(--amber)}
 #main{grid-area:main;position:relative;overflow:hidden}
 .panel{position:absolute;inset:0;overflow-y:auto;padding:4px calc(12px + var(--sr)) var(--pb) calc(12px + var(--sl));display:none;-webkit-overflow-scrolling:touch}
@@ -116,7 +117,9 @@ a{color:inherit;text-decoration:none}
 .ctl .pp{background:var(--ink);color:var(--bg)}
 .ctl .ic{width:24px;height:24px}
 .app-mini{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.app-mini a{display:flex;align-items:center;gap:10px;height:58px;border-radius:16px;padding:0 14px;font-weight:700;color:#fff}
+.app-mini a{display:flex;align-items:center;gap:10px;height:58px;border-radius:16px;padding:0 14px;font-weight:700;color:#fff;min-width:0}
+.app-mini a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.np-mini+.app-mini{margin-top:12px}
 .c-favs{grid-area:favs}
 .fav-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .fav-mini{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 0;font-size:13px;font-weight:650;min-width:0;border:0;background:none}
@@ -194,8 +197,19 @@ a{color:inherit;text-decoration:none}
 .dest-pin svg{width:44px;height:52px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
 
 /* Music */
-.music{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-template-areas:"apps" "np" "list"}
-@media (orientation:landscape){.music{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);grid-template-areas:"apps np" "apps list";align-items:start}}
+.music{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-template-areas:"apps" "spot" "np" "list"}
+@media (orientation:landscape){.music{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);grid-template-areas:"apps np" "spot list";align-items:start}}
+.spot{grid-area:spot}
+.sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sp-item{position:relative;min-width:0}
+.sp-tile{display:flex;align-items:center;gap:10px;background:var(--card2);border-radius:14px;padding:8px;min-height:64px;min-width:0}
+.sp-tile img,.sp-ph{width:48px;height:48px;border-radius:8px;flex:none;object-fit:cover}
+.sp-ph{display:grid;place-items:center;background:#1A9E4B;color:#fff}
+.sp-tile>span{min-width:0}
+.sp-tile b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:24px}
+.sp-tile small{color:var(--dim);font-size:12px;font-weight:600}
+.sp-item .del{position:absolute;top:2px;right:2px;width:34px;height:34px;border:0;background:none;color:#5F6E7A;display:grid;place-items:center}
+.sp-open{margin-top:10px;background:#1A9E4B;color:#fff}
 .apps{grid-area:apps;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .app{display:flex;flex-direction:column;justify-content:space-between;gap:12px;min-height:100px;padding:14px;border-radius:20px;color:#fff;font-weight:750;font-size:16px}
 .app .ic{width:34px;height:34px}
@@ -215,8 +229,8 @@ a{color:inherit;text-decoration:none}
 .np-ctl .mode[aria-pressed="true"]{color:var(--accent)}
 .np-ctl .mode .ic{width:24px;height:24px}
 .list{grid-area:list}
-.list h2 .grow{flex:1}
-.list h2 button{border:0;background:rgba(61,220,151,.14);color:var(--accent);border-radius:12px;height:40px;padding:0 14px;font-weight:700;font-size:14px;text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px}
+.card h2 .grow{flex:1}
+.card h2 button{border:0;background:rgba(61,220,151,.14);color:var(--accent);border-radius:12px;height:40px;padding:0 14px;font-weight:700;font-size:14px;text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px}
 .song{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
 .song:last-child{border-bottom:0}
 .song .sp{flex:1;min-width:0;display:flex;align-items:center;gap:12px;min-height:62px;border:0;background:none;text-align:left;padding:6px 2px}
@@ -320,9 +334,23 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
 .sheet h3{margin:0 0 8px;font-size:22px}
 .sheet p{color:#B7C2CC;font-size:16px;line-height:1.5;margin:0 0 16px}
 .sheet .btn{width:100%;margin-top:8px}
+.voice-sheet{text-align:center}
+.vs-mic{width:88px;height:88px;border-radius:50%;border:0;background:var(--card2);color:var(--accent);display:grid;place-items:center;margin:0 auto 14px}
+.vs-mic .ic{width:40px;height:40px}
+.vs-mic.live{background:var(--accent);color:#04261A;animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 24px rgba(61,220,151,0)}}
+#vsActs{display:grid;gap:8px;text-align:left}
+#vsActs:empty{display:none}
+.go.call{background:#30C85E;color:#fff}
+.tips{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px;text-align:left}
+.tips li{background:var(--card2);border-radius:14px;padding:10px 14px;font-size:14px;color:#B7C2CC;line-height:1.4}
+.tips b{display:block;color:var(--ink);font-size:16px}
+.steps{padding-left:22px;margin:10px 0;color:#B7C2CC;font-size:15px;line-height:1.5}
+.steps li{margin-bottom:10px}
+.steps b{color:var(--ink)}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(98px + var(--sb));z-index:3000;background:#E8EEF2;color:#0A0F13;font-weight:650;font-size:15px;padding:12px 18px;border-radius:14px;width:max-content;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;text-align:center;line-height:1.4}
 #toast.on{opacity:1}
-@media (orientation:landscape){#toast{bottom:calc(20px + var(--sb));left:calc(50% + 49px)}}
+@media (orientation:landscape){#toast {bottom:calc(20px + var(--sb));left:calc(50% + 49px)}}
 </style>
 </head>
 <body>
@@ -330,6 +358,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
   <header id="status">
     <span id="sTime"></span><span id="sWx"></span>
     <span class="grow"></span>
+    <button class="sbtn voice" id="voiceBtn" type="button" aria-label="Hey Dash: say a command"></button>
     <button class="sbtn" id="awakeBtn" type="button" aria-label="Screen stays on"></button>
     <button class="sbtn" id="setBtn" type="button" aria-label="Settings"></button>
   </header>
@@ -389,6 +418,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
     <section class="panel" id="p-music" aria-label="Music">
       <div class="music">
         <div class="apps" id="musicApps"></div>
+        <div class="card spot" id="spotCard"></div>
         <div class="card np" id="np">
           <div class="np-top">
             <div class="art" id="npArt"></div>
@@ -471,6 +501,16 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
   </div>
 </div>
 
+<div class="overlay" id="voiceSheet" hidden>
+  <div class="sheet voice-sheet">
+    <button type="button" class="vs-mic" id="vsMic" aria-label="Listen again"></button>
+    <h3 id="vsSaid">Listening…</h3>
+    <p id="vsReply"></p>
+    <div id="vsActs"></div>
+    <button type="button" class="btn" id="vsClose">Close</button>
+  </div>
+</div>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="vendor/leaflet.js"></script>
@@ -513,7 +553,9 @@ const ICONS = {
   pause: '<rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/>',
   next: '<path d="M4 5.5v13a1 1 0 0 0 1.6.8l8.6-6.5a1 1 0 0 0 0-1.6L5.6 4.7A1 1 0 0 0 4 5.5z"/><rect x="16" y="4" width="3.5" height="16" rx="1"/>',
   prev: '<path d="M20 5.5v13a1 1 0 0 1-1.6.8l-8.6-6.5a1 1 0 0 1 0-1.6l8.6-6.5A1 1 0 0 1 20 5.5z"/><rect x="4.5" y="4" width="3.5" height="16" rx="1"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  car: '<path d="M3 17v-4l2.2-5.6A2 2 0 0 1 7.1 6h9.8a2 2 0 0 1 1.9 1.4L21 13v4z"/><path d="M3 13h18"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/>',
+  speaker: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>'
 };
 const FILLED = ['nav', 'play', 'pause', 'next', 'prev'];
 const ic = (n) => `<svg class="ic${FILLED.includes(n) ? ' fill' : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
@@ -528,7 +570,7 @@ const DEFAULTS = () => ({
   home: null, work: null, recents: [], trip: null,
   favs: [], calls: [],
   replies: ['On my way', 'Running about 10 minutes late', "I'm here", "Driving, I'll call you soon", "Can't talk right now, I'm driving"],
-  started: false, lastSong: null, shuffle: false, repeat: 'off', wx: null
+  started: false, lastSong: null, shuffle: false, repeat: 'off', wx: null, spotify: []
 });
 let S;
 try { S = Object.assign(DEFAULTS(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { S = DEFAULTS(); }
@@ -630,6 +672,16 @@ const MUSIC_APPS = isIOS ? [
   { name: 'Apple Music', href: 'https://music.apple.com/', color: '#E5304A', icon: 'music', web: true },
   { name: 'Podcasts', href: 'https://podcasts.apple.com/', color: '#8A4FD8', icon: 'pod', web: true }
 ];
+// Saved Spotify playlists, albums and podcasts open straight in the Spotify app.
+const SPOT_KIND = { playlist: 'Playlist', album: 'Album', artist: 'Artist', track: 'Song', show: 'Podcast', episode: 'Episode' };
+const spotHref = (x) => (isIOS ? 'spotify:' + x.kind + ':' + x.id : 'https://open.spotify.com/' + x.kind + '/' + x.id);
+const spotSearchHref = (q) => (isIOS ? 'spotify:search:' + encodeURIComponent(q) : 'https://open.spotify.com/search/' + encodeURIComponent(q));
+const spotTarget = isIOS ? '' : ' target="_blank" rel="noopener"';
+function parseSpotify(t) {
+  t = String(t || '');
+  const m = t.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(playlist|album|artist|track|show|episode)\/([A-Za-z0-9]{10,})/i) || t.match(/spotify:(playlist|album|artist|track|show|episode):([A-Za-z0-9]{10,})/i);
+  return m ? { kind: m[1].toLowerCase(), id: m[2] } : null;
+}
 const appLink = (a, cls) => `<a class="${cls}" href="${a.href}"${a.web ? ' target="_blank" rel="noopener"' : ''} style="background:${a.color}">${ic(a.icon)}<span>${esc(a.name)}</span></a>`;
 
 /* ---------- Panels ---------- */
@@ -802,15 +854,46 @@ function renderHomeFavs() {
   $('#homeFavs').innerHTML = favs.map((f, i) => `<a class="fav-mini" href="${esc(telHref(f.num))}" data-call="${i}">${avatar(f.name)}<span>${esc(f.name.split(' ')[0])}</span></a>`).join('') +
     (favs.length < 4 ? `<button type="button" class="fav-mini" data-act="addFav"><span class="av add">${ic('plus')}</span><span>Add</span></button>` : '');
 }
+function spotMini(n) {
+  return [appLink(MUSIC_APPS[0], '')].concat(S.spotify.slice(0, n).map((x) => `<a href="${esc(spotHref(x))}"${spotTarget} style="background:#163024">${ic('eq')}<span>${esc(x.name)}</span></a>`)).join('');
+}
 function renderHomePlay() {
   const box = $('#homePlay');
   if (!songs.length) {
-    box.innerHTML = `<h2>Music</h2><div class="app-mini">${MUSIC_APPS.slice(0, 2).map((a) => appLink(a, '')).join('')}</div>`;
+    box.innerHTML = `<h2>Music</h2><div class="app-mini">${S.spotify.length ? spotMini(3) : MUSIC_APPS.slice(0, 2).map((a) => appLink(a, '')).join('')}</div>`;
     return;
   }
   const s = curSong() || songs.find((x) => x.id === S.lastSong) || songs[0];
   box.innerHTML = `<div class="np-mini"><div class="art">${ic('music')}</div><div class="pm"><b>${esc(s.title)}</b><span>${esc(s.artist || 'My songs')}</span></div>
-    <div class="ctl"><button type="button" data-act="prev" aria-label="Previous song">${ic('prev')}</button><button type="button" class="pp" data-act="play" aria-label="${playing() ? 'Pause' : 'Play'}">${ic(playing() ? 'pause' : 'play')}</button><button type="button" data-act="next" aria-label="Next song">${ic('next')}</button></div></div>`;
+    <div class="ctl"><button type="button" data-act="prev" aria-label="Previous song">${ic('prev')}</button><button type="button" class="pp" data-act="play" aria-label="${playing() ? 'Pause' : 'Play'}">${ic(playing() ? 'pause' : 'play')}</button><button type="button" data-act="next" aria-label="Next song">${ic('next')}</button></div></div>` +
+    (S.spotify.length ? `<div class="app-mini">${spotMini(1)}</div>` : '');
+}
+function renderSpotify() {
+  $('#spotCard').innerHTML = `<h2><span>Spotify</span><span class="grow"></span><button type="button" data-act="addSpot">${ic('plus')} Add</button></h2>
+    ${S.spotify.length ? `<div class="sp-grid">${S.spotify.map((x, i) => `<div class="sp-item"><a class="sp-tile" href="${esc(spotHref(x))}"${spotTarget}>${x.img ? `<img src="${esc(x.img)}" alt="">` : `<span class="sp-ph">${ic('eq')}</span>`}<span><b>${esc(x.name)}</b><small>${SPOT_KIND[x.kind] || ''}</small></span></a><button type="button" class="del" data-spdel="${i}" aria-label="Remove ${esc(x.name)}">${ic('x')}</button></div>`).join('')}</div>`
+      : `<p class="empty">Save your favourite playlists, albums and podcasts for one-tap playing. In Spotify tap <b>•••</b> → <b>Share</b> → <b>Copy link</b>, then tap Add here.</p>`}
+    <a class="btn block sp-open" href="${MUSIC_APPS[0].href}"${MUSIC_APPS[0].web ? ' target="_blank" rel="noopener"' : ''}>${ic('eq')} Open Spotify</a>`;
+}
+async function addSpotify() {
+  let text = '';
+  try { if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText(); } catch (e) {}
+  let item = parseSpotify(text);
+  if (!item) {
+    text = prompt('Paste a Spotify link.\n\nIn Spotify, open a playlist or album, tap ••• → Share → Copy link, then come back here.') || '';
+    item = parseSpotify(text);
+  }
+  if (!item) { if (text) toast("That isn't a Spotify link. In Spotify tap ••• → Share → Copy link.", 4500); return; }
+  if (S.spotify.some((x) => x.id === item.id)) { toast('Already saved'); return; }
+  item.name = SPOT_KIND[item.kind];
+  try {
+    const j = await (await fetchT('https://open.spotify.com/oembed?url=' + encodeURIComponent('https://open.spotify.com/' + item.kind + '/' + item.id), 6000)).json();
+    if (j.title) item.name = j.title;
+    if (j.thumbnail_url) item.img = j.thumbnail_url;
+  } catch (e) {}
+  if (item.name === SPOT_KIND[item.kind]) { const n = prompt('What should Dash call it?', ''); if (n && n.trim()) item.name = n.trim(); }
+  S.spotify.push(item); save();
+  renderSpotify(); renderHomePlay();
+  toast('Saved ' + item.name);
 }
 
 /* ---------- Trips and recent places ---------- */
@@ -1030,6 +1113,160 @@ function listen() {
     if (v) { $('#q').value = v; $('#qClear').hidden = false; runSearch(v, true); }
   };
   try { rec.start(); $('#micBtn').classList.add('live'); toast('Listening… say a place'); } catch (e) { rec = null; }
+}
+
+/* ---------- "Hey Dash": voice commands, with Siri as the backup ---------- */
+const SIRI_TIPS = [
+  ['“Hey Siri, open Dash”', 'Opens Dash, if your iPhone lists it as an app. If not, tap its icon.'],
+  ['“Hey Siri, take me home”', 'Directions in Apple Maps, using Home from your contact card.'],
+  ['“Hey Siri, call Mum”', 'Calls from your contacts, through the car.'],
+  ['“Hey Siri, text Jess I’m on my way”', 'Siri reads it back before sending.'],
+  ['“Hey Siri, play Discover Weekly on Spotify”', 'Say “on Spotify”. If Siri asks, let it use Spotify (iPhone Settings → Spotify → Siri).'],
+  ['“Hey Siri, read my messages”', 'Reads new texts out loud.']
+];
+const siriTips = () => `<ul class="tips">${SIRI_TIPS.map((t) => `<li><b>${t[0]}</b>${t[1]}</li>`).join('')}</ul>`;
+let vrec = null;
+function say(text) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[“”]/g, ''));
+    u.lang = LANG; speechSynthesis.speak(u);
+  } catch (e) {}
+}
+function voiceSheet(said, reply, acts) {
+  $('#voiceSheet').hidden = false;
+  $('#vsSaid').textContent = said;
+  $('#vsReply').textContent = reply || '';
+  $('#vsActs').innerHTML = acts || '';
+}
+function closeVoice() { $('#voiceSheet').hidden = true; if (vrec) { try { vrec.abort(); } catch (e) {} vrec = null; } }
+function heyDash() {
+  if (!SR) { voiceSheet('Use Siri for voice', "This phone doesn't let Dash use the microphone, but Siri works alongside Dash:", siriTips()); return; }
+  if (vrec) { vrec.stop(); return; }
+  try { vrec = new SR(); } catch (e) { voiceSheet('Use Siri for voice', '', siriTips()); return; }
+  vrec.lang = LANG; vrec.interimResults = true; vrec.maxAlternatives = 1;
+  let text = '', blocked = false;
+  voiceSheet('Listening…', 'Try “take me home”, “call Mum”, “text Mum I’m on my way” or “play Spotify”.', '');
+  $('#vsMic').classList.add('live');
+  vrec.onresult = (e) => { text = [...e.results].map((r) => r[0].transcript).join(' '); $('#vsSaid').textContent = '“' + text + '”'; };
+  vrec.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') blocked = true; };
+  vrec.onend = () => {
+    vrec = null; $('#vsMic').classList.remove('live');
+    if ($('#voiceSheet').hidden) return;
+    if (text.trim()) runCommand(text);
+    else if (blocked) voiceSheet("Dash can't use the microphone", 'Siri works instead:', siriTips());
+    else voiceSheet("I didn't hear anything", 'Tap the microphone and try again.', '');
+  };
+  try { vrec.start(); } catch (e) { vrec = null; $('#vsMic').classList.remove('live'); }
+}
+function findFav(s) {
+  s = s.toLowerCase().trim();
+  let best = null;
+  for (let i = 0; i < S.favs.length; i++) {
+    const f = S.favs[i], full = f.name.toLowerCase(), first = full.split(' ')[0];
+    if (s === full || s.startsWith(full + ' ')) return { i, f, rest: s.slice(full.length) };
+    if (!best && (s === first || s.startsWith(first + ' '))) best = { i, f, rest: s.slice(first.length) };
+  }
+  return best;
+}
+function findPlace(s) {
+  s = s.toLowerCase().replace(/^(the|my)\s+/, '').trim();
+  if (/^(home|house|my house|my place)$/.test(s)) return S.home ? { p: S.home, name: 'Home' } : { missing: 'home' };
+  if (/^(work|the office|office|my work|job)$/.test(s)) return S.work ? { p: S.work, name: 'Work' } : { missing: 'work' };
+  const r = S.recents.find((x) => { const n = x.name.toLowerCase(); return n === s || n.includes(s) || s.includes(n); });
+  return r ? { p: r, name: r.name } : null;
+}
+const capFirst = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+function runCommand(raw) {
+  const t = raw.toLowerCase().replace(/[.,!?]/g, '').replace(/^(hey |ok |okay )?dash\s*/, '').replace(/^(please|can you|could you)\s+/, '').replace(/\s+please$/, '').trim();
+  const said = '“' + raw.trim() + '”';
+  const done = (reply, acts) => { voiceSheet(said, reply, acts || ''); say(reply); };
+  const spotBtn = (href, label) => `<a class="go" style="background:#1DB954;color:#04210F" href="${esc(href)}"${spotTarget}>${ic('eq')} ${label}</a>`;
+  let m;
+  if (/^(pause|stop)\b/.test(t)) { if (cur) { audio.pause(); return done('Paused.'); } return done('Nothing is playing in Dash. For Spotify, use the pause button on the steering wheel.'); }
+  if (/^(next|skip)\b/.test(t)) { if (cur) { step(1); return done('Next song.'); } return done('Nothing is playing in Dash. For Spotify, use the skip button on the steering wheel.'); }
+  if (/^(previous|last song|go back|back)$/.test(t)) { if (cur) { step(-1); return done('Previous song.'); } return done('Nothing is playing in Dash.'); }
+  if ((m = t.match(/^(?:navigate|directions|direction|take me|drive me|drive|go|get me|head|bring me|lets go|let's go)(?:\s+(?:to|towards))?\s+(.+)$/))) {
+    const dest = m[1].trim(), hit = findPlace(dest);
+    if (hit && hit.missing) return done(`You haven't set ${hit.missing === 'home' ? 'Home' : 'Work'} yet. Tap below to set it.`, `<button type="button" class="go" data-pick="${hit.missing}">${ic('plus')} SET ${hit.missing.toUpperCase()}</button>`);
+    if (hit) return done(`Tap GO for directions to ${hit.name}.`, navLink(hit.p, 'go', `${ic('nav')} GO <small>to ${esc(hit.name)}</small>`));
+    closeVoice(); show('maps'); $('#q').value = dest; $('#qClear').hidden = false; runSearch(dest, true);
+    say(`Here's what I found for ${dest}. Tap the one you want.`);
+    return;
+  }
+  if ((m = t.match(/^(?:call|phone|ring|dial)\s+(.+)$/))) {
+    const who = m[1].replace(/^my\s+/, '').trim();
+    if (/^[\d\s+()-]{3,}$/.test(who)) return done('Tap to call ' + who + '.', `<a class="go call" href="${esc(telHref(who))}" data-dialed="${esc(telNum(who))}">${ic('phone')} CALL</a>`);
+    const hit = findFav(who);
+    if (hit) return done(`Tap to call ${hit.f.name}.`, `<a class="go call" href="${esc(telHref(hit.f.num))}" data-call="${hit.i}">${ic('phone')} CALL ${esc(hit.f.name.toUpperCase())}</a>`);
+    return done(`${capFirst(who)} isn't in your Dash favourites. Say “Hey Siri, call ${who}” to use your contacts.`, `<button type="button" class="btn block" data-act="addFav">${ic('plus')} Add favourites</button>`);
+  }
+  if ((m = t.match(/^(?:text|message|tell|sms|send (?:a )?(?:text|message) to)\s+(.+)$/))) {
+    const hit = findFav(m[1].replace(/^my\s+/, ''));
+    if (hit) {
+      let body = hit.rest.replace(/^\s*(that|saying|say)\s+/, '').trim();
+      body = body ? capFirst(body) : S.replies[0];
+      return done(`Tap to send “${body}” to ${hit.f.name}.`, `<a class="go" href="${esc(smsHref(hit.f.num, body))}">${ic('send')} SEND</a>`);
+    }
+    return done(`They aren't in your Dash favourites. Say “Hey Siri, text” and their name to use your contacts.`, `<button type="button" class="btn block" data-act="addFav">${ic('plus')} Add favourites</button>`);
+  }
+  if (/^(?:play|open|start|launch)\s+spotify$/.test(t) || t === 'spotify') return done('Tap to open Spotify.', spotBtn(MUSIC_APPS[0].href, 'OPEN SPOTIFY'));
+  if ((m = t.match(/^(?:play|put on|open|start)\s+(.+?)\s+(?:on|in|from|with|using)\s+spotify$/)) || (m = t.match(/^spotify\s+(?:play\s+)?(.+)$/))) {
+    const q = m[1].replace(/^(my|some)\s+/, '').trim();
+    const hit = S.spotify.find((x) => { const n = x.name.toLowerCase(); return n.includes(q) || q.includes(n); });
+    if (hit) return done(`Tap to play ${hit.name} on Spotify.`, spotBtn(spotHref(hit), 'PLAY ' + esc(hit.name.toUpperCase())));
+    return done(`Tap to find ${q} on Spotify.`, spotBtn(spotSearchHref(q), 'FIND ON SPOTIFY'));
+  }
+  if (/^(play|resume|start|unpause)(\s+(some\s+)?(music|songs|my songs|my music))?$/.test(t)) {
+    if (songs.length) {
+      if (!playing()) togglePlay();
+      done('Playing your songs.');
+      setTimeout(() => { if (!playing() && !$('#voiceSheet').hidden) $('#vsActs').innerHTML = `<button type="button" class="go" data-act="play">${ic('play')} PLAY</button>`; }, 800);
+      return;
+    }
+    return done('Tap to open Spotify.', spotBtn(MUSIC_APPS[0].href, 'OPEN SPOTIFY'));
+  }
+  if ((m = t.match(/^play\s+(.+)$/))) {
+    const q = m[1].trim();
+    const song = songs.find((x) => (x.title + ' ' + (x.artist || '')).toLowerCase().includes(q));
+    if (song) { playSong(song.id); return done('Playing ' + song.title + '.'); }
+    const hit = S.spotify.find((x) => { const n = x.name.toLowerCase(); return n.includes(q) || q.includes(n); });
+    if (hit) return done(`Tap to play ${hit.name} on Spotify.`, spotBtn(spotHref(hit), 'PLAY ' + esc(hit.name.toUpperCase())));
+    return done(`Tap to find ${q} on Spotify.`, spotBtn(spotSearchHref(q), 'FIND ON SPOTIFY'));
+  }
+  if ((m = t.match(/^(?:open|show|go to)\s+(?:the\s+|my\s+)?(home|maps?|music|phone|keypad|messages?|texts|settings)$/))) {
+    const to = { home: 'home', map: 'maps', maps: 'maps', music: 'music', phone: 'phone', keypad: 'phone', message: 'msgs', messages: 'msgs', texts: 'msgs', settings: 'settings' }[m[1]];
+    if (m[1] === 'keypad') phoneTab = 'keypad';
+    closeVoice(); show(to); return;
+  }
+  if (/weather|temperature|how (hot|cold)|is it (raining|cold|hot)/.test(t)) {
+    const w = S.wx;
+    if (!w || Date.now() - w.t > 3 * 3600e3) return done("I don't have the weather yet. It needs your location and the internet.");
+    const row = WX.find((r) => r[0].includes(w.code)) || [[], '', ''];
+    return done(`It's ${Math.round(w.temp)} degrees${row[2] ? ' and ' + row[2].toLowerCase() : ''}.`);
+  }
+  if (/what time|the time/.test(t)) return done("It's " + fmtClock(new Date()) + '.');
+  if (/how fast|my speed|speed/.test(t)) return done(fresh() && pos.speed != null ? `You're doing ${Math.round(toUnit(pos.speed))} ${S.units === 'mph' ? 'miles' : 'kilometres'} an hour.` : "I can't see your speed yet.");
+  done('Sorry, I didn’t get that. Try “take me home”, “call Mum”, “text Mum I’m on my way” or “play Spotify”.');
+}
+
+/* ---------- The car: connection help and a speaker test ---------- */
+function testSound() {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    const AC = window.AudioContext || window.webkitAudioContext, ac = new AC(), now = ac.currentTime + 0.05;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), at = now + i * 0.18;
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.4, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      o.connect(g); g.connect(ac.destination); o.start(at); o.stop(at + 0.55);
+    });
+    setTimeout(() => { ac.close().catch(() => {}); say('If you can hear this through the car speakers, you are connected.'); }, 1100);
+    toast('Playing a test sound… listen for it in the car speakers.', 4500);
+  } catch (e) { toast("Couldn't play a sound on this phone."); }
 }
 
 /* ---------- Typing lock while driving ---------- */
@@ -1298,6 +1535,21 @@ function renderSettings() {
   };
   const awakeNote = !('wakeLock' in navigator) ? 'This browser can’t keep the screen on. Turn Auto-Lock off in the phone’s settings while driving.' : wakeLock ? 'The screen is staying on.' : 'Dash will ask again when you tap the screen.';
   $('#setBody').innerHTML = `
+    <div class="set-card" id="carSet"><h3>Connect to your car</h3>
+      <ol class="steps">
+        <li><b>With a cable (USB):</b> plug your phone into the car's USB port, then pick <b>USB</b>, <b>iPod</b> or <b>iPhone</b> as the source on the car stereo. Use a charging-and-data cable: cheap charge-only cables don't carry sound.</li>
+        <li><b>Older car with a headphone (AUX) socket:</b> use an AUX cable${isIOS ? ' with a Lightning or USB-C headphone adapter' : ''}, then pick <b>AUX</b> on the stereo.</li>
+        <li><b>Bluetooth:</b> pair once in the phone's Settings → Bluetooth. After that, calls and music go to the car by themselves.</li>
+        <li><b>Car with CarPlay or Android Auto:</b> plugging in shows that on the car's screen. Dash keeps working on your phone beside it.</li>
+      </ol>
+      <button type="button" class="btn primary block" data-act="testSound">${ic('speaker')} Test the car speakers</button>
+      <p class="empty" style="margin-top:10px">No sound? Turn the phone's volume up, check the stereo's source, then unplug and plug in again.</p>
+    </div>
+    <div class="set-card"><h3>Voice and Siri</h3>
+      <p class="empty" style="margin-top:8px">Tap the green microphone at the top and say things like “take me home”, “call Mum”, “text Mum I’m on my way” or “play Discover Weekly on Spotify”. Dash shows one big button to tap to confirm. Siri also works alongside Dash:</p>
+      ${siriTips()}
+      <button type="button" class="btn block" data-act="heyDash">${ic('mic')} Try “Hey Dash”</button>
+    </div>
     <div class="set-card"><h3>Driving</h3>
       <div class="row"><span>Speed</span>${seg('units', [['kmh', 'km/h'], ['mph', 'mph']])}</div>
       <div class="row"><span>Temperature</span>${seg('temp', [['c', '°C'], ['f', '°F']])}</div>
@@ -1350,6 +1602,8 @@ document.addEventListener('click', (e) => {
     if (p) startTrip(p, p.route && p.route.dur);
     return;
   }
+  if (t.closest('#voiceSheet') && (t.tagName === 'A' || d.act || d.pick)) setTimeout(closeVoice, 300);
+  if (d.dialed) { logCall('', d.dialed); return; }
   if (d.call != null) { const f = S.favs[+d.call]; if (f) logCall(f.name, f.num); return; }
   if (d.recall != null) { const c = S.calls[+d.recall]; if (c) logCall(c.name, c.num); return; }
   if (t.id === 'callBtn') { if (dial) logCall('', dial); return; }
@@ -1365,6 +1619,7 @@ document.addEventListener('click', (e) => {
   if (d.setk) { S[d.setk] = d.val; save(); afterSetting(d.setk); return; }
   if (d.toggle) { S[d.toggle] = !S[d.toggle]; save(); afterSetting(d.toggle); return; }
   if (d.unset) { if (confirm('Remove your ' + d.unset + ' address?')) { S[d.unset] = null; save(); renderSettings(); renderChips(); } return; }
+  if (d.spdel) { const x = S.spotify[+d.spdel]; if (x && confirm('Remove ' + x.name + ' from Dash?')) { S.spotify.splice(+d.spdel, 1); save(); renderSpotify(); renderHomePlay(); } return; }
   if (d.favup) { const i = +d.favup; [S.favs[i - 1], S.favs[i]] = [S.favs[i], S.favs[i - 1]]; save(); renderSettings(); return; }
   if (d.favdel) { const f = S.favs[+d.favdel]; if (f && confirm('Remove ' + f.name + ' from favourites?')) { S.favs.splice(+d.favdel, 1); save(); renderSettings(); } return; }
   switch (d.act) {
@@ -1377,6 +1632,9 @@ document.addEventListener('click', (e) => {
     case 'clearCalls': S.calls = []; save(); renderPhone(); break;
     case 'clearRecents': S.recents = []; save(); renderSettings(); renderChips(); break;
     case 'pickContacts': pickContacts(); break;
+    case 'addSpot': addSpotify(); break;
+    case 'testSound': testSound(); break;
+    case 'heyDash': heyDash(); break;
     case 'saveReplies': {
       const lines = $('#repliesBox').value.split('\n').map((x) => x.trim()).filter(Boolean);
       S.replies = lines.length ? lines.slice(0, 20) : DEFAULTS().replies; save(); toast('Messages saved'); break;
@@ -1444,6 +1702,9 @@ $('#addSongs').addEventListener('click', () => $('#songFile').click());
 $('#songFile').addEventListener('change', (e) => { const files = [...e.target.files]; e.target.value = ''; addSongs(files); });
 $('#passengerBtn').addEventListener('click', () => { passenger = true; $('#lockSheet').hidden = true; toast('Typing is on for this trip'); });
 $('#lockOk').addEventListener('click', () => { $('#lockSheet').hidden = true; });
+$('#voiceBtn').addEventListener('click', heyDash);
+$('#vsMic').addEventListener('click', heyDash);
+$('#vsClose').addEventListener('click', closeVoice);
 $('#eraseBtn').addEventListener('click', () => {
   if (!confirm('Erase all of Dash’s places, favourites, messages and songs on this phone?')) return;
   try { localStorage.removeItem(KEY); } catch (e) {}
@@ -1460,6 +1721,10 @@ $('#startBtn').addEventListener('click', () => {
 /* ---------- Start ---------- */
 $('#setBtn').innerHTML = ic('gear');
 $('#awakeBtn').innerHTML = ic('sun');
+$('#voiceBtn').innerHTML = ic('mic');
+$('#vsMic').innerHTML = ic('mic');
+// Sound plays even with the ring/silent switch on (iPhone).
+try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
 $('#qClear').innerHTML = ic('x');
 $('#micBtn').innerHTML = ic('mic');
 $('#micBtn').hidden = !SR;
@@ -1470,11 +1735,14 @@ $('#npNext').innerHTML = ic('next');
 $('#npShuffle').innerHTML = ic('shuffle');
 $('#addSongs').innerHTML = ic('plus') + ' Add songs';
 $$('#dock button').forEach((b) => { const d = DOCK.find((x) => x[0] === b.dataset.go); b.innerHTML = ic(d[2]) + '<span>' + d[1] + '</span>'; });
+renderSpotify();
 $('#musicApps').innerHTML = MUSIC_APPS.map((a) => appLink(a, 'app')).join('');
 $('#wlList').innerHTML = [
   ['map', 'Maps', 'Search for a place here, then GO opens Apple Maps, Google Maps or Waze with spoken directions.'],
   ['music', 'Music', 'Open Spotify or Apple Music, or play your own songs here. The steering-wheel buttons work over Bluetooth.'],
-  ['phone', 'Calls and messages', 'Big buttons for your favourite people. Calls go through your phone, so you hear them in the car.']
+  ['phone', 'Calls and messages', 'Big buttons for your favourite people. Calls go through your phone, so you hear them in the car.'],
+  ['mic', 'Voice', 'Tap the green microphone and say “take me home” or “call Mum”. Siri works too.'],
+  ['car', 'Connect to your car', 'Plug in with a USB cable, an AUX cable or Bluetooth. There’s a guide and a speaker test in Settings.']
 ].map((r) => `<li>${ic(r[0])}<span><b>${r[1]}</b>${r[2]}</span></li>`).join('');
 $('#wlTip').hidden = standalone;
 tick();
@@ -1491,12 +1759,12 @@ addEventListener('resize', () => { setPlaceH(); if (map) map.invalidateSize(); }
 if (S.started) { startGPS(); keepAwake(); } else $('#welcome').hidden = false;
 try { const p = sessionStorage.getItem('dash_panel'); if (p && p !== 'home' && $('#p-' + p)) show(p); } catch (e) {}
 // Don't update the app under someone mid-drive or mid-song.
-window.__appBusy = () => playing() || moving() || !!rec;
+window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 </script>
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated.';
+  var NEWS = 'Dash updated: a new logo, “Hey Dash” voice control, Spotify playlists and a car connection guide in Settings.';
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -1524,7 +1792,7 @@ window.__appBusy = () => playing() || moving() || !!rec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '16c6adb14f';
+  var VERSION = 'e41f3a8415';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
