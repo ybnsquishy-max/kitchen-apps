@@ -604,6 +604,15 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
   </div>
 </div>
 
+<div class="overlay" id="contactIntro" hidden>
+  <div class="sheet">
+    <h3>Add the people you call</h3>
+    <p id="introWhy"></p>
+    <div class="ways" id="introWays"></div>
+    <button type="button" class="btn block" style="margin-top:12px" data-act="introLater">Not now</button>
+  </div>
+</div>
+
 <div class="overlay" id="contactSheet" hidden>
   <div class="sheet tall">
     <h3 id="cTitle">Choose contacts</h3>
@@ -691,7 +700,7 @@ const DEFAULTS = () => ({
   home: null, work: null, recents: [], trip: null,
   favs: [], calls: [],
   replies: ['On my way', 'Running about 10 minutes late', "I'm here", "Driving, I'll call you soon", "Can't talk right now, I'm driving"],
-  started: false, lastSong: null, shuffle: false, repeat: 'off', wx: null, spotify: []
+  started: false, lastSong: null, shuffle: false, repeat: 'off', wx: null, spotify: [], askedContacts: false
 });
 let S;
 try { S = Object.assign(DEFAULTS(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { S = DEFAULTS(); }
@@ -1938,11 +1947,7 @@ function renderSettings() {
         <input class="field" name="fnum" type="tel" placeholder="Phone number" aria-label="Phone number" autocomplete="tel">
         <button class="btn primary" type="submit">Add</button>
       </form>
-      <div class="ways">
-        ${canPick ? `<button type="button" class="way" data-act="pickContacts">${ic('people')}<span><b>Pick from my contacts</b><small>Opens your phone’s contact list.</small></span></button>` : ''}
-        <button type="button" class="way" data-act="pasteNum">${ic('copy')}<span><b>Paste a number</b><small>${isIOS ? 'In Contacts, press and hold the person’s number, tap <b>Copy</b>, then come back and tap this.' : 'Copy a number or a contact anywhere on your phone, then tap this.'}</small></span></button>
-        <button type="button" class="way" data-act="cardFile">${ic('people')}<span><b>Add from a contact file</b><small>${isIOS ? 'In <b>Contacts</b>, tap a person → <b>Share Contact</b> → <b>Save to Files</b>. Then tap this and pick the files — several at once is fine.' : 'A <b>.vcf</b> file shared from your Contacts app. Several at once is fine.'}</small></span></button>
-      </div>
+      ${waysHtml()}
       <p class="empty" style="margin-top:10px">${isIOS
         ? 'Tip: tap the <b>Phone number</b> box above and your iPhone may offer to fill it in from your contacts.<br><br>iPhones don’t show Dash in the Share menu, and won’t let it read your contacts — Apple only allows that for apps from the App Store. The ways above are the way around it.'
         : 'You can also share a contact straight to Dash from your phone’s Share menu.'}</p>
@@ -1980,10 +1985,31 @@ async function moveIn() {
     renderSettings(); renderHome(); renderChips(); renderSpotify(); renderHomePlay();
   } catch (e) { toast('That setup couldn’t be read. Copy it again from the old Dash.', 4500); }
 }
+// The ways to get people in, as the phone allows. iPhones have no "allow
+// contacts" to ask for, so Dash offers the ways round it instead of a prompt
+// that couldn't do anything.
+function waysHtml() {
+  return `<div class="ways">
+    ${canPick ? `<button type="button" class="way" data-act="pickContacts">${ic('people')}<span><b>Pick from my contacts</b><small>Opens your phone’s contact list.</small></span></button>` : ''}
+    <button type="button" class="way" data-act="pasteNum">${ic('copy')}<span><b>Paste a number</b><small>${isIOS ? 'In Contacts, press and hold the person’s number, tap <b>Copy</b>, then come back and tap this.' : 'Copy a number or a contact anywhere on your phone, then tap this.'}</small></span></button>
+    <button type="button" class="way" data-act="cardFile">${ic('people')}<span><b>Add from a contact file</b><small>${isIOS ? 'In <b>Contacts</b>, tap a person → <b>Share Contact</b> → <b>Save to Files</b>. Then tap this and pick the files — several at once is fine.' : 'A <b>.vcf</b> file shared from your Contacts app. Several at once is fine.'}</small></span></button>
+    <button type="button" class="way" data-act="typeFav">${ic('plus')}<span><b>Type it in</b><small>A name and a number. Quickest for one or two people.</small></span></button>
+  </div>`;
+}
+function maybeAskContacts() {
+  if (S.favs.length || S.askedContacts || !S.started || moving() || !$('#welcome').hidden) return;
+  $('#introWhy').textContent = canPick
+    ? 'Dash can open your phone’s contact list, or you can paste or type a number.'
+    : 'Your iPhone doesn’t let apps read your contacts — only App Store apps can ask for that. These are the ways round it:';
+  $('#introWays').innerHTML = waysHtml();
+  $('#contactIntro').hidden = false;
+}
+function doneAsking() { S.askedContacts = true; save(); $('#contactIntro').hidden = true; }
 function addFav(name, num) {
   name = String(name || '').trim(); num = String(num || '').trim();
   if (!telNum(num)) { toast('Type a phone number'); return false; }
   S.favs.push({ name: name || num, num });
+  S.askedContacts = true;
   save(); return true;
 }
 async function pickContacts() {
@@ -2129,6 +2155,7 @@ function openContacts(people, title) {
   $('#cTitle').textContent = title || 'Choose contacts';
   $('#cSearch').value = '';
   $('#cSearch').hidden = cPeople.length < 8;
+  $('#contactIntro').hidden = true;      // they're adding someone, so the prompt is done
   $('#contactSheet').hidden = false;
   renderContacts();
 }
@@ -2171,6 +2198,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.closest('#voiceSheet') && (t.tagName === 'A' || d.act || d.pick)) setTimeout(closeVoice, 300);
+  if (t.closest('#contactIntro') && d.act && d.act !== 'introLater') doneAsking();
   if (d.dialed) { logCall('', d.dialed); return; }
   if (d.call != null) { const f = S.favs[+d.call]; if (f) logCall(f.name, f.num); return; }
   if (d.recall != null) { const c = S.calls[+d.recall]; if (c) logCall(c.name, c.num); return; }
@@ -2199,6 +2227,8 @@ document.addEventListener('click', (e) => {
     case 'addFav': show('settings'); setTimeout(() => { const f = $('#favSet'); if (f) f.scrollIntoView({ block: 'start' }); }, 50); break;
     case 'clearCalls': S.calls = []; save(); renderPhone(); break;
     case 'clearRecents': S.recents = []; save(); renderSettings(); renderChips(); break;
+    case 'introLater': doneAsking(); break;
+    case 'typeFav': doneAsking(); show('settings'); setTimeout(() => { const f = $('#favForm'); if (f) { f.scrollIntoView({ block: 'center' }); if (!typingLocked()) f.elements.fname.focus(); } }, 60); break;
     case 'pickContacts': pickContacts(); break;
     case 'cardFile': $('#cardFile').click(); break;
     case 'pasteNum': pasteNum(); break;
@@ -2324,6 +2354,7 @@ $('#startBtn').addEventListener('click', () => {
   S.started = true; save();
   $('#welcome').hidden = true;
   startGPS(); keepAwake();
+  setTimeout(maybeAskContacts, 500);
 });
 
 /* ---------- Start ---------- */
@@ -2375,7 +2406,7 @@ if (/[?&]shared=contact/.test(location.search)) {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); keepAwake(); maybeWeather(); } });
 document.addEventListener('pointerdown', () => { if (!wakeLock) keepAwake(); }, { passive: true });
 addEventListener('resize', () => { setPlaceH(); if (map) map.invalidateSize(); });
-if (S.started) { startGPS(); keepAwake(); } else $('#welcome').hidden = false;
+if (S.started) { startGPS(); keepAwake(); setTimeout(maybeAskContacts, 700); } else $('#welcome').hidden = false;
 try { const p = sessionStorage.getItem('dash_panel'); if (p && p !== 'home' && $('#p-' + p)) show(p); } catch (e) {}
 // Don't update the app under someone mid-drive or mid-song.
 window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
@@ -2383,7 +2414,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated: three ways to add favourites from your contacts (Settings → Favourites).' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
+  var NEWS = 'Dash updated: Dash now offers to set up your favourites when you open it.' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -2411,7 +2442,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'b9040c5391';
+  var VERSION = '91c819da18';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
