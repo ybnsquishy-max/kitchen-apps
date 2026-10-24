@@ -168,6 +168,10 @@ a{color:inherit;text-decoration:none}
 .c-foot .btn{flex:1}
 .c-count{color:var(--dim);font-size:14px;font-weight:600;text-align:center;padding:6px 0 2px}
 .c-all{border:0;background:none;color:var(--accent);font-weight:700;font-size:14px;padding:6px}
+.flagbox{margin-top:12px;background:var(--card2);border-radius:16px;padding:0 14px}
+.flagbox summary{padding:14px 0;font-weight:700;font-size:15px;cursor:pointer;line-height:1.35}
+.flagbox p{color:var(--dim);font-size:14px;line-height:1.45;margin:0 0 4px}
+.flagbox .btn{margin-bottom:14px}
 .ways{display:grid;gap:8px;margin-top:10px}
 .way{display:flex;gap:12px;align-items:flex-start;background:var(--card2);border:0;border-radius:16px;padding:12px 14px;text-align:left;width:100%;min-height:64px}
 .way .ic{width:26px;height:26px;color:var(--accent);flex:none;margin-top:2px}
@@ -1951,6 +1955,15 @@ function renderSettings() {
       <p class="empty" style="margin-top:10px">${isIOS
         ? 'Tip: tap the <b>Phone number</b> box above and your iPhone may offer to fill it in from your contacts.<br><br>iPhones don’t show Dash in the Share menu, and won’t let it read your contacts — Apple only allows that for apps from the App Store. The ways above are the way around it.'
         : 'You can also share a contact straight to Dash from your phone’s Share menu.'}</p>
+      ${isIOS && !canPick ? `<details class="flagbox"><summary>Want the real contact list? Try your iPhone’s hidden switch</summary>
+        <p>Apple built the contact list into iPhones but leaves it switched off. It might not be there on your iPhone, and Apple can take it away again — but it costs nothing to look:</p>
+        <ol class="steps">
+          <li>Open <b>Settings</b> → <b>Apps</b> → <b>Safari</b> (on older iPhones, just <b>Settings</b> → <b>Safari</b>).</li>
+          <li>Tap <b>Advanced</b>, then turn on <b>Web Inspector</b> if it’s off.</li>
+          <li>Tap <b>Feature Flags</b>, scroll to <b>Contact Picker API</b> and turn it on.</li>
+          <li>Come back here and tap Check again.</li>
+        </ol>
+        <button type="button" class="btn block" data-act="recheckPick">Check again</button></details>` : ''}
     </div>
     <div class="set-card"><h3>Move Dash</h3>
       <p class="empty" style="margin-top:8px">Adding Dash to your home screen again (for example, to get the new logo)? Copy your setup here first, then paste it into the new Dash. Places, favourites, messages and Spotify playlists come with it; songs and the Spotify connection don’t.</p>
@@ -2232,6 +2245,7 @@ document.addEventListener('click', (e) => {
     case 'pickContacts': pickContacts(); break;
     case 'cardFile': $('#cardFile').click(); break;
     case 'pasteNum': pasteNum(); break;
+    case 'recheckPick': if ('contacts' in navigator) location.reload(); else toast("This iPhone still isn't offering the contact list. Use one of the ways above.", 5000); break;
     case 'addSpot': addSpotify(); break;
     case 'openNow': openNow(); break;
     case 'closeNow': closeNow(); break;
@@ -2442,7 +2456,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '91c819da18';
+  var VERSION = '8399b174fe';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
