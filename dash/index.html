@@ -12,9 +12,9 @@
 <meta name="apple-mobile-web-app-title" content="Dash">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="icons/favicon-32.png?v=neon" sizes="32x32">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-neon.png">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
 :root{--bg:#0A0F13;--card:#141C23;--card2:#1D2831;--line:#24313D;--ink:#E8EEF2;--dim:#8C9AA7;--accent:#3DDC97;--blue:#2BB6F0;--red:#FF5A5F;--amber:#FFB547;
@@ -141,6 +141,13 @@ a{color:inherit;text-decoration:none}
 .npf-ctl .mode[aria-pressed="true"]{color:#1ED760}
 .npf-up{font-size:14px;color:rgba(255,255,255,.7);margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .npf-up b{color:#fff}
+.sp-badge{display:inline-flex;align-items:center;gap:5px;color:#1ED760;font-weight:700}
+.sp-badge .ic{width:15px;height:15px}
+.pm span.sp-badge,.d-txt span.sp-badge{display:inline-flex;margin:0;vertical-align:-2px}
+.copy-row{display:flex;gap:8px;align-items:center;background:#0E151B;border:1px solid var(--line);border-radius:12px;padding:6px 6px 6px 12px;margin:6px 0;font-size:13px;color:var(--ink);word-break:break-all;-webkit-user-select:all;user-select:all}
+.copy-row span{flex:1}
+.copy-row button{flex:none;border:0;background:var(--card2);color:var(--ink);border-radius:10px;min-height:38px;padding:0 12px;font-weight:700}
+.sp-on{display:flex;align-items:center;gap:10px;color:#1ED760;font-weight:700;margin:10px 0}
 @media (orientation:landscape){
   .npf-in{max-width:none}
   .npf-main{flex-direction:row;align-items:center;gap:36px;padding-top:2px}
@@ -523,7 +530,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
 
 <div class="overlay" id="welcome" hidden>
   <div class="wl">
-    <img src="icons/icon-192.png" alt="">
+    <img src="icons/icon-192-neon.png" alt="">
     <h1>Dash</h1>
     <p class="lead">Car mode for your phone.</p>
     <ul id="wlList"></ul>
@@ -927,14 +934,13 @@ function spotMini(n) {
   return [appLink(MUSIC_APPS[0], '')].concat(S.spotify.slice(0, n).map((x) => `<a href="${esc(spotHref(x))}"${spotTarget} style="background:#163024">${ic('eq')}<span>${esc(x.name)}</span></a>`)).join('');
 }
 function renderHomePlay() {
-  const box = $('#homePlay');
-  if (!songs.length) {
+  const box = $('#homePlay'), v = nowView();
+  if (!v) {
     box.innerHTML = `<h2>Music</h2><div class="app-mini">${S.spotify.length ? spotMini(3) : MUSIC_APPS.slice(0, 2).map((a) => appLink(a, '')).join('')}</div>`;
     return;
   }
-  const s = curSong() || songs.find((x) => x.id === S.lastSong) || songs[0];
-  box.innerHTML = `<div class="np-mini"><button type="button" class="np-open" data-act="openNow" aria-label="Open Now Playing">${artBox(s, 'art')}<span class="pm"><b>${esc(s.title)}</b><span>${esc(s.artist || 'My songs')}</span></span></button>
-    <div class="ctl"><button type="button" data-act="prev" aria-label="Previous song">${ic('prev')}</button><button type="button" class="pp" data-act="play" aria-label="${playing() ? 'Pause' : 'Play'}">${ic(playing() ? 'pause' : 'play')}</button><button type="button" data-act="next" aria-label="Next song">${ic('next')}</button></div></div>` +
+  box.innerHTML = `<div class="np-mini"><button type="button" class="np-open" data-act="openNow" aria-label="Open Now Playing">${viewBox(v, 'art')}<span class="pm"><b>${esc(v.title)}</b><span>${v.src === 'spotify' ? `<span class="sp-badge">${ic('eq')}</span> ` : ''}${esc(v.artist || 'My songs')}</span></span></button>
+    <div class="ctl"><button type="button" data-act="prev" aria-label="Previous">${ic('prev')}</button><button type="button" class="pp" data-act="play" aria-label="${v.playing ? 'Pause' : 'Play'}">${ic(v.playing ? 'pause' : 'play')}</button><button type="button" data-act="next" aria-label="Next">${ic('next')}</button></div></div>` +
     (S.spotify.length ? `<div class="app-mini">${spotMini(1)}</div>` : '') + '<div class="mini-bar"><i id="miniProg"></i></div>';
   renderTime();
 }
@@ -1393,6 +1399,129 @@ async function loadSongs() {
   if (found) { renderSongs(); renderHomePlay(); renderNow(); }
 }
 
+/* ---------- Spotify: show and control what's playing (needs the user's own Spotify Client ID) ---------- */
+const SP_SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
+const spRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
+const spConnected = () => !!(S.sp && S.sp.refresh);
+let spot = null, spBusy = false;
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function spConnect(clientId) {
+  clientId = String(clientId || '').trim();
+  if (!/^[0-9a-f]{32}$/i.test(clientId)) { toast('That doesn’t look like a Spotify Client ID. It’s 32 letters and numbers.', 4500); return; }
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(12)));
+  S.sp = { clientId }; save();
+  try { localStorage.setItem('dash_sp_pkce', JSON.stringify({ verifier, state })); } catch (e) {}
+  location.href = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: clientId, scope: SP_SCOPES, redirect_uri: spRedirect(), code_challenge_method: 'S256', code_challenge: challenge, state });
+}
+async function spToken(params) {
+  const r = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(Object.assign({ client_id: S.sp.clientId }, params)) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) { const e = new Error(j.error_description || j.error || 'HTTP ' + r.status); e.code = j.error; throw e; }
+  S.sp.token = j.access_token; S.sp.exp = Date.now() + (j.expires_in || 3600) * 1000;
+  if (j.refresh_token) S.sp.refresh = j.refresh_token;
+  save();
+}
+// Coming back from Spotify's "Agree" page with ?code=…
+async function spFinish() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('code') && !q.has('error')) return;
+  history.replaceState(null, '', spRedirect());
+  let pk = null; try { pk = JSON.parse(localStorage.getItem('dash_sp_pkce') || 'null'); localStorage.removeItem('dash_sp_pkce'); } catch (e) {}
+  if (q.has('error')) { toast(q.get('error') === 'access_denied' ? 'Spotify wasn’t connected.' : 'Spotify said: ' + q.get('error'), 4500); return; }
+  if (!pk || pk.state !== q.get('state') || !S.sp || !S.sp.clientId) {
+    voiceSheet('Almost there', 'Spotify sent you back to a different copy of Dash. Open Dash from your home screen, go to Settings and tap Connect Spotify again.', '');
+    return;
+  }
+  try {
+    await spToken({ grant_type: 'authorization_code', code: q.get('code'), redirect_uri: spRedirect(), code_verifier: pk.verifier });
+    toast('Spotify connected 🎉 Play something in Spotify and it shows here.', 5000);
+    show('music'); spPoll();
+  } catch (e) {
+    voiceSheet('Spotify didn’t connect', 'Check the Redirect URI in your Spotify app matches exactly, then try again. (' + e.message + ')', '');
+  }
+}
+function spDisconnect() { S.sp = null; spot = null; save(); renderMusicAll(); }
+async function spApi(method, path, retried) {
+  if (!S.sp.token || Date.now() > (S.sp.exp || 0) - 60000) await spToken({ grant_type: 'refresh_token', refresh_token: S.sp.refresh });
+  const r = await fetch('https://api.spotify.com/v1' + path, { method, headers: { Authorization: 'Bearer ' + S.sp.token } });
+  if (r.status === 401 && !retried) { S.sp.token = null; return spApi(method, path, true); }
+  return r;
+}
+async function spPoll() {
+  if (!spConnected() || spBusy) return;
+  spBusy = true;
+  try {
+    const r = await spApi('GET', '/me/player?additional_types=episode');
+    let next = null;
+    if (r.status === 200) {
+      const j = await r.json(), it = j.item;
+      if (it) next = {
+        uri: it.uri, title: it.name,
+        artist: it.type === 'episode' ? (it.show && it.show.name) || '' : (it.artists || []).map((a) => a.name).join(', '),
+        art: (((it.album && it.album.images) || it.images || [])[0] || {}).url || '',
+        playing: !!j.is_playing, progress: j.progress_ms || 0, dur: it.duration_ms || 0, at: Date.now(),
+        shuffle: !!j.shuffle_state, repeat: j.repeat_state || 'off', device: (j.device && j.device.name) || ''
+      };
+    }
+    const was = spot;
+    spot = next;
+    if (!was !== !next || (was && next && (was.uri !== next.uri || was.playing !== next.playing || was.shuffle !== next.shuffle || was.repeat !== next.repeat))) renderMusicAll();
+  } catch (e) {
+    if (e.code === 'invalid_grant') { S.sp.refresh = null; save(); spot = null; renderMusicAll(); toast('Spotify needs connecting again (Settings).', 4500); }
+  } finally { spBusy = false; }
+}
+async function spCmd(kind) {
+  if (!spot) return;
+  const nextRepeat = { off: 'context', context: 'track', track: 'off' }[spot.repeat] || 'off';
+  const calls = { play: ['PUT', 'play'], pause: ['PUT', 'pause'], next: ['POST', 'next'], prev: ['POST', 'previous'], shuffle: ['PUT', 'shuffle?state=' + !spot.shuffle], repeat: ['PUT', 'repeat?state=' + nextRepeat] };
+  if (kind === 'play' || kind === 'pause') { spot.progress = spPos(); spot.at = Date.now(); spot.playing = kind === 'play'; renderMusicAll(); }
+  try {
+    const r = await spApi(calls[kind][0], '/me/player/' + calls[kind][1]);
+    if (r.status === 403) toast('Spotify only lets Premium accounts control music from other apps. Use Spotify or the steering wheel.', 5000);
+    else if (r.status === 404) toast('Open Spotify on this phone and play something first.', 4000);
+  } catch (e) { toast('Couldn’t reach Spotify.'); }
+  setTimeout(spPoll, 600); setTimeout(spPoll, 2000);
+}
+const spPos = () => (spot ? Math.min(spot.dur, spot.progress + (spot.playing ? Date.now() - spot.at : 0)) : 0);
+setInterval(() => { if (document.visibilityState === 'visible') spPoll(); }, 5000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') spPoll(); });
+
+/* What the music screens show: a song playing in Dash, else Spotify, else the last song. */
+function showSpotify() {
+  if (!spot || playing()) return false;
+  return spot.playing || !cur;
+}
+function nowView() {
+  if (showSpotify()) {
+    return { src: 'spotify', key: 'sp:' + spot.art, title: spot.title, artist: spot.artist, img: spot.art, style: 'background:linear-gradient(135deg,#1DB954,#0B5D2A)',
+      playing: spot.playing, pos: spPos() / 1000, dur: spot.dur / 1000, from: 'Spotify' + (spot.device ? ' · ' + spot.device : ''),
+      shuffle: spot.shuffle, repeatOn: spot.repeat !== 'off', repeatOne: spot.repeat === 'track' };
+  }
+  const so = nowSong();
+  if (!so) return null;
+  return { src: 'local', song: so, key: so.id, title: so.title, artist: so.artist || '', img: artUrl(so), style: artStyle(so),
+    playing: playing(), pos: cur ? audio.currentTime : 0, dur: cur ? audio.duration : NaN, from: 'My songs',
+    shuffle: !!S.shuffle, repeatOn: S.repeat !== 'off', repeatOne: S.repeat === 'one' };
+}
+const viewArt = (v) => (v.img ? `<img src="${esc(v.img)}" alt="">` : ic('music'));
+const viewBox = (v, cls) => `<span class="${cls}" style="${v.img ? '' : v.style}">${viewArt(v)}</span>`;
+function paintView(el, v) { el.innerHTML = v ? viewArt(v) : ic('music'); el.setAttribute('style', v && !v.img ? v.style : ''); }
+function renderMusicAll() { renderNow(); renderHomePlay(); if (panel === 'music') renderSongs(); }
+function ctlPlay() {
+  const v = nowView();
+  if (v && v.src === 'spotify') return spCmd(v.playing ? 'pause' : 'play');
+  if (!songs.length) {
+    toast(spConnected() ? 'Play something in Spotify and it shows here.' : 'Nothing to play in Dash yet. Open Spotify, or connect it in Settings so Dash shows what’s playing.', 5000);
+    return;
+  }
+  togglePlay();
+}
+function ctlStep(dir) { const v = nowView(); if (v && v.src === 'spotify') spCmd(dir > 0 ? 'next' : 'prev'); else step(dir); }
+function ctlShuffle() { const v = nowView(); if (v && v.src === 'spotify') spCmd('shuffle'); else toggleShuffle(); }
+function ctlRepeat() { const v = nowView(); if (v && v.src === 'spotify') spCmd('repeat'); else cycleRepeat(); }
+
 /* Album covers: the song's own picture, else a colourful tile. */
 const artUrls = new Map(), artTints = new Map();
 const ART_COLORS = [['#2BB6F0', '#3DDC97'], ['#E0578B', '#8B63D9'], ['#FF9F43', '#E5304A'], ['#3DDC97', '#1A6B8F'], ['#8B63D9', '#2B8FD6'], ['#C6F432', '#2EAD7A']];
@@ -1407,11 +1536,12 @@ function artStyle(s) { if (artUrl(s)) return ''; const c = artPal(s); return `ba
 const artBox = (s, cls) => `<span class="${cls}" style="${artStyle(s)}">${artInner(s)}</span>`;
 function paintArt(el, s) { el.innerHTML = s ? artInner(s) : ic('music'); el.setAttribute('style', s ? artStyle(s) : ''); }
 // The Now Playing background takes its colour from the cover, darkened so white text stays readable.
-function tintFor(s, cb) {
-  if (artTints.has(s.id)) return cb(artTints.get(s.id));
-  const set = (c) => { artTints.set(s.id, c); cb(c); };
-  if (!artUrl(s)) return set(artPal(s)[0]);
+function tintFor(v, cb) {
+  if (artTints.has(v.key)) return cb(artTints.get(v.key));
+  const set = (c) => { artTints.set(v.key, c); cb(c); };
+  if (!v.img) return set(v.src === 'spotify' ? '#1B6B3A' : artPal(v.song)[0]);
   const img = new Image();
+  if (v.src === 'spotify') img.crossOrigin = 'anonymous';
   img.onload = () => {
     try {
       const c = document.createElement('canvas'); c.width = c.height = 12;
@@ -1420,38 +1550,43 @@ function tintFor(s, cb) {
       let r = 0, gr = 0, b = 0;
       for (let i = 0; i < d.length; i += 4) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
       const n = d.length / 4, col = [r / n, gr / n, b / n], top = Math.max(...col, 1), k = Math.min(1, 140 / top);
-      set('rgb(' + col.map((v) => Math.round(v * k)).join(',') + ')');
+      set('rgb(' + col.map((x) => Math.round(x * k)).join(',') + ')');
     } catch (e) { set('#2A3742'); }
   };
   img.onerror = () => set('#2A3742');
-  img.src = artUrl(s);
+  img.src = v.img;
 }
 const nowSong = () => curSong() || (songs.length ? songs.find((x) => x.id === S.lastSong) || songs[0] : null);
 function openNow() {
-  if (!nowSong()) { show('music'); toast('Add some songs first.'); return; }
+  if (!nowView()) { show('music'); toast(spConnected() ? 'Play something in Spotify and it shows here.' : 'Add some songs, or connect Spotify in Settings.', 4500); return; }
   $('#npFull').hidden = false; renderFull();
 }
 function closeNow() { $('#npFull').hidden = true; }
 function renderFull() {
   const box = $('#npFull');
   if (box.hidden) return;
-  const s = nowSong();
-  if (!s) { closeNow(); return; }
-  paintArt($('#npfArt'), s);
-  $('#npfTitle').textContent = s.title;
-  $('#npfArtist').textContent = s.artist || 'Unknown artist';
+  const v = nowView();
+  if (!v) { closeNow(); return; }
+  paintView($('#npfArt'), v);
+  $('#npfTitle').textContent = v.title;
+  $('#npfArtist').textContent = v.artist || 'Unknown artist';
+  box.querySelector('.npf-from b').innerHTML = v.src === 'spotify' ? `<span class="sp-badge">${ic('eq')}${esc(v.from)}</span>` : 'My songs';
   const pb = $('#npfPlay');
-  pb.innerHTML = ic(playing() ? 'pause' : 'play');
-  pb.setAttribute('aria-label', playing() ? 'Pause' : 'Play');
+  pb.innerHTML = ic(v.playing ? 'pause' : 'play');
+  pb.setAttribute('aria-label', v.playing ? 'Pause' : 'Play');
   const sh = box.querySelector('[data-act="shuffle"]'), rp = box.querySelector('[data-act="repeat"]');
-  sh.innerHTML = ic('shuffle'); sh.setAttribute('aria-pressed', String(!!S.shuffle));
-  rp.innerHTML = ic(S.repeat === 'one' ? 'repeat1' : 'repeat'); rp.setAttribute('aria-pressed', String(S.repeat !== 'off'));
+  sh.innerHTML = ic('shuffle'); sh.setAttribute('aria-pressed', String(v.shuffle));
+  rp.innerHTML = ic(v.repeatOne ? 'repeat1' : 'repeat'); rp.setAttribute('aria-pressed', String(v.repeatOn));
   box.querySelector('[data-act="prev"]').innerHTML = ic('prev');
   box.querySelector('[data-act="next"]').innerHTML = ic('next');
   box.querySelector('[data-act="closeNow"]').innerHTML = ic('down');
-  const i = order.indexOf(s.id), nx = i >= 0 && order.length > 1 ? songs.find((x) => x.id === order[(i + 1) % order.length]) : null;
-  $('#npfUp').innerHTML = nx && (i < order.length - 1 || S.repeat === 'all') ? 'Next: <b>' + esc(nx.title) + '</b>' + (nx.artist ? ' · ' + esc(nx.artist) : '') : '';
-  tintFor(s, (c) => { if (nowSong() === s) box.style.setProperty('--npc', c); });
+  let up = '';
+  if (v.src === 'local') {
+    const i = order.indexOf(v.song.id), nx = i >= 0 && order.length > 1 ? songs.find((x) => x.id === order[(i + 1) % order.length]) : null;
+    if (nx && (i < order.length - 1 || S.repeat === 'all')) up = 'Next: <b>' + esc(nx.title) + '</b>' + (nx.artist ? ' · ' + esc(nx.artist) : '');
+  }
+  $('#npfUp').innerHTML = up;
+  tintFor(v, (c) => { const now = nowView(); if (now && now.key === v.key) box.style.setProperty('--npc', c); });
   renderTime();
 }
 function toggleShuffle() { S.shuffle = !S.shuffle; save(); if (cur) order = buildOrder(cur); renderNow(); toast(S.shuffle ? 'Shuffle on' : 'Shuffle off', 1500); }
@@ -1612,28 +1747,28 @@ function setMeta(s) {
 }
 const mmss = (t) => (isFinite(t) ? Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') : '0:00');
 function renderTime() {
-  const d = cur ? audio.duration : NaN, frac = isFinite(d) && d ? audio.currentTime / d : 0;
-  const t = cur ? mmss(audio.currentTime) : '0:00', total = cur ? mmss(d) : '0:00';
+  const v = nowView(), d = v ? v.dur : NaN, has = v && (v.src === 'spotify' || cur);
+  const frac = has && isFinite(d) && d ? Math.min(1, v.pos / d) : 0;
   if (!seeking) { $('#npSeek').value = Math.round(frac * 1000); $('#npfSeek').value = Math.round(frac * 1000); }
-  $('#npCur').textContent = $('#npfCur').textContent = t;
-  $('#npDur').textContent = $('#npfDur').textContent = total;
+  $('#npCur').textContent = $('#npfCur').textContent = has ? mmss(v.pos) : '0:00';
+  $('#npDur').textContent = $('#npfDur').textContent = has ? mmss(d) : '0:00';
   const mp = $('#miniProg');
   if (mp) mp.style.width = (frac * 100).toFixed(1) + '%';
 }
 let seeking = false;
 function renderNow() {
-  const s = nowSong();
-  paintArt($('#npArt'), s);
-  $('#npTitle').textContent = s ? s.title : 'Nothing playing';
-  $('#npArtist').textContent = s ? s.artist || 'My songs' : songs.length ? 'Tap play' : 'Add songs from your phone below';
-  const pb = $('#npPlay');
-  pb.innerHTML = ic(playing() ? 'pause' : 'play');
-  pb.setAttribute('aria-label', playing() ? 'Pause' : 'Play');
-  $('#npShuffle').setAttribute('aria-pressed', String(!!S.shuffle));
-  $('#npRepeat').setAttribute('aria-pressed', String(S.repeat !== 'off'));
-  $('#npRepeat').innerHTML = ic(S.repeat === 'one' ? 'repeat1' : 'repeat');
-  $('#npRepeat').setAttribute('aria-label', S.repeat === 'one' ? 'Repeat one song' : S.repeat === 'all' ? 'Repeat all' : 'Repeat off');
-  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = cur ? (audio.paused ? 'paused' : 'playing') : 'none';
+  const v = nowView();
+  paintView($('#npArt'), v);
+  $('#npTitle').textContent = v ? v.title : 'Nothing playing';
+  $('#npArtist').innerHTML = v ? (v.src === 'spotify' ? `<span class="sp-badge">${ic('eq')}Spotify</span> · ` : '') + esc(v.artist || 'My songs')
+    : spConnected() ? 'Play something in Spotify and it shows here' : 'Add songs below, or connect Spotify in Settings';
+  const pb = $('#npPlay'), on = !!(v && v.playing);
+  pb.innerHTML = ic(on ? 'pause' : 'play');
+  pb.setAttribute('aria-label', on ? 'Pause' : 'Play');
+  $('#npShuffle').setAttribute('aria-pressed', String(!!(v ? v.shuffle : S.shuffle)));
+  $('#npRepeat').setAttribute('aria-pressed', String(!!(v && v.repeatOn)));
+  $('#npRepeat').innerHTML = ic(v && v.repeatOne ? 'repeat1' : 'repeat');
+  if ('mediaSession' in navigator && !(v && v.src === 'spotify')) navigator.mediaSession.playbackState = cur ? (audio.paused ? 'paused' : 'playing') : 'none';
   renderTime(); renderFull();
 }
 function renderSongs() {
@@ -1709,6 +1844,22 @@ function renderSettings() {
   };
   const awakeNote = !('wakeLock' in navigator) ? 'This browser can’t keep the screen on. Turn Auto-Lock off in the phone’s settings while driving.' : wakeLock ? 'The screen is staying on.' : 'Dash will ask again when you tap the screen.';
   $('#setBody').innerHTML = `
+    <div class="set-card" id="spotSet"><h3>Show what Spotify is playing</h3>
+      ${spConnected() ? `<div class="sp-on">${ic('eq')} Spotify is connected</div>
+        <p class="empty">Whatever you play in Spotify shows on Home and Music, with the cover, and in the big Now Playing screen. With Spotify Premium you can also pause, skip and seek from Dash.</p>
+        <button type="button" class="btn block" data-act="spOff">Disconnect Spotify</button>`
+      : `<p class="empty" style="margin-top:8px">Spotify only shares what’s playing with apps you approve. It takes about 5 minutes, once, while parked:</p>
+        <ol class="steps">
+          <li>Open <b>developer.spotify.com/dashboard</b> in Safari and log in with your Spotify account. Accept the terms if asked.</li>
+          <li>Tap <b>Create app</b>. Name it <b>Dash</b>, write anything for the description, and paste this as the <b>Redirect URI</b>:
+            <div class="copy-row"><span>${esc(spRedirect())}</span><button type="button" data-act="copyText" data-text="${esc(spRedirect())}">Copy</button></div>
+            Tick <b>Web API</b>, agree, and tap <b>Save</b>.</li>
+          <li>Open the app’s <b>Settings</b>, copy the <b>Client ID</b>, and paste it here:</li>
+        </ol>
+        <input class="field" id="spClient" placeholder="Spotify Client ID" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc((S.sp && S.sp.clientId) || '')}">
+        <button type="button" class="btn primary block" style="margin-top:10px" data-act="spConnect">${ic('eq')} Connect Spotify</button>
+        <p class="empty" style="margin-top:10px">Spotify then asks you to agree. The Client ID isn’t a password and stays on this phone. Spotify may ask for Premium to make a developer app.</p>`}
+    </div>
     <div class="set-card" id="carSet"><h3>Connect to your car</h3>
       <ol class="steps">
         <li><b>With a cable (USB):</b> plug your phone into the car's USB port, then pick <b>USB</b>, <b>iPod</b> or <b>iPhone</b> as the source on the car stereo. Use a charging-and-data cable: cheap charge-only cables don't carry sound.</li>
@@ -1744,10 +1895,38 @@ function renderSettings() {
       </form>
       ${canPick ? `<button type="button" class="btn block" style="margin-top:10px" data-act="pickContacts">Pick from contacts</button>` : ''}
     </div>
+    <div class="set-card"><h3>Move Dash</h3>
+      <p class="empty" style="margin-top:8px">Adding Dash to your home screen again (for example, to get the new logo)? Copy your setup here first, then paste it into the new Dash. Places, favourites, messages and Spotify playlists come with it; songs and the Spotify connection don’t.</p>
+      <button type="button" class="btn block" data-act="moveOut">Copy my Dash setup</button>
+      <button type="button" class="btn block" style="margin-top:8px" data-act="moveIn">Paste setup from my old Dash</button>
+    </div>
     <div class="set-card"><h3>Quick messages</h3>
       <textarea class="field" id="repliesBox" rows="6" aria-label="Quick messages, one per line">${esc(S.replies.join('\n'))}</textarea>
       <button type="button" class="btn" style="margin-top:10px" data-act="saveReplies">Save messages</button>
     </div>`;
+}
+const MOVE_PREFIX = 'DASH-MOVE-1:';
+function moveOut() {
+  const keep = {};
+  for (const k of ['units', 'temp', 'nav', 'awake', 'lock', 'home', 'work', 'recents', 'favs', 'replies', 'spotify']) keep[k] = S[k];
+  if (S.sp && S.sp.clientId) keep.sp = { clientId: S.sp.clientId };
+  const text = MOVE_PREFIX + btoa(unescape(encodeURIComponent(JSON.stringify(keep))));
+  navigator.clipboard.writeText(text).then(() => toast('Copied. Now open the new Dash: Settings → Paste setup.', 5000), () => prompt('Copy all of this:', text));
+}
+async function moveIn() {
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch (e) {}
+  if (!text.startsWith(MOVE_PREFIX)) text = prompt('Paste the setup you copied from your old Dash:') || '';
+  text = text.trim();
+  if (!text.startsWith(MOVE_PREFIX)) { if (text) toast('That isn’t a Dash setup. In the old Dash tap Copy my Dash setup.', 4500); return; }
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob(text.slice(MOVE_PREFIX.length)))));
+    if (data.sp && !(S.sp && S.sp.refresh)) S.sp = { clientId: data.sp.clientId };
+    delete data.sp;
+    Object.assign(S, data); save();
+    toast('Setup moved in ✓', 3000);
+    renderSettings(); renderHome(); renderChips(); renderSpotify(); renderHomePlay();
+  } catch (e) { toast('That setup couldn’t be read. Copy it again from the old Dash.', 4500); }
 }
 function addFav(name, num) {
   name = String(name || '').trim(); num = String(num || '').trim();
@@ -1797,9 +1976,9 @@ document.addEventListener('click', (e) => {
   if (d.favup) { const i = +d.favup; [S.favs[i - 1], S.favs[i]] = [S.favs[i], S.favs[i - 1]]; save(); renderSettings(); return; }
   if (d.favdel) { const f = S.favs[+d.favdel]; if (f && confirm('Remove ' + f.name + ' from favourites?')) { S.favs.splice(+d.favdel, 1); save(); renderSettings(); } return; }
   switch (d.act) {
-    case 'play': togglePlay(); break;
-    case 'prev': step(-1); break;
-    case 'next': step(1); break;
+    case 'play': ctlPlay(); break;
+    case 'prev': ctlStep(-1); break;
+    case 'next': ctlStep(1); break;
     case 'endTrip': S.trip = null; save(); renderHome(); break;
     case 'closePlace': closePlace(); break;
     case 'addFav': show('settings'); setTimeout(() => { const f = $('#favSet'); if (f) f.scrollIntoView({ block: 'start' }); }, 50); break;
@@ -1809,8 +1988,13 @@ document.addEventListener('click', (e) => {
     case 'addSpot': addSpotify(); break;
     case 'openNow': openNow(); break;
     case 'closeNow': closeNow(); break;
-    case 'shuffle': toggleShuffle(); break;
-    case 'repeat': cycleRepeat(); break;
+    case 'shuffle': ctlShuffle(); break;
+    case 'repeat': ctlRepeat(); break;
+    case 'spConnect': spConnect($('#spClient') && $('#spClient').value); break;
+    case 'spOff': if (confirm('Disconnect Spotify from Dash?')) { spDisconnect(); renderSettings(); } break;
+    case 'copyText': navigator.clipboard.writeText(t.dataset.text).then(() => toast('Copied'), () => toast('Press and hold the text to copy it')); break;
+    case 'moveOut': moveOut(); break;
+    case 'moveIn': moveIn(); break;
     case 'testSound': testSound(); break;
     case 'heyDash': heyDash(); break;
     case 'saveReplies': {
@@ -1869,14 +2053,23 @@ document.addEventListener('click', (e) => {
   if (b && b._held) { b._held = false; e.stopImmediatePropagation(); return; }
   if (b && b.id === 'bksp') { dial = dial.slice(0, -1); renderDial(); }
 }, true);
-$('#npPlay').addEventListener('click', togglePlay);
-$('#npPrev').addEventListener('click', () => step(-1));
-$('#npNext').addEventListener('click', () => step(1));
-$('#npShuffle').addEventListener('click', toggleShuffle);
-$('#npRepeat').addEventListener('click', cycleRepeat);
+$('#npPlay').addEventListener('click', ctlPlay);
+$('#npPrev').addEventListener('click', () => ctlStep(-1));
+$('#npNext').addEventListener('click', () => ctlStep(1));
+$('#npShuffle').addEventListener('click', ctlShuffle);
+$('#npRepeat').addEventListener('click', ctlRepeat);
 ['#npSeek', '#npfSeek'].forEach((sel) => {
   $(sel).addEventListener('input', () => { seeking = true; });
-  $(sel).addEventListener('change', () => { seeking = false; if (cur && isFinite(audio.duration)) audio.currentTime = $(sel).value / 1000 * audio.duration; renderTime(); });
+  $(sel).addEventListener('change', () => {
+    seeking = false;
+    const v = nowView();
+    if (v && v.src === 'spotify') {
+      const ms = Math.round($(sel).value / 1000 * spot.dur);
+      spot.progress = ms; spot.at = Date.now();
+      spApi('PUT', '/me/player/seek?position_ms=' + ms).then((r) => { if (r.status === 403) toast('Spotify only lets Premium accounts control music from other apps.', 4500); }).catch(() => {});
+    } else if (cur && isFinite(audio.duration)) audio.currentTime = $(sel).value / 1000 * audio.duration;
+    renderTime();
+  });
 });
 $('#addSongs').addEventListener('click', () => $('#songFile').click());
 $('#songFile').addEventListener('change', (e) => { const files = [...e.target.files]; e.target.value = ''; addSongs(files); });
@@ -1926,13 +2119,14 @@ $('#wlList').innerHTML = [
 ].map((r) => `<li>${ic(r[0])}<span><b>${r[1]}</b>${r[2]}</span></li>`).join('');
 $('#wlTip').hidden = standalone;
 tick();
-setInterval(tick, 1000);
+setInterval(() => { tick(); if (spot && spot.playing && !playing()) renderTime(); }, 1000);
 setInterval(() => {
   renderSpeed();
   if (S.trip && !activeTrip()) { S.trip = null; save(); if (panel === 'home') renderHome(); }
 }, 5000);
 renderWx(); renderSpeed(); renderNow(); renderHome(); renderChips(); renderAwake();
 loadSongs();
+spFinish().then(spPoll);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); keepAwake(); maybeWeather(); } });
 document.addEventListener('pointerdown', () => { if (!wakeLock) keepAwake(); }, { passive: true });
 addEventListener('resize', () => { setPlaceH(); if (map) map.invalidateSize(); });
@@ -1944,7 +2138,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated: a Spotify-style Now Playing screen with album covers. Tap the song that’s playing to open it.';
+  var NEWS = 'Dash updated: it can now show what Spotify is playing (connect it in Settings).' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -1972,7 +2166,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = 'd849facf9d';
+  var VERSION = '1e7422fae7';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
