@@ -1,6 +1,6 @@
-// Offline support for the installable Dash app (version 8399b174fe).
+// Offline support for the installable Dash app (version 0fa9e280b3).
 // Your places, favourites and songs live in the browser's storage, which updates never touch.
-const CACHE = 'dash-8399b174fe';
+const CACHE = 'dash-0fa9e280b3';
 const SHARE = 'dash-share';   // a contact handed to Dash from another app, kept across updates
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/leaflet.js', 'vendor/leaflet.css', 'icons/icon.svg', 'icons/icon-192-neon.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon-neon.png', 'icons/favicon-32.png'];
 
