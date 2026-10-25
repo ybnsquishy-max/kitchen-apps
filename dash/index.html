@@ -273,6 +273,18 @@ a{color:inherit;text-decoration:none}
 .p-alt .lbl{flex:0 0 100%;min-height:0;background:none;justify-content:flex-start;color:var(--dim);font-size:12px;padding:0 2px;text-transform:uppercase;letter-spacing:.08em}
 #p-maps .leaflet-bottom{bottom:var(--placeH,0px);transition:bottom .2s}
 @media (orientation:landscape){.map-tools{right:auto;left:12px;bottom:30px}}
+.camwarn{position:fixed;left:calc(12px + var(--sl));right:calc(12px + var(--sr));bottom:calc(82px + var(--sb));z-index:900;display:flex;align-items:center;gap:12px;background:#2A2412;border:2px solid var(--amber);color:#FFD9A0;border-radius:18px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.camwarn.over{background:#331418;border-color:var(--red);color:#FFC9CB}
+.camwarn .ic{width:34px;height:34px;color:var(--amber);flex:none}
+.camwarn.over .ic{color:var(--red)}
+.camwarn div{flex:1;min-width:0}
+.camwarn b{display:block;font-size:18px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.camwarn span{display:block;font-size:13.5px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.camwarn .dist{flex:none;font-style:normal;font-weight:800;font-size:20px;color:#fff;font-variant-numeric:tabular-nums}
+.camwarn .x-s{color:inherit;width:36px}
+@media (orientation:landscape){.camwarn{left:calc(110px + var(--sl));width:min(420px,calc(100% - 130px));right:auto;bottom:calc(12px + var(--sb))}}
+.cam-pin svg{width:26px;height:26px;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+.camlist{margin-top:6px}
 .map-msg{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);text-align:center;color:var(--dim);font-size:15px;z-index:400;padding:20px}
 .me svg{width:46px;height:46px;transition:transform .6s;display:block}
 .dest-pin svg{width:44px;height:52px;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
@@ -429,7 +441,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
 .steps{padding-left:22px;margin:10px 0;color:#B7C2CC;font-size:15px;line-height:1.5}
 .steps li{margin-bottom:10px}
 .steps b{color:var(--ink)}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(98px + var(--sb));z-index:3000;background:#E8EEF2;color:#0A0F13;font-weight:650;font-size:15px;padding:12px 18px;border-radius:14px;width:max-content;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;text-align:center;line-height:1.4}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(98px + var(--sb));transition:opacity .2s,bottom .2s;z-index:3000;background:#E8EEF2;color:#0A0F13;font-weight:650;font-size:15px;padding:12px 18px;border-radius:14px;width:max-content;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;text-align:center;line-height:1.4}
 #toast.on{opacity:1}
 @media (orientation:landscape){#toast {bottom:calc(20px + var(--sb));left:calc(50% + 49px)}}
 </style>
@@ -489,6 +501,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
         <div class="results" id="results" hidden></div>
         <div class="chips" id="chips"></div>
       </div>
+      <button type="button" class="round" id="markCam" aria-label="Mark a speed camera here" style="position:absolute;left:calc(12px + var(--sl));bottom:calc(var(--placeH,0px) + 26px);z-index:500;color:var(--amber);transition:bottom .2s"></button>
       <div class="map-tools">
         <div class="bubble"><b id="mapSpeed">–</b><span id="mapUnit">km/h</span></div>
         <button type="button" class="round" id="recenter" aria-label="Back to my location"></button>
@@ -641,6 +654,8 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical}
   </div>
 </div>
 
+<div class="camwarn" id="camWarn" hidden role="status" aria-live="polite"></div>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="vendor/leaflet.js"></script>
@@ -690,6 +705,7 @@ const ICONS = {
   people: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   swap: '<path d="M7 4v13M4 14l3 3 3-3M17 20V7M14 10l3-3 3 3"/>',
+  cam: '<path d="M3 7h3l2-2h5l2 2h6v12H3z"/><circle cx="13" cy="13" r="3.5"/>',
   speaker: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>'
 };
 const FILLED = ['nav', 'play', 'pause', 'next', 'prev'];
@@ -706,7 +722,8 @@ const DEFAULTS = () => ({
   favs: [], calls: [],
   replies: ['On my way', 'Running about 10 minutes late', "I'm here", "Driving, I'll call you soon", "Can't talk right now, I'm driving"],
   started: false, lastSong: null, shuffle: false, repeat: 'off', wx: null, spotify: [], askedContacts: false,
-  holdTalk: true, handsFree: false
+  holdTalk: true, handsFree: false,
+  camAlerts: true, camVoice: true, cams: [], camData: null
 });
 let S;
 try { S = Object.assign(DEFAULTS(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { S = DEFAULTS(); }
@@ -858,7 +875,7 @@ function onPos(p) {
   if (hd == null && pos && v > 1.5 && hav(pos, here) > 8) hd = bearing(pos, here);
   here.heading = v > 1 ? (hd != null ? hd : pos && pos.heading) : (pos ? pos.heading : null);
   gpsErr = null; pos = here;
-  renderSpeed(); updateMapPos(); updateDistances(); maybeWeather(); lockCheck();
+  renderSpeed(); updateMapPos(); updateDistances(); maybeWeather(); lockCheck(); checkCams(); fetchCams(false);
 }
 function onPosErr(e) {
   if (e && e.code === 1) gpsErr = 'denied';
@@ -884,6 +901,101 @@ function renderSpeed() {
   else if (gpsErr === 'none') { txt = 'No GPS on this browser'; bad = true; }
   else if (pos) { txt = pos.acc <= 25 ? 'GPS good' : pos.acc <= 80 ? 'GPS fair' : 'GPS weak'; bad = pos.acc > 80; }
   note.textContent = txt; note.classList.toggle('bad', bad);
+}
+
+/* ---------- Speed cameras ----------
+   Fixed cameras come from OpenStreetMap, where their locations are public,
+   plus any you mark yourself. Dash warns you in time to check your speed;
+   mobile cameras move about, so it can never be the whole picture. */
+const CAM_URLS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+let camBusy = false, camTried = 0;
+const allCams = () => (S.camData ? S.camData.list : []).concat(S.cams.map((c) => Object.assign({ mine: true }, c)));
+const camKey = (c) => c.lat.toFixed(5) + ',' + c.lon.toFixed(5);
+async function fetchCams(manual) {
+  if (!pos) { if (manual) toast('Dash needs your location first.'); return; }
+  if (camBusy) return;
+  const have = S.camData;
+  if (!manual && have && Date.now() - have.t < 14 * 864e5 && hav(have, pos) < 15000) return;
+  if (!manual && Date.now() - camTried < 5 * 60e3) return;
+  camBusy = true; camTried = Date.now();
+  if (manual) toast('Looking up cameras near you…', 20000);
+  const q = '[out:json][timeout:25];node(around:30000,' + pos.lat.toFixed(4) + ',' + pos.lon.toFixed(4) + ')["highway"="speed_camera"];out 800;';
+  try {
+    let j = null, err = null;
+    for (const u of CAM_URLS) {
+      try { j = await (await fetchT(u + '?data=' + encodeURIComponent(q), 25000)).json(); break; } catch (e) { err = e; }
+    }
+    if (!j) throw err || new Error('no answer');
+    const list = (j.elements || []).filter((e) => isFinite(e.lat) && isFinite(e.lon)).map((e) => {
+      const t = e.tags || {}, raw = String(t.maxspeed || ''), lim = parseInt(raw.replace(/[^\d]/g, ''), 10);
+      const c = { lat: +(+e.lat).toFixed(5), lon: +(+e.lon).toFixed(5) };
+      // OpenStreetMap writes limits in km/h unless the tag says mph. Keep km/h.
+      if (lim) c.limit = Math.round(/mph/i.test(raw) ? lim * 1.609344 : lim);
+      return c;
+    });
+    S.camData = { lat: pos.lat, lon: pos.lon, t: Date.now(), list }; save();
+    drawCams();
+    if (manual) toast(list.length ? 'Found ' + list.length + ' camera' + (list.length === 1 ? '' : 's') + ' within 30 km.' : 'No cameras mapped near you. You can still mark your own.', 5000);
+    if (panel === 'settings') renderSettings();
+  } catch (e) {
+    if (manual) toast("Couldn't look up cameras. Are you online?", 4500);
+  } finally { camBusy = false; }
+}
+function markCam() {
+  const at = pos && fresh() ? { lat: +pos.lat.toFixed(5), lon: +pos.lon.toFixed(5) } : map ? { lat: +map.getCenter().lat.toFixed(5), lon: +map.getCenter().lng.toFixed(5) } : null;
+  if (!at) { toast('Dash needs your location first.'); return; }
+  if (allCams().some((c) => hav(c, at) < 80)) { toast('There’s already a camera marked here.'); return; }
+  at.t = Date.now();
+  S.cams.push(at); save(); drawCams();
+  toast('Camera marked here.', 3000);
+}
+let camWarn = null;
+function hideCamWarn(box) { box.hidden = true; $('#toast').style.bottom = ''; }
+function checkCams() {
+  const box = $('#camWarn');
+  if (!S.camAlerts || !fresh() || !moving()) { if (camWarn) { camWarn = null; hideCamWarn(box); } return; }
+  let best = null;
+  for (const c of allCams()) {
+    const d = hav(pos, c);
+    if (d > 1000) continue;
+    // Only what's in front of you, not the one you've just gone past.
+    if (pos.heading != null && d > 60) {
+      const off = Math.abs(((bearing(pos, c) - pos.heading + 540) % 360) - 180);
+      if (off > 55) continue;
+    }
+    if (!best || d < best.d) best = { c, d };
+  }
+  if (!best) { if (camWarn) { camWarn = null; hideCamWarn(box); } return; }
+  const key = camKey(best.c);
+  if (!camWarn || camWarn.key !== key) camWarn = { key, said: 0 };   // a new camera un-hides the warning
+  if (camWarn.hushed) { hideCamWarn(box); return; }
+  const speed = Math.round(toUnit(pos.speed));
+  const limShown = best.c.limit ? Math.round(S.units === 'mph' ? best.c.limit / 1.609344 : best.c.limit) : 0;
+  const over = limShown && speed > limShown + 2;
+  box.hidden = false;
+  box.classList.toggle('over', !!over);
+  $('#toast').style.bottom = 'calc(' + (innerWidth > innerHeight ? 92 : 166) + 'px + var(--sb))';
+  const sub = limShown ? (over ? 'Limit ' + limShown + ' · doing ' + speed : 'Limit ' + limShown + ' ' + unitLabel())
+    : best.c.mine ? 'One you marked' : 'Check your speed';
+  box.innerHTML = `${ic('cam')}<div><b>Speed camera</b><span>${esc(sub)}</span></div>
+    <em class="dist">${best.d < 90 ? 'here' : esc(fmtDist(best.d))}</em>
+    <button type="button" class="x-s" data-act="hushCam" aria-label="Hide">${ic('x')}</button>`;
+  // Spoken once on the way in, and again if you're still over the limit close up.
+  if (S.camVoice) {
+    if (!camWarn.said && best.d < 800) { camWarn.said = 1; say('Speed camera ahead' + (limShown ? ', limit ' + limShown : '') + '.'); }
+    else if (camWarn.said === 1 && over && best.d < 350) { camWarn.said = 2; say('Slow down.'); }
+  }
+}
+let camLayer = null;
+const CAM_PIN = '<svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#2A2412" stroke="#FFB547" stroke-width="2.5"/><path d="M6 10h2.5L10 8.5h6L17.5 10H20v8H6z" fill="none" stroke="#FFB547" stroke-width="1.8" stroke-linejoin="round"/><circle cx="13" cy="14" r="2.6" fill="#FFB547"/></svg>';
+function drawCams() {
+  if (!map || !window.L) return;
+  if (!camLayer) camLayer = L.layerGroup().addTo(map);
+  camLayer.clearLayers();
+  if (!S.camAlerts) return;
+  const mid = map.getCenter(), here = { lat: mid.lat, lon: mid.lng };
+  allCams().map((c) => [hav(here, c), c]).filter((x) => x[0] < 20000).sort((a, b) => a[0] - b[0]).slice(0, 80)
+    .forEach(([, c]) => L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'cam-pin', html: CAM_PIN, iconSize: [26, 26], iconAnchor: [13, 13] }), keyboard: false, interactive: false }).addTo(camLayer));
 }
 
 /* ---------- Clock and weather ---------- */
@@ -1058,10 +1170,11 @@ function openMap() {
     const start = pos || S.home || S.wx;
     if (start) map.setView([start.lat, start.lon], pos ? 16 : 12); else map.setView([20, 0], 2);
     map.on('dragstart', () => { follow = false; });
+    map.on('moveend', drawCams);
     // Press and hold the map to drop a pin there.
     map.on('contextmenu', (e) => selectPlace({ name: 'Dropped pin', addr: e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5), lat: e.latlng.lat, lon: e.latlng.lng }));
   }
-  setTimeout(() => { map.invalidateSize(); updateMapPos(true); }, 0);
+  setTimeout(() => { map.invalidateSize(); updateMapPos(true); drawCams(); }, 0);
 }
 const ME_ARROW = '<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="21" fill="rgba(43,182,240,.18)"/><path d="M23 6l11 29-11-6-11 6z" fill="#2BB6F0" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>';
 const ME_DOT = '<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="21" fill="rgba(43,182,240,.18)"/><circle cx="23" cy="23" r="9" fill="#2BB6F0" stroke="#fff" stroke-width="3"/></svg>';
@@ -1390,6 +1503,7 @@ function runCommand(raw) {
   };
   const spotBtn = (href, label) => `<a class="go" style="background:#1DB954;color:#04210F" href="${esc(href)}"${spotTarget}>${ic('eq')} ${label}</a>`;
   let m;
+  if (/^(speed )?camera( here| spotted| ahead)?$/.test(t) || /^mark (a )?(speed )?camera/.test(t)) { markCam(); return done('Camera marked.'); }
   if (/^(pause|stop)\b/.test(t)) { if (cur) { audio.pause(); return done('Paused.'); } return done('Nothing is playing in Dash. For Spotify, use the pause button on the steering wheel.'); }
   if (/^(next|skip)\b/.test(t)) { if (cur) { step(1); return done('Next song.'); } return done('Nothing is playing in Dash. For Spotify, use the skip button on the steering wheel.'); }
   if (/^(previous|last song|go back|back)$/.test(t)) { if (cur) { step(-1); return done('Previous song.'); } return done('Nothing is playing in Dash.'); }
@@ -2015,6 +2129,13 @@ function renderSettings() {
       <div class="row"><span>Keep the screen on<small>${awakeNote}</small></span>${tog('awake')}</div>
       <div class="row"><span>Pause typing while driving<small>Search and settings lock while the car is moving. The microphone still works.</small></span>${tog('lock')}</div>
     </div>
+    <div class="set-card"><h3>Speed cameras</h3>
+      <div class="row"><span>Warn me about cameras<small>Fixed cameras from OpenStreetMap, where their locations are public, plus any you mark. Mobile cameras move about, so this can never catch them all — the point is to check your speed.</small></span>${tog('camAlerts')}</div>
+      <div class="row"><span>Say it out loud</span>${tog('camVoice')}</div>
+      <div class="row"><span>Cameras near you<small>${S.camData ? S.camData.list.length + ' loaded · updated ' + esc(ago(S.camData.t)) : 'Not loaded yet'}${S.cams.length ? ' · ' + S.cams.length + ' you marked' : ''}</small></span><button type="button" class="mini" data-act="camUpdate">Update</button></div>
+      ${S.cams.length ? `<div class="camlist">${S.cams.map((c, i) => `<div class="row"><span>Camera you marked<small>${esc(c.lat.toFixed(4))}, ${esc(c.lon.toFixed(4))}${pos ? ' · ' + fmtDist(hav(pos, c)) + ' away' : ''}</small></span><button type="button" class="mini danger" data-camdel="${i}">Remove</button></div>`).join('')}</div>` : ''}
+      <p class="empty" style="margin-top:8px">On the map, the amber camera button marks one where you are. You can also say “Dash, camera here”.</p>
+    </div>
     <div class="set-card"><h3>Places</h3>
       ${placeRow('home', 'Home')}${placeRow('work', 'Work')}
       <div class="row"><span>Recent places<small>${S.recents.length ? S.recents.length + ' saved' : 'None yet'}</small></span>${S.recents.length ? '<button type="button" class="mini" data-act="clearRecents">Clear</button>' : ''}</div>
@@ -2053,7 +2174,7 @@ function renderSettings() {
 const MOVE_PREFIX = 'DASH-MOVE-1:';
 function moveOut() {
   const keep = {};
-  for (const k of ['units', 'temp', 'nav', 'awake', 'lock', 'home', 'work', 'recents', 'favs', 'replies', 'spotify']) keep[k] = S[k];
+  for (const k of ['units', 'temp', 'nav', 'awake', 'lock', 'home', 'work', 'recents', 'favs', 'replies', 'spotify', 'cams', 'camAlerts', 'camVoice']) keep[k] = S[k];
   if (S.sp && S.sp.clientId) keep.sp = { clientId: S.sp.clientId };
   const text = MOVE_PREFIX + btoa(unescape(encodeURIComponent(JSON.stringify(keep))));
   navigator.clipboard.writeText(text).then(() => toast('Copied. Now open the new Dash: Settings → Paste setup.', 5000), () => prompt('Copy all of this:', text));
@@ -2303,6 +2424,7 @@ document.addEventListener('click', (e) => {
   if (d.setk) { S[d.setk] = d.val; save(); afterSetting(d.setk); return; }
   if (d.toggle) { S[d.toggle] = !S[d.toggle]; save(); afterSetting(d.toggle); return; }
   if (d.unset) { if (confirm('Remove your ' + d.unset + ' address?')) { S[d.unset] = null; save(); renderSettings(); renderChips(); } return; }
+  if (d.camdel) { S.cams.splice(+d.camdel, 1); save(); drawCams(); renderSettings(); return; }
   if (d.spdel) { const x = S.spotify[+d.spdel]; if (x && confirm('Remove ' + x.name + ' from Dash?')) { S.spotify.splice(+d.spdel, 1); save(); renderSpotify(); renderHomePlay(); } return; }
   if (d.favup) { const i = +d.favup; [S.favs[i - 1], S.favs[i]] = [S.favs[i], S.favs[i - 1]]; save(); renderSettings(); return; }
   if (d.favdel) { const f = S.favs[+d.favdel]; if (f && confirm('Remove ' + f.name + ' from favourites?')) { S.favs.splice(+d.favdel, 1); save(); renderSettings(); } return; }
@@ -2332,6 +2454,8 @@ document.addEventListener('click', (e) => {
     case 'moveOut': moveOut(); break;
     case 'moveIn': moveIn(); break;
     case 'testSound': testSound(); break;
+    case 'camUpdate': fetchCams(true); break;
+    case 'hushCam': if (camWarn) { camWarn.hushed = 1; } hideCamWarn($('#camWarn')); break;
     case 'heyDash': heyDash(); break;
     case 'saveReplies': {
       const lines = $('#repliesBox').value.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -2346,6 +2470,7 @@ function afterSetting(k) {
   if (k === 'units') { renderSpeed(); updateDistances(); }
   if (k === 'temp') { renderWx(); maybeWeather(true); }
   if (k === 'nav' || k === 'units') { renderHome(); renderChips(); }
+  if (k === 'camAlerts') { drawCams(); if (!S.camAlerts) { camWarn = null; hideCamWarn($('#camWarn')); } else fetchCams(false); }
   if (k === 'awake') { if (S.awake) keepAwake(); else if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } renderAwake(); }
 }
 document.addEventListener('submit', (e) => {
@@ -2372,6 +2497,7 @@ $('#q').addEventListener('input', () => {
 $('#qClear').addEventListener('click', () => { $('#q').value = ''; $('#qClear').hidden = true; qSeq++; hideResults(); });
 $('#micBtn').addEventListener('click', listen);
 $('#recenter').addEventListener('click', recenter);
+$('#markCam').addEventListener('click', markCam);
 $('#pickCancel').addEventListener('click', () => setPicking(null));
 $('#setBtn').addEventListener('click', () => show(panel === 'settings' ? 'home' : 'settings'));
 $('#awakeBtn').addEventListener('click', async () => {
@@ -2459,6 +2585,7 @@ $('#qClear').innerHTML = ic('x');
 $('#micBtn').innerHTML = ic('mic');
 $('#micBtn').hidden = !SR;
 $('#recenter').innerHTML = ic('locate');
+$('#markCam').innerHTML = ic('cam');
 $('#npArt').innerHTML = ic('music');
 $('#npPrev').innerHTML = ic('prev');
 $('#npNext').innerHTML = ic('next');
@@ -2508,7 +2635,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
 <script>
 (function () {
   var KEY = 'dash_just_updated';
-  var NEWS = 'Dash updated: hold the screen anywhere to talk, or switch on Keep listening in Settings.' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
+  var NEWS = 'Dash updated: speed camera warnings, from the public map plus any you mark yourself.' + (/iPhone|iPad/.test(navigator.userAgent) ? ' For the new logo: Settings → Copy my Dash setup, then add Dash to your home screen again and paste it in.' : '');
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -2536,7 +2663,7 @@ window.__appBusy = () => playing() || moving() || !!rec || !!vrec;
   });
   // Ask the website which version is newest (never cached), so a phone that
   // resumed an old copy, or saw a slow connection, still catches up.
-  var VERSION = '0fa9e280b3';
+  var VERSION = 'd3e7e55b03';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
