@@ -180,6 +180,27 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
 .timer.low{color:var(--amber)}
 #walk .lead{margin-bottom:auto}
 
+/* Recording */
+#rec{background:#14060A;text-align:center}
+.rec-dot{width:min(52vw,210px);aspect-ratio:1;border-radius:50%;margin:4vh auto 0;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 50% 38%,#FF6477,#C4102E 72%)}
+.rec-dot.idle{background:var(--card2)}
+.rec-dot svg{position:absolute;inset:-8px;width:calc(100% + 16px);height:calc(100% + 16px);transform:rotate(-90deg)}
+.rec-dot circle{fill:none;stroke:#fff;stroke-width:6;stroke-linecap:round;opacity:.85}
+.rec-dot b{font-size:min(18vw,68px);font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+.rec-dot.live{animation:thump 1s infinite}
+#rec .lead{margin-top:16px}
+.clip{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:16px;padding:10px;margin-bottom:8px;text-align:left}
+.clip .who{flex:1;min-width:0}
+.clip .who b{display:block;font-size:16px}
+.clip .who span{display:block;font-size:13px;color:var(--dim);margin-top:2px}
+.clip button,.clip a{width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;flex:none;background:var(--card2);color:var(--ink)}
+.clip .go{background:rgba(46,213,115,.16);color:var(--green)}
+.clip .rm{background:none;color:#5E6C80;width:38px}
+.levels{display:flex;gap:8px;margin-bottom:10px}
+.levels button{flex:1;min-height:60px;border:0;border-radius:16px;background:var(--card2);color:var(--ink);font-weight:750;font-size:15px;line-height:1.25;padding:0 8px}
+.levels button.uneasy{background:rgba(255,181,71,.16);color:var(--amber)}
+.levels button.scared{background:rgba(255,61,90,.18);color:var(--red)}
+
 /* Contact chooser (shared with Dash's way of doing it) */
 .overlay{position:fixed;inset:0;z-index:2100;background:rgba(5,8,14,.96);display:flex;padding:calc(18px + var(--st)) 18px calc(18px + var(--sb))}
 .sheet{background:var(--card);border-radius:24px;padding:20px;max-width:460px;width:100%;margin:auto}
@@ -240,6 +261,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
         <button type="button" class="q red" data-act="siren"><span class="ic-slot"></span><span><b>Loud alarm</b><small>Noise and flashing</small></span></button>
         <button type="button" class="q green" data-act="share"><span class="ic-slot"></span><span><b>Share location</b><small>Send where you are</small></span></button>
         <button type="button" class="q blue" data-act="walkSetup"><span class="ic-slot"></span><span><b>Walk with me</b><small>Check in by a set time</small></span></button>
+        <button type="button" class="q red" data-act="recOpen"><span class="ic-slot"></span><span><b>Record 30 seconds</b><small>Keep what's being said</small></span></button>
       </div>
     </section>
 
@@ -277,6 +299,7 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
   <h1 id="sosTitle">Flare sent up</h1>
   <p class="lead" id="sosLead">Tap a name to send them your message. Your phone will show it to you first.</p>
   <div class="loc" id="sosLoc"></div>
+  <button type="button" class="loc" id="sosRec" hidden data-act="recStop" style="width:100%;border:0;color:var(--amber);text-align:left"></button>
   <div id="sosActions"></div>
   <div class="spacer"></div>
   <button type="button" class="big ghost" data-act="closeSos">Close</button>
@@ -309,9 +332,24 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
   <p class="lead" id="walkLead"></p>
   <div class="timer" id="walkTime">00:00</div>
   <p class="lead" id="walkSub">Tap I'm safe when you get there.</p>
+  <div class="levels">
+    <button type="button" class="uneasy" data-level="uneasy">I'm a bit<br>uneasy</button>
+    <button type="button" class="scared" data-level="scared">I'm really<br>worried</button>
+  </div>
   <button type="button" class="big green" data-act="walkSafe">I'M SAFE</button>
   <button type="button" class="big ghost" data-act="walkAdd">+5 minutes</button>
   <button type="button" class="big ghost" data-act="walkStop">Cancel</button>
+</div>
+
+<!-- Recording -->
+<div class="full" id="rec" hidden>
+  <h1>Record</h1>
+  <p class="lead" id="recLead">Keep 30 seconds of what's being said. It stays on this phone until you send it.</p>
+  <div class="rec-dot idle" id="recDot"><svg viewBox="0 0 100 100" aria-hidden="true"><circle id="recRing" cx="50" cy="50" r="46" stroke-dasharray="289" stroke-dashoffset="289"/></svg><b id="recNum">30</b></div>
+  <button type="button" class="big red" style="margin-top:22px" id="recBtn" data-act="recToggle">START RECORDING</button>
+  <div id="clipList" style="margin-top:6px"></div>
+  <div class="spacer"></div>
+  <button type="button" class="big ghost" data-act="recClose">Close</button>
 </div>
 
 <!-- Contact chooser -->
@@ -360,7 +398,12 @@ const ICONS = {
   swap: '<path d="M7 4v13M4 14l3 3 3-3M17 20V7M14 10l3-3 3 3"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
   up: '<path d="M12 19V5M5 12l7-7 7 7"/>',
-  bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10.3 21a2 2 0 0 0 3.4 0"/>'
+  bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10.3 21a2 2 0 0 0 3.4 0"/>',
+  mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>',
+  play: '<path d="M7 4.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4A1 1 0 0 0 7 4.6z" fill="currentColor" stroke="none"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/>',
+  send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>'
 };
 const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 
@@ -380,7 +423,7 @@ const DEFAULTS = () => ({
   fakeName: 'Mum', fakeDelay: 10,
   walkMins: 20,
   card: { phone: '', dob: '', blood: '', allergies: '', meds: '', conditions: '', doctor: '', notes: '' },
-  askedPeople: false, siren: true, voice: true
+  askedPeople: false, siren: true, voice: true, autoRecord: false, toldThem: true
 });
 let S;
 try { S = Object.assign(DEFAULTS(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { S = DEFAULTS(); }
@@ -520,12 +563,14 @@ function sendFlare(kind) {
   keepAwake();
   refreshLocLines();
   renderSosActions();
+  if (urgent && S.autoRecord) startRec(true);
   if (urgent) say(sosKind === 'sos' ? 'Flare sent. Call for help, or tap a name.' : "You didn't check in. Tap a name to let them know.");
 }
 let sentTo = {};
 function renderSosActions() {
-  const urgent = sosKind === 'sos' || sosKind === 'late';
-  const body = message(sosKind);
+  const level = sosKind.indexOf('lvl_') === 0 ? sosKind.slice(4) : '';
+  const urgent = sosKind === 'sos' || sosKind === 'late' || level === 'scared';
+  const body = level ? levelBody : message(sosKind);
   const rows = [];
   if (urgent) rows.push(`<a class="big red" href="${esc(telHref(S.emergency))}" data-dial="1">${ic('phone')} CALL ${esc(S.emergency)}</a>`);
   S.people.forEach((p, i) => {
@@ -536,7 +581,9 @@ function renderSosActions() {
     rows.push(`<a class="big ghost" href="${esc(smsHref(all, body))}">${ic('people')} Everyone at once</a>`);
   }
   if (!S.people.length) rows.push(`<button type="button" class="big ghost" data-act="addPeople">${ic('plus')} Add people to tell</button>`);
-  rows.push(`<button type="button" class="big ghost" data-act="sirenFromSos">${ic('siren')} Make noise</button>`);
+  rows.push(sirenNodes
+    ? `<button type="button" class="big amber" style="background:var(--amber);color:#2A1A00" data-act="sirenStop">${ic('siren')} STOP THE NOISE</button>`
+    : `<button type="button" class="big ghost" data-act="sirenFromSos">${ic('siren')} Make noise</button>`);
   $('#sosActions').innerHTML = rows.join('');
 }
 const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || n;
@@ -547,8 +594,10 @@ async function keepAwake() {
   if (wakeLock || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
   try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } catch (e) { wakeLock = null; }
 }
-function startSiren() {
-  $('#siren').hidden = false;
+function startSiren(quiet) {
+  // quiet: make the noise without taking over the screen, so a message
+  // screen behind it isn't buried under a second thing to deal with.
+  if (!quiet) $('#siren').hidden = false;
   keepAwake();
   try {
     if (navigator.audioSession) navigator.audioSession.type = 'playback';
@@ -557,28 +606,35 @@ function startSiren() {
     if (ac.state === 'suspended') ac.resume();
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = 'sawtooth';
-    const t = ac.currentTime;
-    o.frequency.setValueAtTime(700, t);
-    for (let i = 0; i < 600; i++) {   // up and down, for about 10 minutes
-      o.frequency.linearRampToValueAtTime(1500, t + i + 0.5);
-      o.frequency.linearRampToValueAtTime(700, t + i + 1);
-    }
     g.gain.value = 0.9;
     o.connect(g); g.connect(ac.destination); o.start();
-    sirenNodes = { o, g };
+    // Wail up and down, topped up a minute at a time rather than all at once.
+    const wail = () => {
+      const t = ac.currentTime;
+      o.frequency.cancelScheduledValues(t);
+      o.frequency.setValueAtTime(700, t);
+      for (let i = 0; i < 60; i++) {
+        o.frequency.linearRampToValueAtTime(1500, t + i + 0.5);
+        o.frequency.linearRampToValueAtTime(700, t + i + 1);
+      }
+    };
+    wail();
+    sirenNodes = { o, g, top: setInterval(wail, 55000) };
     $('#sirenLead').textContent = 'Making as much noise as this phone can. Turn the volume up.';
   } catch (e) {
     $('#sirenLead').textContent = "This phone wouldn't let Flare make a sound, but the screen is flashing.";
   }
-  sirenFlash = setInterval(() => $('#siren').classList.toggle('flash'), 420);
+  if (!quiet) sirenFlash = setInterval(() => $('#siren').classList.toggle('flash'), 420);
   buzz([400, 200, 400, 200, 400, 200, 400]);
+  if (quiet) renderSosActions();
 }
 function stopSiren() {
-  if (sirenNodes) { try { sirenNodes.o.stop(); } catch (e) {} sirenNodes = null; }
+  if (sirenNodes) { clearInterval(sirenNodes.top); try { sirenNodes.o.stop(); } catch (e) {} sirenNodes = null; }
   clearInterval(sirenFlash); sirenFlash = null;
   $('#siren').classList.remove('flash');
   $('#siren').hidden = true;
   buzz(0);
+  if (!$('#sosScreen').hidden) renderSosActions();
 }
 
 /* ---------- Fake call ----------
@@ -664,8 +720,172 @@ function fakeEnd() {
   buzz(0);
 }
 
+/* ---------- Recording 30 seconds ----------
+   Only while Flare is open and on screen: phones don't let a web app
+   listen in the background, and that is not something Flare can change. */
+const CLIP_SECS = 30;
+let mediaRec = null, recStream = null, recChunks = [], recT0 = 0, recTick = null, recStopper = null;
+const canRec = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+function recMime() {
+  for (const m of ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {}
+  }
+  return '';
+}
+async function startRec(quiet) {
+  if (mediaRec) return;
+  if (!canRec) { if (!quiet) toast("This phone won't let Flare record.", 4500); return; }
+  if (!quiet) $('#rec').hidden = false;   // a flare records behind its own screen
+  try {
+    recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    $('#recLead').textContent = 'Flare needs permission to use the microphone. Allow it when your phone asks, or turn it on in your phone\u2019s settings for Safari.';
+    toast('The microphone is off for Flare.', 5000);
+    return;
+  }
+  if (quiet) $('#sosRec').hidden = false;
+  const type = recMime();
+  try { mediaRec = new MediaRecorder(recStream, type ? { mimeType: type } : undefined); } catch (e) { mediaRec = new MediaRecorder(recStream); }
+  recChunks = [];
+  mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  mediaRec.onstop = saveClip;
+  mediaRec.start();
+  recT0 = Date.now();
+  keepAwake();
+  buzz(25);
+  $('#recDot').classList.remove('idle');
+  $('#recDot').classList.add('live');
+  $('#recBtn').textContent = 'STOP AND KEEP IT';
+  $('#recLead').textContent = 'Recording. Keep Flare on the screen — phones stop a web app listening the moment you leave it.';
+  recPaint();
+  recTick = setInterval(recPaint, 200);
+  recStopper = setTimeout(stopRec, CLIP_SECS * 1000);
+}
+function recPaint() {
+  const left = Math.max(0, CLIP_SECS - (Date.now() - recT0) / 1000);
+  $('#recNum').textContent = Math.ceil(left);
+  $('#recRing').style.strokeDashoffset = (289 * (1 - left / CLIP_SECS)).toFixed(1);
+  const sr = $('#sosRec');
+  if (!sr.hidden) sr.innerHTML = ic('mic') + '<span>Recording sound · ' + Math.ceil(left) + 's left · tap to stop</span>';
+}
+function stopRec() {
+  clearTimeout(recStopper); clearInterval(recTick);
+  recStopper = recTick = null;
+  if (mediaRec && mediaRec.state !== 'inactive') { try { mediaRec.stop(); } catch (e) {} }
+  mediaRec = null;
+  if (recStream) { recStream.getTracks().forEach((t) => t.stop()); recStream = null; }
+  $('#recDot').classList.add('idle');
+  $('#recDot').classList.remove('live');
+  $('#recNum').textContent = CLIP_SECS;
+  $('#recRing').style.strokeDashoffset = 289;
+  $('#recBtn').textContent = 'START RECORDING';
+  $('#sosRec').hidden = true;
+  buzz([25, 60, 25]);
+}
+async function saveClip() {
+  if (!recChunks.length) return;
+  const type = recChunks[0].type || 'audio/mp4';
+  const blob = new Blob(recChunks, { type });
+  recChunks = [];
+  const clip = { t: Date.now(), secs: Math.min(CLIP_SECS, Math.round((Date.now() - recT0) / 1000)), type, blob, where: haveLoc() ? mapLink() : '' };
+  try { clip.id = await clipTx('readwrite', (st) => st.add(clip)); } catch (e) { toast("That clip couldn't be saved."); return; }
+  clips.unshift(clip);
+  renderClips();
+  toast('Kept ' + clip.secs + (clip.secs === 1 ? ' second.' : ' seconds.'), 3000);
+}
+let clipDb = null, clips = [];
+function openClipDb() {
+  if (!clipDb) clipDb = new Promise((res, rej) => {
+    const r = indexedDB.open('flare', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('clips', { keyPath: 'id', autoIncrement: true });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return clipDb;
+}
+async function clipTx(mode, fn) {
+  const d = await openClipDb();
+  return new Promise((res, rej) => {
+    const t = d.transaction('clips', mode), req = fn(t.objectStore('clips'));
+    let out;
+    if (req) req.onsuccess = () => { out = req.result; };
+    t.oncomplete = () => res(out);
+    t.onerror = t.onabort = () => rej(t.error);
+  });
+}
+async function loadClips() {
+  try { clips = (await clipTx('readonly', (st) => st.getAll())) || []; } catch (e) { clips = []; }
+  clips.sort((a, b) => b.t - a.t);
+  renderClips();
+}
+let clipUrls = new Map(), playing = null;
+function clipUrl(c) {
+  if (!clipUrls.has(c.id)) clipUrls.set(c.id, URL.createObjectURL(c.blob));
+  return clipUrls.get(c.id);
+}
+function renderClips() {
+  const box = $('#clipList');
+  if (!box) return;
+  box.innerHTML = clips.length
+    ? '<h2 class="t" style="margin-top:18px">Kept on this phone</h2>' + clips.map((c) => `<div class="clip">
+        <button type="button" class="go" data-play="${c.id}" aria-label="Play">${ic(playing === c.id ? 'pause' : 'play')}</button>
+        <span class="who"><b>${esc(new Date(c.t).toLocaleString(LANG, { weekday: 'short', hour: 'numeric', minute: '2-digit' }))}</b><span>${c.secs} second${c.secs === 1 ? '' : 's'}${c.where ? ' · location saved' : ''}</span></span>
+        <button type="button" data-share="${c.id}" aria-label="Send it">${ic('send')}</button>
+        <button type="button" class="rm" data-cliprm="${c.id}" aria-label="Delete">${ic('trash')}</button>
+      </div>`).join('')
+    : '';
+}
+const clipAudio = new Audio();
+clipAudio.addEventListener('ended', () => { playing = null; renderClips(); });
+function playClip(id) {
+  const c = clips.find((x) => x.id === id);
+  if (!c) return;
+  if (playing === id) { clipAudio.pause(); playing = null; renderClips(); return; }
+  clipAudio.src = clipUrl(c);
+  clipAudio.play().catch(() => toast("This phone can't play that clip back."));
+  playing = id; renderClips();
+}
+async function shareClip(id) {
+  const c = clips.find((x) => x.id === id);
+  if (!c) return;
+  const ext = /mp4/.test(c.type) ? 'm4a' : /ogg/.test(c.type) ? 'ogg' : 'webm';
+  const name = 'flare-' + new Date(c.t).toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.' + ext;
+  const file = new File([c.blob], name, { type: c.type });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: (S.name ? S.name + ': ' : '') + 'Recorded by Flare' + (c.where ? ' at ' + c.where : '') });
+      return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = clipUrl(c); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Saved to your downloads — send it from there.', 5000);
+}
+async function removeClip(id) {
+  const c = clips.find((x) => x.id === id);
+  if (!c || !confirm('Delete this recording?')) return;
+  if (playing === id) { clipAudio.pause(); playing = null; }
+  try { await clipTx('readwrite', (st) => st.delete(id)); } catch (e) {}
+  if (clipUrls.has(id)) { URL.revokeObjectURL(clipUrls.get(id)); clipUrls.delete(id); }
+  clips = clips.filter((x) => x.id !== id);
+  renderClips();
+}
+
 /* ---------- Walk with me ---------- */
 let walkEnd = 0, walkTick = null;
+function headsUpHref(mins) {
+  if (!S.people.length) return '';
+  const by = new Date(Date.now() + mins * 60e3).toLocaleTimeString(LANG, { hour: 'numeric', minute: '2-digit' });
+  const body = (S.name ? S.name + ' here. ' : '') + 'I\u2019m heading off now and I\u2019ll check in by ' + by +
+    '. If you haven\u2019t heard from me by then, please call me.' + (haveLoc() ? ' Starting from ' + mapLink() : '');
+  const all = S.people.map((p) => String(p.num).replace(/[^\d+]/g, '')).join(',');
+  return smsHref(all, body);
+}
+function headsUp(mins) {
+  const href = headsUpHref(mins);
+  if (href) location.href = href;
+}
 function walkStart(mins) {
   S.walkMins = mins; save();
   walkEnd = Date.now() + mins * 60e3;
@@ -691,7 +911,9 @@ function walkPaint() {
 function walkOver() {
   walkStopTimer();
   $('#walk').hidden = true;
-  startSiren();
+  // Buzz hard, but don't set off the alarm by itself: forgetting to check in
+  // is usually just forgetting, and a siren in a quiet room helps nobody.
+  buzz([500, 250, 500, 250, 500, 250, 800]);
   sendFlare('late');
 }
 function walkStopTimer() {
@@ -712,6 +934,29 @@ function walkSafe() {
     }, 400);
   }
 }
+
+/* How you're feeling, mid-way. These go out there and then. */
+const LEVELS = {
+  uneasy: { word: 'uneasy', msg: "I'm a bit uneasy. Nothing's happened, but keep your phone on. Here's where I am:" },
+  scared: { word: 'worried', msg: "I'm really worried about what's happening here. Please call me now. Here's where I am:" }
+};
+function sendLevel(which) {
+  const L = LEVELS[which];
+  if (!L) return;
+  if (!S.people.length) { toast('Add someone for Flare to tell.'); show('people'); return; }
+  const body = (S.name ? S.name + ': ' : '') + L.msg + (haveLoc() ? ' ' + mapLink() : ' (my phone could not get a location)');
+  const all = S.people.map((p) => String(p.num).replace(/[^\d+]/g, '')).join(',');
+  levelBody = body; levelAll = all;
+  $('#walk').hidden = true;
+  sosKind = 'lvl_' + which;
+  $('#sosScreen').style.background = which === 'scared' ? '#1A0410' : '#2A2412';
+  $('#sosTitle').textContent = which === 'scared' ? "Let's get you help" : 'Give them a heads up';
+  $('#sosLead').textContent = 'Tap a name to send it. Your phone shows you the message first.';
+  $('#sosScreen').hidden = false;
+  refreshLocLines(); renderSosActions();
+  if (which === 'scared' && S.autoRecord) startRec(true);
+}
+let levelBody = '', levelAll = '';
 
 /* ---------- My people ---------- */
 function renderPeople() {
@@ -969,6 +1214,23 @@ function renderSettings() {
       <div class="row"><span>Rings after<small>Time to put your phone away first.</small></span><div class="seg">${[0, 10, 30].map((n) => `<button type="button" data-delay="${n}" aria-pressed="${S.fakeDelay === n}">${n === 0 ? 'Now' : n + 's'}</button>`).join('')}</div></div>
       <button type="button" class="btn" data-act="fakeTest">Try it now</button>
     </div>
+    <h2 class="t">Recording</h2>
+    <div class="card">
+      <div class="row"><span>Start recording when I send a flare<small>30 seconds of sound, kept on this phone. Flare has to stay on the screen.</small></span>${tog('autoRecord')}</div>
+      <p class="empty">${canRec ? 'Your phone will ask to let Flare use the microphone the first time.' : "This phone won't let Flare record sound."} Recording people without telling them is against the law in some places — it's for your own safety, not for keeping tabs on anyone.</p>
+    </div>
+    <h2 class="t">Letting someone keep an eye out</h2>
+    <div class="card">
+      <p class="empty" style="margin-top:4px">Flare <b>cannot</b> show someone where you are while it's shut, and nothing it does can change that: phones only let apps from the App Store or Play Store do that. Your phone already has it built in, and it's better than anything Flare could do — it works with the screen off and barely touches the battery.</p>
+      <ol class="steps">
+        ${isIOS ? `<li><b>iPhone to iPhone:</b> open <b>Find My</b> → <b>Me</b> → <b>Share My Location</b>, then <b>People</b> → <b>+</b> → pick them → <b>Share Indefinitely</b>. They see you on a map, always.</li>
+        <li><b>For a child:</b> set them up in <b>Settings</b> → <b>Family</b>, then turn on location sharing for them there.</li>`
+        : `<li><b>Android:</b> open <b>Google Maps</b> → tap your picture → <b>Location sharing</b> → <b>New share</b> → <b>Until you turn this off</b> → pick them.</li>
+        <li><b>For a child:</b> use <b>Family Link</b>, which shows where their phone is and lets you set rules.</li>`}
+        <li><b>Either phone, quickest:</b> in Messages or WhatsApp, send them your live location for an hour.</li>
+      </ol>
+      <p class="empty">Then use Flare for the thing it's actually good at: the hold-to-send button, the check-in, the alarm and the recording.</p>
+    </div>
     <h2 class="t">What your messages say</h2>
     <div class="card">
       <div class="me-field"><label for="s-sos">When you send a flare</label><textarea class="field" id="s-sos" rows="2">${esc(S.sosMsg)}</textarea></div>
@@ -991,6 +1253,10 @@ document.addEventListener('click', (e) => {
     if (p && confirm('Remove ' + p.name + ' from Flare?')) { S.people.splice(+d.pdel, 1); save(); renderPeople(); renderBars(); }
     return;
   }
+  if (d.level) { sendLevel(d.level); return; }
+  if (d.play) { playClip(+d.play); return; }
+  if (d.share) { shareClip(+d.share); return; }
+  if (d.cliprm) { removeClip(+d.cliprm); return; }
   if (d.hold) { S.hold = +d.hold; save(); renderSettings(); renderBars(); return; }
   if (d.delay) { S.fakeDelay = +d.delay; save(); renderSettings(); return; }
   if (d.delay === '0') { S.fakeDelay = 0; save(); renderSettings(); return; }
@@ -1009,6 +1275,10 @@ document.addEventListener('click', (e) => {
     case 'fakeAnswer': fakeAnswer(); break;
     case 'fakeEnd': fakeEnd(); break;
     case 'walkSetup': walkSetup(); break;
+    case 'recOpen': $('#rec').hidden = false; renderClips(); break;
+    case 'recClose': if (mediaRec) stopRec(); $('#rec').hidden = true; break;
+    case 'recToggle': if (mediaRec) stopRec(); else startRec(); break;
+    case 'recStop': stopRec(); toast('Stopped. The clip is under Record 30 seconds.', 4000); break;
     case 'walkOpen': $('#walk').hidden = false; break;
     case 'walkSafe': walkSafe(); break;
     case 'walkAdd': walkEnd += 5 * 60e3; walkPaint(); toast('Five more minutes.'); break;
@@ -1044,10 +1314,15 @@ function walkSetup() {
   sheet.innerHTML = `<div class="sheet"><h3>Walk with me</h3>
     <p>Flare counts down. If you don't tap <b>I'm safe</b> before it runs out, it sets off the alarm and gets a message ready for your people.</p>
     ${mins.map((m) => `<button type="button" class="btn" data-walk="${m}">${m} minutes</button>`).join('')}
-    <button type="button" class="btn ghost" style="margin-top:10px" data-close="1">Cancel</button></div>`;
+    <label class="row" style="border:0;padding-top:14px"><span>Tell them when I'll check in<small>The part that still works with Flare shut: they know the time, so no word from you is itself the signal.</small></span>
+      <button type="button" class="toggle" data-wtoggle="1" role="switch" aria-checked="${!!S.toldThem}"><i></i></button></label>
+    <button type="button" class="btn ghost" data-close="1">Cancel</button></div>`;
   sheet.addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (b && (b.dataset.walk || b.dataset.close)) sheet.remove();
+    if (!b) return;
+    if (b.dataset.wtoggle) { S.toldThem = !S.toldThem; save(); b.setAttribute('aria-checked', String(S.toldThem)); return; }
+    if (b.dataset.walk || b.dataset.close) sheet.remove();
+    if (b.dataset.walk && S.toldThem) setTimeout(() => headsUp(+b.dataset.walk), 600);
   });
   document.body.appendChild(sheet);
 }
@@ -1081,13 +1356,13 @@ sos.addEventListener('contextmenu', (e) => e.preventDefault());
 /* ---------- Start ---------- */
 $('#setBtn').innerHTML = ic('gear');
 $$('nav button').forEach((b) => { const d = DOCK.find((x) => x[0] === b.dataset.go); b.innerHTML = ic(d[2]) + '<span>' + d[1] + '</span>'; });
-[['uneasy', 'warn'], ['fakeSoon', 'phone'], ['siren', 'siren'], ['share', 'pin'], ['walkSetup', 'walk']].forEach(([act, icon]) => {
+[['uneasy', 'warn'], ['fakeSoon', 'phone'], ['siren', 'siren'], ['share', 'pin'], ['walkSetup', 'walk'], ['recOpen', 'mic']].forEach(([act, icon]) => {
   const el = $(`[data-act="${act}"] .ic-slot`);
   if (el) el.outerHTML = ic(icon);
 });
 try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-renderBars(); renderPeople(); renderMe();
+renderBars(); renderPeople(); renderMe(); loadClips();
 startGPS();
 // A countdown that was running when the app was closed
 try {
@@ -1096,12 +1371,14 @@ try {
   else if (saved) { localStorage.removeItem('flare_walk'); sendFlare('late'); }
 } catch (e) {}
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); if (walkEnd) walkPaint(); } });
-window.__appBusy = () => !!(walkEnd || sirenNodes || fakeTick || !$('#sosScreen').hidden);
+window.__appBusy = () => !!(walkEnd || sirenNodes || fakeTick || mediaRec || !$('#sosScreen').hidden);
+// Phones stop a web app listening the moment it leaves the screen; keep what we have.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' && mediaRec) stopRec(); });
 </script>
 <script>
 (function () {
   var KEY = 'flare_just_updated';
-  var NEWS = 'Flare updated.';
+  var NEWS = 'Flare updated: 30-second recordings, how you\u2019re feeling mid-way, and a heads-up message when you set a check-in.';
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -1125,7 +1402,7 @@ window.__appBusy = () => !!(walkEnd || sirenNodes || fakeTick || !$('#sosScreen'
     if (busy()) banner('A new version of Flare is ready.', reloadNow, 'Update');
     else reloadNow();
   });
-  var VERSION = '640a227e36';
+  var VERSION = '48471b030d';
   var offered = false;
   function hardRefresh() {
     if (busy()) {

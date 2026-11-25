@@ -1,7 +1,7 @@
-// Offline support for the installable Flare app (version 640a227e36).
+// Offline support for the installable Flare app (version 48471b030d).
 // Your people, your card and your settings live in the browser's storage,
 // which updates never touch.
-const CACHE = 'flare-640a227e36';
+const CACHE = 'flare-48471b030d';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', (event) => {
