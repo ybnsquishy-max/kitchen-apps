@@ -27,5 +27,8 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+      # GitHub's deploy step sometimes looks for the artifact before its own
+      # metadata has caught up, and fails with "Found 0 artifact(s)".
+      - run: sleep 25
       - id: deployment
         uses: actions/deploy-pages@v4
