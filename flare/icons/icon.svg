@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="78%"><stop offset="0" stop-color="#1B2436"/><stop offset="1" stop-color="#080B12"/></radialGradient>
+    <linearGradient id="fl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD166"/><stop offset=".45" stop-color="#FF8A3D"/><stop offset="1" stop-color="#FF3D5A"/></linearGradient>
+    <filter id="fg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="26"/></filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <path d="M155.9 237.5 A118 118 0 0 1 356.1 237.5" fill="none" stroke="#FF4D5A" stroke-width="20" stroke-linecap="round" opacity="0.95"/><path d="M115.2 212.0 A166 166 0 0 1 396.8 212.0" fill="none" stroke="#FF4D5A" stroke-width="18" stroke-linecap="round" opacity="0.55"/><path d="M74.5 186.6 A214 214 0 0 1 437.5 186.6" fill="none" stroke="#FF4D5A" stroke-width="16" stroke-linecap="round" opacity="0.28"/>
+  <g filter="url(#fg)">
+    <path d="M256 92 C300 168 318 214 318 248 a62 62 0 0 1-124 0 C194 214 212 168 256 92Z" fill="url(#fl)"/>
+  </g>
+  <path d="M256 92 C300 168 318 214 318 248 a62 62 0 0 1-124 0 C194 214 212 168 256 92Z" fill="url(#fl)"/>
+  <path d="M256 176 C276 222 286 240 286 258 a30 30 0 0 1-60 0 C226 240 236 222 256 176Z" fill="#FFF3E0"/>
+</svg>
