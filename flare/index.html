@@ -180,6 +180,21 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
 .timer.low{color:var(--amber)}
 #walk .lead{margin-bottom:auto}
 
+/* Getting it onto the home screen */
+.bar.install{background:linear-gradient(135deg,#17233A,#0F1726);border:1px solid #2C3C5C;color:#CFE0FF}
+.bar.install .ic{color:var(--blue)}
+#install .steps{counter-reset:none}
+.istep{display:flex;gap:14px;align-items:flex-start;background:var(--card);border-radius:18px;padding:14px;margin-bottom:10px}
+.istep .n{width:34px;height:34px;border-radius:50%;background:var(--blue);color:#06243D;display:grid;place-items:center;font-weight:800;flex:none}
+.istep div{flex:1;min-width:0}
+.istep>div>b{display:block;font-size:17px;margin-bottom:3px}
+.istep span b{color:var(--ink)}
+.istep span{display:block;color:var(--dim);font-size:14.5px;line-height:1.45}
+.istep .glyph{display:inline-flex;vertical-align:-5px;margin:0 2px}
+.istep .glyph svg{width:22px;height:22px;stroke:var(--blue)}
+.why{background:#2A2412;border:1px solid rgba(255,181,71,.35);color:#FFD9A0;border-radius:16px;padding:14px;font-size:14.5px;line-height:1.5;margin-bottom:12px}
+.why b{color:#fff}
+
 /* Recording */
 #rec{background:#14060A;text-align:center}
 .rec-dot{width:min(52vw,210px);aspect-ratio:1;border-radius:50%;margin:4vh auto 0;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 50% 38%,#FF6477,#C4102E 72%)}
@@ -341,6 +356,17 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
   <button type="button" class="big ghost" data-act="walkStop">Cancel</button>
 </div>
 
+<!-- Getting Flare onto the home screen -->
+<div class="full" id="install" hidden style="background:#070C17">
+  <h1 id="iTitle">Put Flare on your home screen</h1>
+  <p class="lead" id="iLead"></p>
+  <div class="why" id="iWhy"></div>
+  <div id="iSteps"></div>
+  <button type="button" class="big blue" id="iDo" hidden>INSTALL FLARE</button>
+  <div class="spacer"></div>
+  <button type="button" class="big ghost" data-act="iClose">Close</button>
+</div>
+
 <!-- Recording -->
 <div class="full" id="rec" hidden>
   <h1>Record</h1>
@@ -403,7 +429,11 @@ const ICONS = {
   play: '<path d="M7 4.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4A1 1 0 0 0 7 4.6z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/>',
   send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
-  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>'
+  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
+  share: '<path d="M12 16V3"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
+  dots: '<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/>',
+  down: '<path d="M12 3v13"/><path d="M7 12l5 5 5-5"/><path d="M5 21h14"/>'
 };
 const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 
@@ -423,7 +453,7 @@ const DEFAULTS = () => ({
   fakeName: 'Mum', fakeDelay: 10,
   walkMins: 20,
   card: { phone: '', dob: '', blood: '', allergies: '', meds: '', conditions: '', doctor: '', notes: '' },
-  askedPeople: false, siren: true, voice: true, autoRecord: false, toldThem: true
+  askedPeople: false, siren: true, voice: true, autoRecord: false, toldThem: true, installNag: 0
 });
 let S;
 try { S = Object.assign(DEFAULTS(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { S = DEFAULTS(); }
@@ -508,6 +538,47 @@ function show(name) {
   if (name === 'settings') renderSettings();
 }
 
+/* ---------- Getting Flare onto the home screen ----------
+   On an iPhone this is the only way to "download" it: Apple has no way for
+   a web app to go in the App Store. Added to the home screen it opens full
+   screen, works with no signal, and — the part that matters for a safety
+   app — Safari stops clearing what you've saved. */
+let installEvent = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; renderBars(); });
+addEventListener('appinstalled', () => { installEvent = null; $('#install').hidden = true; toast('Flare is on your home screen.', 4000); renderBars(); });
+function showInstall() {
+  $('#install').hidden = false;
+  const iWhy = $('#iWhy');
+  iWhy.innerHTML = '<b>Why it matters for this app:</b> opened from the home screen, Flare starts in one tap, works with no signal, and keeps your people and your card. Left in Safari, your phone can clear all of that after a week or two of not opening it — in an emergency you\u2019d find it empty.';
+  const steps = [];
+  if (isIOS) {
+    $('#iTitle').textContent = 'Put Flare on your home screen';
+    $('#iLead').textContent = 'Apple doesn\u2019t allow apps like Flare in the App Store, so this is how an iPhone installs it. It takes about ten seconds.';
+    steps.push(['1', 'Tap the Share button', 'At the bottom of Safari, the square with an arrow coming out of it. <span class="glyph">' + ic('share') + '</span> If you can\u2019t see it, scroll down a little and the bar comes back.']);
+    steps.push(['2', 'Scroll down the list', 'Past Copy and Add to Favourites.']);
+    steps.push(['3', 'Tap <b>Add to Home Screen</b>', 'Then tap <b>Add</b> at the top right.']);
+    steps.push(['4', 'Open it from your home screen', 'The Flare icon is now with your other apps. Open it there from now on, not in Safari.']);
+  } else {
+    $('#iTitle').textContent = 'Install Flare';
+    $('#iLead').textContent = installEvent ? 'One tap and Flare goes on your home screen.' : 'Your browser can put Flare on your home screen.';
+    if (!installEvent) {
+      steps.push(['1', 'Open the browser menu', 'The three dots at the top right. <span class="glyph">' + ic('dots') + '</span>']);
+      steps.push(['2', 'Tap <b>Install app</b>', 'Or <b>Add to Home screen</b>, depending on your phone.']);
+      steps.push(['3', 'Open it from your home screen', 'The Flare icon sits with your other apps.']);
+    }
+  }
+  $('#iSteps').innerHTML = steps.map(([n, t, d]) => `<div class="istep"><span class="n">${n}</span><div><b>${t}</b><span>${d}</span></div></div>`).join('');
+  $('#iDo').hidden = !installEvent;
+}
+async function doInstall() {
+  if (!installEvent) return;
+  const e = installEvent;
+  installEvent = null;
+  $('#iDo').hidden = true;
+  try { e.prompt(); await e.userChoice; } catch (err) {}
+  renderBars();
+}
+
 /* ---------- Home ---------- */
 function renderBars() {
   const bars = [];
@@ -515,6 +586,7 @@ function renderBars() {
   if (gpsErr === 'denied') bars.push(`<div class="bar warn">${ic('warn')}<span>Location is off for Flare. Turn it on in your phone's settings so your people know where you are.</span></div>`);
   else if (haveLoc()) bars.push(`<div class="bar ok">${ic('pin')}<span>Your location is ready.</span></div>`);
   if (walkEnd) bars.push(`<div class="bar ok">${ic('walk')}<span>Walk with me is running.</span><button type="button" data-act="walkOpen">Open</button></div>`);
+  if (!standalone) bars.push(`<div class="bar install">${ic('down')}<span>${isIOS ? 'Add Flare to your home screen so it\u2019s one tap away — and so your phone stops clearing what you\u2019ve saved.' : 'Install Flare so it\u2019s one tap away and keeps what you\u2019ve saved.'}</span><button type="button" data-act="install">Show me</button></div>`);
   $('#homeBars').innerHTML = bars.join('');
   $('#sosHint').textContent = S.people.length
     ? 'Hold for ' + S.hold + ' seconds · calls ' + S.emergency + ' or texts your people'
@@ -1214,6 +1286,11 @@ function renderSettings() {
       <div class="row"><span>Rings after<small>Time to put your phone away first.</small></span><div class="seg">${[0, 10, 30].map((n) => `<button type="button" data-delay="${n}" aria-pressed="${S.fakeDelay === n}">${n === 0 ? 'Now' : n + 's'}</button>`).join('')}</div></div>
       <button type="button" class="btn" data-act="fakeTest">Try it now</button>
     </div>
+    ${standalone ? '' : `<h2 class="t">Put Flare on your home screen</h2>
+    <div class="card">
+      <p class="empty" style="margin-top:4px">${isIOS ? 'Flare can\u2019t be in the App Store — Apple doesn\u2019t allow apps built this way. Adding it to your home screen is how an iPhone installs it, and it matters: your phone can clear your people and your card if Flare only ever lives in Safari.' : 'Installing puts Flare with your other apps and keeps what you\u2019ve saved.'}</p>
+      <button type="button" class="btn blue" style="background:var(--blue);color:#06243D" data-act="install">Show me how</button>
+    </div>`}
     <h2 class="t">Recording</h2>
     <div class="card">
       <div class="row"><span>Start recording when I send a flare<small>30 seconds of sound, kept on this phone. Flare has to stay on the screen.</small></span>${tog('autoRecord')}</div>
@@ -1275,6 +1352,8 @@ document.addEventListener('click', (e) => {
     case 'fakeAnswer': fakeAnswer(); break;
     case 'fakeEnd': fakeEnd(); break;
     case 'walkSetup': walkSetup(); break;
+    case 'install': showInstall(); break;
+    case 'iClose': $('#install').hidden = true; break;
     case 'recOpen': $('#rec').hidden = false; renderClips(); break;
     case 'recClose': if (mediaRec) stopRec(); $('#rec').hidden = true; break;
     case 'recToggle': if (mediaRec) stopRec(); else startRec(); break;
@@ -1348,6 +1427,7 @@ $('#cList').addEventListener('click', (e) => {
   renderContacts();
 });
 $('#setBtn').addEventListener('click', () => show(panel === 'settings' ? 'home' : 'settings'));
+$('#iDo').addEventListener('click', doInstall);
 const sos = $('#sosBtn');
 sos.addEventListener('pointerdown', (e) => { e.preventDefault(); holdBegin(e); });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => sos.addEventListener(ev, () => holdEnd(false)));
@@ -1378,7 +1458,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 <script>
 (function () {
   var KEY = 'flare_just_updated';
-  var NEWS = 'Flare updated: 30-second recordings, how you\u2019re feeling mid-way, and a heads-up message when you set a check-in.';
+  var NEWS = 'Flare updated: it now shows you how to put it on your home screen.';
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -1402,7 +1482,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     if (busy()) banner('A new version of Flare is ready.', reloadNow, 'Update');
     else reloadNow();
   });
-  var VERSION = '48471b030d';
+  var VERSION = 'ce0d54e8a2';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
