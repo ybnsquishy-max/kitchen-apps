@@ -67,6 +67,15 @@ h2.t:first-child{margin-top:8px}
 @keyframes thump{0%,100%{box-shadow:0 0 0 10px rgba(255,61,90,.13),0 18px 50px rgba(224,18,54,.45)}50%{box-shadow:0 0 0 22px rgba(255,61,90,.07),0 18px 50px rgba(224,18,54,.5)}}
 .sos-hint{color:var(--dim);font-size:14.5px;font-weight:600;margin:10px 0 2px;text-align:center;line-height:1.4}
 
+.flares{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 10px}
+.flare{display:flex;flex-direction:column;align-items:flex-start;gap:6px;border:0;border-radius:20px;padding:14px;min-height:112px;text-align:left}
+.flare .ic{width:30px;height:30px}
+.flare b{font-size:17px;font-weight:800;line-height:1.15}
+.flare small{display:block;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3;opacity:.85}
+.flare.orange{background:rgba(255,181,71,.15);color:var(--amber)}
+.flare.green{background:rgba(46,213,115,.15);color:var(--green)}
+.flare b,.flare small{color:var(--ink)}
+.flare small{color:var(--dim)}
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
 .q{display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--card);border:0;border-radius:20px;padding:14px;min-height:104px;text-align:left}
 .q .ic{width:30px;height:30px}
@@ -270,8 +279,11 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
         </button>
         <p class="sos-hint" id="sosHint">Hold for 2 seconds</p>
       </div>
+      <div class="flares">
+        <button type="button" class="flare orange" data-act="orange"><span class="ic-slot"></span><span><b>Orange flare</b><small>Something's not right. Keep your phone on.</small></span></button>
+        <button type="button" class="flare green" data-act="green"><span class="ic-slot"></span><span><b>Green flare</b><small>All clear. I'm safe.</small></span></button>
+      </div>
       <div class="quick">
-        <button type="button" class="q wide amber" data-act="uneasy"><span class="ic-slot"></span><span><b>I don't feel safe</b><small>Tell your people where you are, quietly</small></span></button>
         <button type="button" class="q blue" data-act="fakeSoon"><span class="ic-slot"></span><span><b>Fake call</b><small>A way out of a situation</small></span></button>
         <button type="button" class="q red" data-act="siren"><span class="ic-slot"></span><span><b>Loud alarm</b><small>Noise and flashing</small></span></button>
         <button type="button" class="q green" data-act="share"><span class="ic-slot"></span><span><b>Share location</b><small>Send where you are</small></span></button>
@@ -348,10 +360,10 @@ textarea.field{padding:12px 14px;line-height:1.45;resize:vertical;min-height:84p
   <div class="timer" id="walkTime">00:00</div>
   <p class="lead" id="walkSub">Tap I'm safe when you get there.</p>
   <div class="levels">
-    <button type="button" class="uneasy" data-level="uneasy">I'm a bit<br>uneasy</button>
-    <button type="button" class="scared" data-level="scared">I'm really<br>worried</button>
+    <button type="button" class="uneasy" data-level="uneasy">Orange flare<br><small style="opacity:.8;font-weight:600">something's off</small></button>
+    <button type="button" class="scared" data-level="scared">Red flare<br><small style="opacity:.8;font-weight:600">I'm worried</small></button>
   </div>
-  <button type="button" class="big green" data-act="walkSafe">I'M SAFE</button>
+  <button type="button" class="big green" data-act="walkSafe">GREEN FLARE · I'M SAFE</button>
   <button type="button" class="big ghost" data-act="walkAdd">+5 minutes</button>
   <button type="button" class="big ghost" data-act="walkStop">Cancel</button>
 </div>
@@ -448,7 +460,8 @@ function guessNumber() {
 const DEFAULTS = () => ({
   people: [], name: '', emergency: guessNumber(), hold: 2,
   sosMsg: 'I need help. This is where I am:',
-  uneasyMsg: "I don't feel safe right now. Here's where I am — can you call me?",
+  uneasyMsg: "Something's not right and I don't feel safe. Keep your phone on — here's where I am:",
+  greenMsg: "All clear — I'm safe and fine. Just so you know.",
   shareMsg: 'Here’s where I am:',
   fakeName: 'Mum', fakeDelay: 10,
   walkMins: 20,
@@ -504,11 +517,13 @@ function refreshLocLines() {
 // What actually gets sent.
 function message(kind) {
   const lead = kind === 'sos' ? (S.name ? S.name + ' needs help. ' : '') + S.sosMsg
-    : kind === 'uneasy' ? (S.name ? S.name + ': ' : '') + S.uneasyMsg
+    : kind === 'orange' ? (S.name ? S.name + ': ' : '') + S.uneasyMsg
+    : kind === 'green' ? (S.name ? S.name + ': ' : '') + S.greenMsg
     : kind === 'late' ? (S.name ? S.name + ' here. ' : '') + "I said I'd check in by now and I haven't. Please call me. Last place I was:"
     : (S.name ? S.name + ': ' : '') + S.shareMsg;
+  // A green flare is good news; it doesn't need to shout about a missing fix.
   const where = haveLoc() ? ' ' + mapLink() + ' (at ' + new Date(pos.t).toLocaleTimeString(LANG, { hour: 'numeric', minute: '2-digit' }) + ')'
-    : ' (my phone could not get a location)';
+    : kind === 'green' ? '' : ' (my phone could not get a location)';
   return lead + where;
 }
 const telNum = (n) => String(n || '').replace(/[^\d+*#]/g, '');
@@ -622,21 +637,29 @@ function holdEnd(done) {
 
 /* ---------- Sending a flare ---------- */
 let sosKind = 'sos';
+const FLARES = {
+  sos: { title: 'Red flare sent up', bg: '#1A0410', said: 'Red flare. Call for help, or tap a name.' },
+  late: { title: "You didn't check in", bg: '#1A0410', said: "You didn't check in. Tap a name to let them know." },
+  orange: { title: 'Orange flare', bg: '#241A08', said: '' },
+  green: { title: 'Green flare', bg: '#072014', said: '' },
+  share: { title: "Let's tell someone", bg: '#101A24', said: '' }
+};
 function sendFlare(kind) {
   sosKind = kind || 'sos';
-  buzz([80, 60, 80, 60, 180]);
+  const F = FLARES[sosKind] || FLARES.share;
+  buzz(sosKind === 'green' ? [40] : [80, 60, 80, 60, 180]);
   const urgent = sosKind === 'sos' || sosKind === 'late';
-  $('#sosScreen').style.background = urgent ? '#1A0410' : '#101A24';
-  $('#sosTitle').textContent = sosKind === 'sos' ? 'Flare sent up' : sosKind === 'late' ? "You didn't check in" : "Let's tell someone";
-  $('#sosLead').textContent = sosKind === 'sos'
+  $('#sosScreen').style.background = F.bg;
+  $('#sosTitle').textContent = F.title;
+  $('#sosLead').textContent = urgent
     ? 'Call for help, or tap a name to send them your message. Your phone shows it to you before it sends.'
-    : 'Tap a name to send them your message. Your phone shows it to you before it sends.';
+    : 'Tap a name to send it. Your phone shows you the message first.';
   $('#sosScreen').hidden = false;
   keepAwake();
   refreshLocLines();
   renderSosActions();
   if (urgent && S.autoRecord) startRec(true);
-  if (urgent) say(sosKind === 'sos' ? 'Flare sent. Call for help, or tap a name.' : "You didn't check in. Tap a name to let them know.");
+  if (F.said) say(F.said);
 }
 let sentTo = {};
 function renderSosActions() {
@@ -646,13 +669,14 @@ function renderSosActions() {
   const rows = [];
   if (urgent) rows.push(`<a class="big red" href="${esc(telHref(S.emergency))}" data-dial="1">${ic('phone')} CALL ${esc(S.emergency)}</a>`);
   S.people.forEach((p, i) => {
-    rows.push(`<a class="big blue${sentTo[i] ? ' sent' : ''}" href="${esc(smsHref(p.num, body))}" data-sent="${i}">${ic('msg')} ${esc(firstName(p.name).toUpperCase())}</a>`);
+    rows.push(`<a class="big ${sosKind === 'green' ? 'green' : 'blue'}${sentTo[i] ? ' sent' : ''}" href="${esc(smsHref(p.num, body))}" data-sent="${i}">${ic('msg')} ${esc(firstName(p.name).toUpperCase())}</a>`);
   });
   if (S.people.length > 1) {
     const all = S.people.map((p) => String(p.num).replace(/[^\d+]/g, '')).join(',');
     rows.push(`<a class="big ghost" href="${esc(smsHref(all, body))}">${ic('people')} Everyone at once</a>`);
   }
   if (!S.people.length) rows.push(`<button type="button" class="big ghost" data-act="addPeople">${ic('plus')} Add people to tell</button>`);
+  if (sosKind === 'green') { $('#sosActions').innerHTML = rows.join(''); return; }
   rows.push(sirenNodes
     ? `<button type="button" class="big amber" style="background:var(--amber);color:#2A1A00" data-act="sirenStop">${ic('siren')} STOP THE NOISE</button>`
     : `<button type="button" class="big ghost" data-act="sirenFromSos">${ic('siren')} Make noise</button>`);
@@ -996,15 +1020,8 @@ function walkStopTimer() {
 function walkSafe() {
   walkStopTimer();
   $('#walk').hidden = true;
-  toast('Good. Glad you got there.', 3000);
-  if (S.people.length) {
-    setTimeout(() => {
-      if (confirm('Let ' + S.people.map((p) => firstName(p.name)).join(', ') + ' know you got there safely?')) {
-        const all = S.people.map((p) => String(p.num).replace(/[^\d+]/g, '')).join(',');
-        location.href = smsHref(all, (S.name ? S.name + ': ' : '') + 'Got there safely.');
-      }
-    }, 400);
-  }
+  toast('Good. Glad you got there.', 2500);
+  if (S.people.length) setTimeout(() => sendFlare('green'), 500);
 }
 
 /* How you're feeling, mid-way. These go out there and then. */
@@ -1310,8 +1327,9 @@ function renderSettings() {
     </div>
     <h2 class="t">What your messages say</h2>
     <div class="card">
-      <div class="me-field"><label for="s-sos">When you send a flare</label><textarea class="field" id="s-sos" rows="2">${esc(S.sosMsg)}</textarea></div>
-      <div class="me-field"><label for="s-uneasy">When you don't feel safe</label><textarea class="field" id="s-uneasy" rows="2">${esc(S.uneasyMsg)}</textarea></div>
+      <div class="me-field"><label for="s-sos">Red flare</label><textarea class="field" id="s-sos" rows="2">${esc(S.sosMsg)}</textarea></div>
+      <div class="me-field"><label for="s-uneasy">Orange flare</label><textarea class="field" id="s-uneasy" rows="2">${esc(S.uneasyMsg)}</textarea></div>
+      <div class="me-field"><label for="s-green">Green flare</label><textarea class="field" id="s-green" rows="2">${esc(S.greenMsg)}</textarea></div>
       <div class="me-field" style="margin-bottom:0"><label for="s-share">When you share where you are</label><textarea class="field" id="s-share" rows="2">${esc(S.shareMsg)}</textarea></div>
       <button type="button" class="btn" style="margin-top:12px" data-act="saveMsgs">Save messages</button>
       <p class="empty">Flare adds a map link of where you are to the end.</p>
@@ -1340,7 +1358,11 @@ document.addEventListener('click', (e) => {
   if (d.toggle) { S[d.toggle] = !S[d.toggle]; save(); renderSettings(); return; }
   if (d.walk) { walkStart(+d.walk); return; }
   switch (d.act) {
-    case 'uneasy': sendFlare('uneasy'); break;
+    case 'orange': sendFlare('orange'); break;
+    case 'green': {
+      if (!S.people.length) { toast('Add someone to tell first.'); show('people'); break; }
+      sendFlare('green'); break;
+    }
     case 'share': {
       if (!S.people.length) { toast('Add someone first.'); show('people'); break; }
       sendFlare('share'); break;
@@ -1374,6 +1396,7 @@ document.addEventListener('click', (e) => {
     case 'saveMsgs': {
       S.sosMsg = $('#s-sos').value.trim() || DEFAULTS().sosMsg;
       S.uneasyMsg = $('#s-uneasy').value.trim() || DEFAULTS().uneasyMsg;
+      S.greenMsg = $('#s-green').value.trim() || DEFAULTS().greenMsg;
       S.shareMsg = $('#s-share').value.trim() || DEFAULTS().shareMsg;
       save(); toast('Saved.'); break;
     }
@@ -1436,7 +1459,7 @@ sos.addEventListener('contextmenu', (e) => e.preventDefault());
 /* ---------- Start ---------- */
 $('#setBtn').innerHTML = ic('gear');
 $$('nav button').forEach((b) => { const d = DOCK.find((x) => x[0] === b.dataset.go); b.innerHTML = ic(d[2]) + '<span>' + d[1] + '</span>'; });
-[['uneasy', 'warn'], ['fakeSoon', 'phone'], ['siren', 'siren'], ['share', 'pin'], ['walkSetup', 'walk'], ['recOpen', 'mic']].forEach(([act, icon]) => {
+[['orange', 'warn'], ['green', 'shield'], ['fakeSoon', 'phone'], ['siren', 'siren'], ['share', 'pin'], ['walkSetup', 'walk'], ['recOpen', 'mic']].forEach(([act, icon]) => {
   const el = $(`[data-act="${act}"] .ic-slot`);
   if (el) el.outerHTML = ic(icon);
 });
@@ -1458,7 +1481,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 <script>
 (function () {
   var KEY = 'flare_just_updated';
-  var NEWS = 'Flare updated: it now shows you how to put it on your home screen.';
+  var NEWS = 'Flare updated: an orange flare for when something feels off, and a green flare for all clear.';
   function banner(text, action, label, ms) {
     var b = document.createElement('div');
     b.setAttribute('role', 'status');
@@ -1482,7 +1505,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     if (busy()) banner('A new version of Flare is ready.', reloadNow, 'Update');
     else reloadNow();
   });
-  var VERSION = 'ce0d54e8a2';
+  var VERSION = '2c79802406';
   var offered = false;
   function hardRefresh() {
     if (busy()) {
